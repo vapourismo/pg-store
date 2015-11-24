@@ -66,22 +66,19 @@ instance ColumnType BigSerial where
 			columnTypeNotNull    = True
 		}
 
----- | Reference another table type
---data Reference a = Reference Int64 | Value a
+-- | Reference another table type
+data Reference a = Reference Int64 | Value a
 
---instance (Table a) => ColumnType (Reference a) where
---	describeColumnType =
---		where
---			make :: TableDescription -> ColumnType (Reference a)
---			make descr =
---				ColumnTypeDescription {
---					columnTypeIdentifier = "BIGINT REFERENCES \"" ++ tableName descr ++ "\" (id)",
---					columnTypeNotNull    = True
---				}
---			unReference :: proxy (Reference a) -> proxy a
---			unReference _ = undefined
-
---			refDescr = describeTable (unReference proxy)
+instance (Table a) => ColumnType (Reference a) where
+	describeColumnType =
+		make describeTable
+		where
+			make :: TableDescription a -> ColumnTypeDescription (Reference a)
+			make descr =
+				ColumnTypeDescription {
+					columnTypeIdentifier = "BIGINT REFERENCES \"" ++ tableName descr ++ "\" (id)",
+					columnTypeNotNull = True
+				}
 
 -- | Description of a column
 data ColumnDescription = forall a. ColumnDescription {
