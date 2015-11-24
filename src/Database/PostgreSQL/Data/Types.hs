@@ -58,7 +58,7 @@ instance ColumnType [Char] where
 instance ColumnType B.ByteString where
 	describeColumnType =
 		ColumnTypeDescription {
-			columnTypeIdentifier = "BYTEA(255)",
+			columnTypeIdentifier = "BYTEA",
 			columnTypeNotNull    = True
 		}
 
