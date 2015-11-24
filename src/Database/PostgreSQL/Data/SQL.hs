@@ -1,7 +1,8 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards #-}
 
 module Database.PostgreSQL.Data.SQL (
-	generateTableSchema
+	generateTableSchema,
+	generateInsertStatement
 ) where
 
 import           Data.Monoid
@@ -26,3 +27,11 @@ generateTableSchema TableDescription {..} =
 		B.intercalate ", " (map generateColumnSchema tableColumns) <>
 	")"
 
+-- | Generate a SQL statement which inserts a row.
+generateInsertStatement :: TableDescription a -> B.ByteString
+generateInsertStatement TableDescription {..} =
+	"INSERT INTO \"" <> tableName <> "\" (" <> B.intercalate ", " keys <> ") " <>
+	"VALUES (" <> B.intercalate ", " values <> ") RETURNING id"
+	where
+		keys = map (\ col -> "\"" <> columnName col <> "\"") tableColumns
+		values = replicate (length tableColumns) "?"

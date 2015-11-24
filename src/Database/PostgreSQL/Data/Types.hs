@@ -1,7 +1,4 @@
-{-# LANGUAGE OverloadedStrings,
-             TemplateHaskell,
-             ScopedTypeVariables,
-             FlexibleInstances,
+{-# LANGUAGE OverloadedStrings, TemplateHaskell, ScopedTypeVariables, FlexibleInstances,
              ExistentialQuantification #-}
 
 module Database.PostgreSQL.Data.Types where
@@ -9,6 +6,8 @@ module Database.PostgreSQL.Data.Types where
 import           Data.Int
 import           Data.Monoid
 import qualified Data.ByteString as B
+import           Database.PostgreSQL.Simple.ToRow
+import           Database.PostgreSQL.Simple.ToField
 
 -- | Description of a column type
 data ColumnTypeDescription a = ColumnTypeDescription {
@@ -16,7 +15,7 @@ data ColumnTypeDescription a = ColumnTypeDescription {
 	columnTypeNotNull    :: Bool
 }
 
-class ColumnType a where
+class (ToField a) => ColumnType a where
 	describeColumnType :: ColumnTypeDescription a
 
 instance ColumnType Int where
@@ -71,6 +70,10 @@ instance (ColumnType a) => ColumnType (Maybe a) where
 
 -- | Type `BIGSERIAL`
 newtype BigSerial = BigSerial Int64
+	deriving (Show, Eq, Ord)
+
+instance ToField BigSerial where
+	toField (BigSerial n) = toField n
 
 instance ColumnType BigSerial where
 	describeColumnType =
@@ -80,7 +83,12 @@ instance ColumnType BigSerial where
 		}
 
 -- | Reference another table type
-data Reference a = Reference Int64 | Value a
+data Reference a = Reference Int64 | Value Int64 a
+	deriving (Show, Eq, Ord)
+
+instance ToField (Reference a) where
+	toField (Reference n) = toField n
+	toField (Value n _)   = toField n
 
 instance (Table a) => ColumnType (Reference a) where
 	describeColumnType =
@@ -105,5 +113,5 @@ data TableDescription a = TableDescription {
 	tableColumns :: [ColumnDescription]
 }
 
-class Table a where
+class (ToRow a) => Table a where
 	describeTable :: TableDescription a
