@@ -1,12 +1,18 @@
-{-# LANGUAGE TemplateHaskell, ScopedTypeVariables, FlexibleInstances, ExistentialQuantification #-}
+{-# LANGUAGE OverloadedStrings,
+             TemplateHaskell,
+             ScopedTypeVariables,
+             FlexibleInstances,
+             ExistentialQuantification #-}
 
 module Database.PostgreSQL.Data.Types where
 
-import Data.Int
+import           Data.Int
+import           Data.Monoid
+import qualified Data.ByteString as B
 
 -- | Description of a column type
 data ColumnTypeDescription a = ColumnTypeDescription {
-	columnTypeIdentifier :: String,
+	columnTypeIdentifier :: B.ByteString,
 	columnTypeNotNull    :: Bool
 }
 
@@ -48,6 +54,13 @@ instance ColumnType [Char] where
 			columnTypeNotNull    = True
 		}
 
+instance ColumnType B.ByteString where
+	describeColumnType =
+		ColumnTypeDescription {
+			columnTypeIdentifier = "BYTEA(255)",
+			columnTypeNotNull    = True
+		}
+
 instance (ColumnType a) => ColumnType (Maybe a) where
 	describeColumnType =
 		make describeColumnType
@@ -76,19 +89,19 @@ instance (Table a) => ColumnType (Reference a) where
 			make :: TableDescription a -> ColumnTypeDescription (Reference a)
 			make descr =
 				ColumnTypeDescription {
-					columnTypeIdentifier = "BIGINT REFERENCES \"" ++ tableName descr ++ "\" (id)",
+					columnTypeIdentifier = "BIGINT REFERENCES \"" <> tableName descr <> "\" (id)",
 					columnTypeNotNull = True
 				}
 
 -- | Description of a column
 data ColumnDescription = forall a. ColumnDescription {
-	columnName :: String,
+	columnName :: B.ByteString,
 	columnType :: ColumnTypeDescription a
 }
 
 -- | Description of a table
 data TableDescription a = TableDescription {
-	tableName :: String,
+	tableName    :: B.ByteString,
 	tableColumns :: [ColumnDescription]
 }
 
