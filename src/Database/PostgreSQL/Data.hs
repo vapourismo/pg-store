@@ -6,21 +6,12 @@ import Database.PostgreSQL.Data.TH
 import Database.PostgreSQL.Data.SQL
 import Database.PostgreSQL.Data.Types
 
-data AnotherTable = AnotherTable {
-	atValue :: Int
-}
-
-makeTable ''AnotherTable
-
 data MyTable = MyTable {
-	mtName :: String,
-	mtOther :: Reference AnotherTable
+	mtName  :: String,
+	mtOther :: Int
 }
 
 makeTable ''MyTable
-
-anotherTableDescription :: TableDescription
-anotherTableDescription = describeTable (undefined :: proxy AnotherTable)
 
 myTableDescription :: TableDescription
 myTableDescription = describeTable (undefined :: proxy MyTable)

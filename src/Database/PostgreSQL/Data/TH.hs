@@ -2,17 +2,15 @@
 
 module Database.PostgreSQL.Data.TH where
 
-import Data.Typeable
 import Language.Haskell.TH
 import Database.PostgreSQL.Data.Types
 
 -- | Generate a 'ColumnDescription' expression for a column name and type.
 describeColumnE :: Name -> Type -> Q Exp
 describeColumnE name t =
-	[e| ColumnDescription $(columnName) (describeColumnType $(columnTypeProxy)) |]
+	[e| ColumnDescription $(columnName) (describeColumnType :: ColumnTypeDescription $(pure t)) |]
 	where
 		columnName = stringE (nameBase name)
-		columnTypeProxy = [e| Proxy :: Proxy $(pure t) |]
 
 -- | Generate a 'TableDescription' for a table name and its columns.
 describeTableE :: Name -> [(Name, Type)] -> Q Exp
