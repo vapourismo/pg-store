@@ -8,6 +8,8 @@ import           Data.Monoid
 import qualified Data.ByteString as B
 import           Database.PostgreSQL.Simple.ToRow
 import           Database.PostgreSQL.Simple.ToField
+import           Database.PostgreSQL.Simple.FromRow
+import           Database.PostgreSQL.Simple.FromField
 
 -- | Description of a column type
 data ColumnTypeDescription a = ColumnTypeDescription {
@@ -15,7 +17,7 @@ data ColumnTypeDescription a = ColumnTypeDescription {
 	columnTypeNotNull    :: Bool
 }
 
-class (ToField a) => ColumnType a where
+class (ToField a, FromField a) => ColumnType a where
 	describeColumnType :: ColumnTypeDescription a
 
 instance ColumnType Int where
@@ -72,6 +74,9 @@ instance (ColumnType a) => ColumnType (Maybe a) where
 newtype BigSerial = BigSerial Int64
 	deriving (Show, Eq, Ord)
 
+instance FromField BigSerial where
+	fromField f bs = BigSerial <$> fromField f bs
+
 instance ToField BigSerial where
 	toField (BigSerial n) = toField n
 
@@ -85,6 +90,9 @@ instance ColumnType BigSerial where
 -- | Reference another table type
 data Reference a = Reference Int64 | Value Int64 a
 	deriving (Show, Eq, Ord)
+
+instance FromField (Reference a) where
+	fromField f bs = Reference <$> fromField f bs
 
 instance ToField (Reference a) where
 	toField (Reference n) = toField n
@@ -113,5 +121,5 @@ data TableDescription a = TableDescription {
 	tableColumns :: [ColumnDescription]
 }
 
-class (ToRow a) => Table a where
+class (ToRow a, FromRow a) => Table a where
 	describeTable :: TableDescription a

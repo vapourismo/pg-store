@@ -27,6 +27,14 @@ createTable :: Connection -> TableDescription a -> IO Int64
 createTable con desc =
 	execute_ con (Query (generateTableSchema desc))
 
+findAll :: (Table a) => Connection -> IO [a]
+findAll con =
+	make describeTable
+	where
+		make :: (FromRow a) => TableDescription a -> IO [a]
+		make desc =
+			query_ con (Query (generateFindAllStatement desc))
+
 data AnotherTable = AnotherTable {
 	atValue :: Int
 } deriving (Show, Eq, Ord)

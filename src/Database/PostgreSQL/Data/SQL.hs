@@ -2,7 +2,8 @@
 
 module Database.PostgreSQL.Data.SQL (
 	generateTableSchema,
-	generateInsertStatement
+	generateInsertStatement,
+	generateFindAllStatement
 ) where
 
 import           Data.Monoid
@@ -35,3 +36,10 @@ generateInsertStatement TableDescription {..} =
 	where
 		keys = map (\ col -> "\"" <> columnName col <> "\"") tableColumns
 		values = replicate (length tableColumns) "?"
+
+-- | Generate a SQL statement which lists all rows from a table.
+generateFindAllStatement :: TableDescription a -> B.ByteString
+generateFindAllStatement TableDescription {..} =
+	"SELECT " <> B.intercalate ", " keys <> " FROM \"" <> tableName <> "\""
+	where
+		keys = map (\ col -> "\"" <> tableName <> "\".\"" <> columnName col <> "\"") tableColumns
