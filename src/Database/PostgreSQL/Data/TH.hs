@@ -24,7 +24,7 @@ describeTableE name fields =
 		tableName = stringE (show name)
 		tableFields = ListE <$> mapM (uncurry describeColumnE) fields
 
--- |
+-- | Generate a function body which generates a database row from the given "Table" instance.
 extractTableE :: Name -> [(Name, Type)] -> Q Exp
 extractTableE rowName fields =
 	ListE <$> mapM makeField fields
@@ -33,7 +33,7 @@ extractTableE rowName fields =
 			-- toField (fieldName rowName)
 			[e| toField ($(pure (VarE fieldName)) $(pure (VarE rowName))) |]
 
--- |
+-- | Construct a "Table" instance using a database row.
 constructTableE :: Name -> [(Name, Type)] -> Q Exp
 constructTableE ctor fields =
 	pure (DoE (map bindField fields ++ [finish]))
