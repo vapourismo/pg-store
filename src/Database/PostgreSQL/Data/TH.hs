@@ -27,7 +27,7 @@ makeTable name = do
 	case info of
 		TyConI (DataD [] _ [] [RecC _ records] _) ->
 			[d| instance Table $(pure (ConT name)) where
-			        describeTable _ = $(describeTableE name fields) |]
+			        describeTable = $(describeTableE name fields) |]
 			where
 				fields = map (\ (fn, _, ft) -> (fn, ft)) records
 

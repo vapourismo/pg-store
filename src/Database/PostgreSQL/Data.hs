@@ -13,5 +13,5 @@ data MyTable = MyTable {
 
 makeTable ''MyTable
 
-myTableDescription :: TableDescription
-myTableDescription = describeTable (undefined :: proxy MyTable)
+myTableDescription :: TableDescription MyTable
+myTableDescription = describeTable

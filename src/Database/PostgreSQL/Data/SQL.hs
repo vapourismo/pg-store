@@ -18,7 +18,7 @@ generateColumnSchema ColumnDescription {..} =
 	"\"" ++ columnName ++ "\" " ++ generateColumnTypeSchema columnType
 
 -- | Generate a SQL statement which creates a table.
-generateTableSchema :: TableDescription -> String
+generateTableSchema :: TableDescription a -> String
 generateTableSchema TableDescription {..} =
 	"CREATE TABLE \"" ++ tableName ++ "\" (" ++
 		"id BIGSERIAL NOT NULL PRIMARY KEY, " ++

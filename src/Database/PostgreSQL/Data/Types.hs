@@ -90,10 +90,10 @@ data ColumnDescription = forall a. ColumnDescription {
 }
 
 -- | Description of a table
-data TableDescription = TableDescription {
+data TableDescription a = TableDescription {
 	tableName :: String,
 	tableColumns :: [ColumnDescription]
 }
 
 class Table a where
-	describeTable :: proxy a -> TableDescription
+	describeTable :: TableDescription a
