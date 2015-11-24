@@ -17,4 +17,5 @@ library
   hs-source-dirs:   src
   exposed-modules:  Database.PostgreSQL.Data
   other-modules:    Database.PostgreSQL.Data.TH,
+                    Database.PostgreSQL.Data.SQL,
                     Database.PostgreSQL.Data.Types

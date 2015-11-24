@@ -2,32 +2,25 @@
 
 module Database.PostgreSQL.Data where
 
-import Data.List
 import Database.PostgreSQL.Data.TH
+import Database.PostgreSQL.Data.SQL
 import Database.PostgreSQL.Data.Types
 
-generateColumnTypeSchema :: ColumnTypeDescription -> String
-generateColumnTypeSchema descr =
-	columnTypeIdentifier descr ++
-	if columnTypeNotNull descr then " NOT NULL" else ""
+data AnotherTable = AnotherTable {
+	atValue :: Int
+}
 
-generateColumnSchema :: ColumnDescription -> String
-generateColumnSchema descr =
-	"\"" ++ columnName descr ++ "\" " ++ generateColumnTypeSchema (columnType descr)
-
-generateTableSchema :: TableDescription -> String
-generateTableSchema descr =
-	"CREATE TABLE \"" ++ tableName descr ++ "\" (" ++
-		intercalate ", " (map generateColumnSchema (tableColumns descr)) ++
-	")"
+makeTable ''AnotherTable
 
 data MyTable = MyTable {
-	mtID       :: BigSerial,
-	mtName     :: String,
-	mtLastName :: Maybe String
+	mtName :: String,
+	mtOther :: Reference AnotherTable
 }
 
 makeTable ''MyTable
+
+anotherTableDescription :: TableDescription
+anotherTableDescription = describeTable (undefined :: proxy AnotherTable)
 
 myTableDescription :: TableDescription
 myTableDescription = describeTable (undefined :: proxy MyTable)
