@@ -30,6 +30,14 @@ insertStatementE name fields =
 		values =
 			map (\ idx -> "$" ++ show idx) [1 .. length fields]
 
+-- | Generate the empty update statement for a table.
+emptyUpdateStatementE :: Name -> Q Exp
+emptyUpdateStatementE name =
+	[e| fromString $(stringE statement) |]
+	where
+		statement =
+			"UPDATE " ++ sanitizeName name ++ " SET \"$id\" = $1 WHERE \"$id\" = $1"
+
 -- | Generate the update statement for a table.
 updateStatementE :: Name -> Int -> Q Exp
 updateStatementE name numFields =
@@ -42,6 +50,13 @@ updateStatementE name numFields =
 
 		values =
 			map (\ idx -> "$" ++ show idx) [2 .. numFields + 1]
+
+-- | Generate the delete statement for a table.
+deleteStatementE :: Name -> Q Exp
+deleteStatementE name =
+	[e| fromString $(stringE statement) |]
+	where
+		statement = "DELETE FROM " ++ sanitizeName name ++ " WHERE \"$id\" = $1"
 
 -- | Generate the create statement for a table.
 createStatementE :: Name -> [(Name, Type)] -> Q Exp
@@ -62,7 +77,7 @@ createStatementE name fields =
 			[e| $(stringE (sanitizeName fname)) ++ " " ++
 			    show (columnTypeDescription :: ColumnTypeDescription $(pure ftype)) |]
 
--- |
+-- | Generate the drop statement for a table.
 dropStatementE :: Name -> Q Exp
 dropStatementE name =
 	[e| fromString $(stringE statement) |]
@@ -88,10 +103,21 @@ implementTable table _ctor fields =
 	                statementParams  = $(packParamsE 'row fieldNames)
 	            }
 
-	        updateStatement rid row =
+	        updateStatement (Reference rid) =
+	        	Statement {
+	                statementContent = $(emptyUpdateStatementE table),
+	                statementParams  = [pack rid]
+	            }
+	        updateStatement (Resolved rid row) =
 	            Statement {
 	                statementContent = $(updateStatementE table (length fieldNames)),
 	                statementParams  = pack rid : $(packParamsE 'row fieldNames)
+	            }
+
+	        deleteStatement ref =
+	            Statement {
+	                statementContent = $(deleteStatementE table),
+	                statementParams  = [pack (referenceID ref)]
 	            }
 
 	        createStatement _ =
@@ -105,7 +131,6 @@ implementTable table _ctor fields =
 	                statementContent = $(dropStatementE table),
 	                statementParams  = []
 	            } |]
-
 	where
 		fieldNames = map fst fields
 

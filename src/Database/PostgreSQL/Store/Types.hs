@@ -105,8 +105,16 @@ instance ColumnType B.ByteString where
 			columnTypeNull = False
 		}
 
+data Reference a = Reference Int64 | Resolved Int64 a
+	deriving (Show, Eq, Ord)
+
+referenceID :: Reference a -> Int64
+referenceID (Reference rid)  = rid
+referenceID (Resolved rid _) = rid
+
 class Table a where
 	insertStatement :: a -> Statement
-	updateStatement :: Int64 -> a -> Statement
+	updateStatement :: Reference a -> Statement
+	deleteStatement :: Reference a -> Statement
 	createStatement :: Proxy a -> Statement
 	dropStatement   :: Proxy a -> Statement
