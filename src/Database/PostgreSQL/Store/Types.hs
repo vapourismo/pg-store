@@ -109,3 +109,4 @@ class Table a where
 	insertStatement :: a -> Statement
 	updateStatement :: Int64 -> a -> Statement
 	createStatement :: Proxy a -> Statement
+	dropStatement   :: Proxy a -> Statement

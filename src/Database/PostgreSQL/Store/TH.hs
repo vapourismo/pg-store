@@ -62,6 +62,12 @@ createStatementE name fields =
 			[e| $(stringE (sanitizeName fname)) ++ " " ++
 			    show (columnTypeDescription :: ColumnTypeDescription $(pure ftype)) |]
 
+-- |
+dropStatementE :: Name -> Q Exp
+dropStatementE name =
+	[e| fromString $(stringE statement) |]
+	where
+		statement = "DROP TABLE IF EXISTS " ++ sanitizeName name
 
 -- | Generate an expression which gathers all records from a type and packs them into a list.
 -- `packParamsE 'row ['field1, 'field2]` generates `[pack (field1 row), pack (field2 row)]`
@@ -91,6 +97,12 @@ implementTable table _ctor fields =
 	        createStatement _ =
 	            Statement {
 	                statementContent = $(createStatementE table fields),
+	                statementParams  = []
+	            }
+
+	        dropStatement _ =
+	            Statement {
+	                statementContent = $(dropStatementE table),
 	                statementParams  = []
 	            } |]
 
