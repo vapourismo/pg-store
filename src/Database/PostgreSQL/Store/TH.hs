@@ -6,11 +6,15 @@ module Database.PostgreSQL.Store.TH (
 	mkDropStatement
 ) where
 
-import Data.List
-import Data.String
-import Data.Typeable
-import Language.Haskell.TH
-import Database.PostgreSQL.Store.Types
+import           Control.Monad
+import           Control.Monad.Trans.Class
+import           Control.Monad.Trans.Maybe
+import           Data.List
+import           Data.String
+import           Data.Typeable
+import           Database.PostgreSQL.Store.Types
+import qualified Database.PostgreSQL.LibPQ as P
+import           Language.Haskell.TH
 
 -- | Generate the sanitized representation of a name.
 sanitizeName :: Name -> String
@@ -106,9 +110,115 @@ packParamsE row fields =
 		extract name =
 			[e| pack ($(varE name) $(varE row)) |]
 
+-- |
+columnNumberE :: Name -> Name -> Q Exp
+columnNumberE res name =
+	[e| MaybeT (P.fnumber $(varE res) (fromString $(stringE (sanitizeName name)))) |]
+
+-- |
+idColumnNumberE :: Name -> Name -> Q Exp
+idColumnNumberE res table =
+	[e| MaybeT (P.fnumber $(varE res) (fromString $(stringE (identField table)))) |]
+
+-- |
+columnTypeE :: Name -> Name -> Q Exp
+columnTypeE res col =
+	[e| lift (P.ftype $(varE res) $(varE col)) |]
+
+-- |
+columnFormatE :: Name -> Name -> Q Exp
+columnFormatE res col =
+	[e| lift (P.fformat $(varE res) $(varE col)) |]
+
+-- |
+fieldColumnInfoE :: Name -> Name -> Q Exp
+fieldColumnInfoE res name =
+	[e| do col <- $(columnNumberE res name)
+	       oid <- $(columnTypeE res 'col)
+	       fmt <- $(columnFormatE res 'col)
+	       pure (col, oid, fmt) |]
+
+-- |
+bindFieldInfoS :: Name -> Name -> Name -> Q Stmt
+bindFieldInfoS target res name =
+	BindS (VarP target) <$> fieldColumnInfoE res name
+
+-- |
+unqualifiedFieldName :: Name -> Name
+unqualifiedFieldName = mkName . nameBase
+
+-- |
+infoFieldName :: Name -> Name
+infoFieldName name =
+	mkName (nameBase name ++ "_info")
+
+-- |
+fieldDataE :: Name -> Name -> Name -> Q Exp
+fieldDataE res row col =
+	[e| MaybeT (P.getvalue' $(varE res) $(varE row) $(varE col)) |]
+
+-- |
+unpackFieldE :: Name -> Name -> Name -> Q Exp
+unpackFieldE res row name =
+	[e| do let (col, oid, fmt) = $(varE infoName)
+	       dat <- $(fieldDataE res row 'col)
+	       let val = Value {
+	           valueType = oid,
+	           valueData = dat,
+	           valueFormat = fmt
+	       }
+	       MaybeT (pure (unpack val)) |]
+	where
+		infoName = infoFieldName name
+
+-- |
+bindFieldS :: Name -> Name -> Name -> Q Stmt
+bindFieldS res row name =
+	BindS (VarP (unqualifiedFieldName name)) <$> unpackFieldE res row name
+
+-- |
+unpackParamsE :: Name -> Name -> Name -> [Name] -> Q Exp
+unpackParamsE res table ctor fields = do
+	infoBinds <- mapM bindFieldInfo fields
+	rowTraversal <- traverseRows
+	pure (DoE (infoBinds ++ [NoBindS rowTraversal]))
+	where
+		bindFieldInfo n =
+			bindFieldInfoS (infoFieldName n) res n
+
+		recordConstruction =
+			RecConE ctor (map (\ n -> (n, VarE (unqualifiedFieldName n))) fields)
+
+		instanceFromRow row = do
+			boundFields <- mapM (bindFieldS res row) fields
+			unboundConstruction <- [e| lift (pure $(pure recordConstruction)) |]
+			pure (DoE (boundFields ++ [NoBindS unboundConstruction]))
+
+		idInfo =
+			[e| do col <- $(idColumnNumberE res table)
+			       oid <- $(columnTypeE res 'col)
+			       fmt <- $(columnFormatE res 'col)
+			       pure (col, oid, fmt) |]
+
+		idFromRow row idNfo =
+			[e| do let (col, oid, fmt) = $(varE idNfo)
+			       dat <- $(fieldDataE res row 'col)
+			       let val = Value {
+			           valueType = oid,
+			           valueData = dat,
+			           valueFormat = fmt
+			       }
+			       MaybeT (pure (unpack val)) |]
+
+		traverseRows =
+			[e| do rows <- lift (P.ntuples $(varE res))
+			       idNfo <- $(idInfo)
+			       forM [0 .. rows - 1] $ \ row ->
+			           Resolved <$> $(idFromRow 'row 'idNfo) <*> $(instanceFromRow 'row) |]
+
 -- | Implement an instance 'Table' for the given type.
 implementTable :: Name -> Name -> [(Name, Type)] -> Q [Dec]
-implementTable table _ctor fields =
+implementTable table ctor fields =
 	[d| instance Table $(pure (ConT table)) where
 	        insertStatement row =
 	            Statement {
@@ -143,7 +253,10 @@ implementTable table _ctor fields =
 	            Statement {
 	                statementContent = $(dropStatementE table),
 	                statementParams  = []
-	            } |]
+	            }
+
+	        fromResult res =
+	            $(unpackParamsE 'res table ctor fieldNames) |]
 	where
 		fieldNames = map fst fields
 

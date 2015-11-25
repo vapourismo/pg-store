@@ -3,6 +3,7 @@
 module Test where
 
 import           Control.Monad
+import           Control.Monad.Trans.Maybe
 import qualified Data.ByteString           as B
 import qualified Database.PostgreSQL.LibPQ as P
 import           Database.PostgreSQL.Store.TH
@@ -24,19 +25,20 @@ executeStatement con Statement {..} =
 
 printResultDetail :: P.Result -> IO ()
 printResultDetail result = do
-	--rows <- P.ntuples result
+	rows <- P.ntuples result
 	cols <- P.nfields result
 
-	forM_ [0 .. cols - 1] $ \ col -> do
-		mbName <- P.fname result col
-		format <- P.fformat result col
-		typ <- P.ftype result col
+	forM_ [0 .. rows - 1] $ \ row -> do
+		forM_ [0 .. cols - 1] $ \ col -> do
+			mbName <- P.fname result col
+			value <- P.getvalue' result row col
+			format <- P.fformat result col
 
-		putStr (show (maybe "<none>" id mbName))
-		putStr " "
-		putStr (show format)
-		putStr " "
-		putStrLn (show typ)
+			print (row, col, format, mbName, value)
+
+disectResult :: P.Result -> IO (Maybe [Reference Movie])
+disectResult res =
+	runMaybeT (fromResult res)
 
 test :: IO ()
 test = do
@@ -45,8 +47,13 @@ test = do
 
 	executeStatement con $(mkCreateStatement ''Movie)
 
-	mbRes2 <- executeStatement con (insertStatement (Movie "Test Movie" 2000))
-	maybe (P.status con >>= print) printResultDetail mbRes2
+	executeStatement con (insertStatement (Movie "Test Movie 1" 2001))
+	executeStatement con (insertStatement (Movie "Test Movie 2" 2002))
+	executeStatement con (insertStatement (Movie "Test Movie 3" 2003))
+	executeStatement con (insertStatement (Movie "Test Movie 4" 2004))
+
+	P.exec con "SELECT * FROM \"Test.Movie\""
+		>>= maybe (P.status con >>= print) (print <=< disectResult)
 
 	executeStatement con $(mkDropStatement ''Movie)
 
