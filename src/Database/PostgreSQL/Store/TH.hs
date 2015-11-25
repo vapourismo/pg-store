@@ -69,13 +69,14 @@ deleteStatementE name =
 createStatementE :: Name -> [(Name, Type)] -> Q Exp
 createStatementE name fields =
 	[e| fromString ($(stringE statementBegin) ++
-	                intercalate ", " (anchorDescription : $(descriptions)) ++
+	                intercalate ", " ($(stringE anchorDescription) : $(descriptions)) ++
 	                $(stringE statementEnd)) |]
 	where
 		statementBegin = "CREATE TABLE IF NOT EXISTS " ++ sanitizeName name ++ " ("
 		statementEnd = ")"
 
-		anchorDescription = identField name ++ " BIGSERIAL NOT NULL PRIMARY KEY"
+		anchorDescription =
+			identField name ++ " BIGSERIAL NOT NULL PRIMARY KEY"
 
 		descriptions =
 			ListE <$> mapM describeField fields
