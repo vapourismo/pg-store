@@ -12,6 +12,11 @@ sanitizeName :: Name -> String
 sanitizeName name =
 	"\"" ++ show name ++ "\""
 
+-- | Generate the name of the identifying field.
+identField :: Name -> String
+identField name =
+	"\"" ++ maybe [] (++ ".") (nameModule name) ++ "$id\""
+
 -- | Generate the insert statement for a table.
 insertStatementE :: Name -> [Name] -> Q Exp
 insertStatementE name fields =
@@ -36,7 +41,9 @@ emptyUpdateStatementE name =
 	[e| fromString $(stringE statement) |]
 	where
 		statement =
-			"UPDATE " ++ sanitizeName name ++ " SET \"$id\" = $1 WHERE \"$id\" = $1"
+			"UPDATE " ++ sanitizeName name ++
+			" SET " ++ identField name ++ " = $1" ++
+			" WHERE " ++ identField name ++ " = $1"
 
 -- | Generate the update statement for a table.
 updateStatementE :: Name -> Int -> Q Exp
@@ -46,7 +53,7 @@ updateStatementE name numFields =
 		statement =
 			"UPDATE " ++ sanitizeName name ++
 			" SET " ++ intercalate ", " values ++
-			" WHERE \"$id\" = $1"
+			" WHERE " ++ identField name ++ " = $1"
 
 		values =
 			map (\ idx -> "$" ++ show idx) [2 .. numFields + 1]
@@ -56,7 +63,7 @@ deleteStatementE :: Name -> Q Exp
 deleteStatementE name =
 	[e| fromString $(stringE statement) |]
 	where
-		statement = "DELETE FROM " ++ sanitizeName name ++ " WHERE \"$id\" = $1"
+		statement = "DELETE FROM " ++ sanitizeName name ++ " WHERE " ++ identField name ++ " = $1"
 
 -- | Generate the create statement for a table.
 createStatementE :: Name -> [(Name, Type)] -> Q Exp
@@ -68,7 +75,7 @@ createStatementE name fields =
 		statementBegin = "CREATE TABLE IF NOT EXISTS " ++ sanitizeName name ++ " ("
 		statementEnd = ")"
 
-		anchorDescription = "\"$id\" BIGSERIAL NOT NULL PRIMARY KEY"
+		anchorDescription = identField name ++ " BIGSERIAL NOT NULL PRIMARY KEY"
 
 		descriptions =
 			ListE <$> mapM describeField fields
