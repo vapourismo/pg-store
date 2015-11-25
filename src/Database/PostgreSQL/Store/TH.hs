@@ -1,9 +1,14 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Database.PostgreSQL.Store.TH (makeTable) where
+module Database.PostgreSQL.Store.TH (
+	mkTable,
+	mkCreateStatement,
+	mkDropStatement
+) where
 
 import Data.List
 import Data.String
+import Data.Typeable
 import Language.Haskell.TH
 import Database.PostgreSQL.Store.Types
 
@@ -101,7 +106,7 @@ packParamsE row fields =
 		extract name =
 			[e| pack ($(varE name) $(varE row)) |]
 
--- |
+-- | Implement an instance 'Table' for the given type.
 implementTable :: Name -> Name -> [(Name, Type)] -> Q [Dec]
 implementTable table _ctor fields =
 	[d| instance Table $(pure (ConT table)) where
@@ -142,9 +147,9 @@ implementTable table _ctor fields =
 	where
 		fieldNames = map fst fields
 
--- |
-makeTable :: Name -> Q [Dec]
-makeTable name = do
+-- | Make a type ready to be used as a table.
+mkTable :: Name -> Q [Dec]
+mkTable name = do
 	info <- reify name
 	case info of
 		TyConI (DataD [] _ [] [RecC ctor records] _) | length records > 0 ->
@@ -154,3 +159,12 @@ makeTable name = do
 
 		_ -> fail "Need type-constructor for a context-less type-variable-free data type with only one record constructor and 1 or more records"
 
+-- | Inline the create table statement of a table.
+mkCreateStatement :: Name -> Q Exp
+mkCreateStatement name =
+	[e| createStatement (Proxy :: Proxy $(pure (ConT name))) |]
+
+-- | Inline the drop table statement of a table.
+mkDropStatement :: Name -> Q Exp
+mkDropStatement name =
+	[e| dropStatement (Proxy :: Proxy $(pure (ConT name))) |]
