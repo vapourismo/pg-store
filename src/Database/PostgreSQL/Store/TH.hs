@@ -27,7 +27,7 @@ insertStatementE name fields =
 				intercalate ", " columns ++
 			") VALUES (" ++
 				intercalate ", " values ++
-			")"
+			") RETURNING " ++ identField name
 
 		columns =
 			map sanitizeName fields
