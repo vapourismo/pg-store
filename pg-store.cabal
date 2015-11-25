@@ -14,9 +14,8 @@ library
   default-language: Haskell2010
   build-depends:    base             >= 4.8.1  && < 5,
                     template-haskell >= 2.10.0 && < 3,
-                    bytestring, postgresql-simple, postgresql-libpq
+                    bytestring, postgresql-libpq
   hs-source-dirs:   src
-  exposed-modules:  Database.PostgreSQL.Data
-  other-modules:    Database.PostgreSQL.Data.TH,
-                    Database.PostgreSQL.Data.SQL,
-                    Database.PostgreSQL.Data.Types
+  exposed-modules:  Test
+  other-modules:    Database.PostgreSQL.Store.TH,
+                    Database.PostgreSQL.Store.Types
