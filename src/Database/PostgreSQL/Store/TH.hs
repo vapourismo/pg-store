@@ -16,6 +16,10 @@ import           Database.PostgreSQL.Store.Types
 import qualified Database.PostgreSQL.LibPQ as P
 import           Language.Haskell.TH
 
+-- | Unqualify a name.
+unqualifyName :: Name -> Name
+unqualifyName = mkName . nameBase
+
 -- | Generate the sanitized representation of a name.
 sanitizeName :: Name -> String
 sanitizeName name =
@@ -110,115 +114,119 @@ packParamsE row fields =
 		extract name =
 			[e| pack ($(varE name) $(varE row)) |]
 
--- |
+-- | Generate an expression which fetches the column number for a column name.
 columnNumberE :: Name -> Name -> Q Exp
 columnNumberE res name =
 	[e| MaybeT (P.fnumber $(varE res) (fromString $(stringE (sanitizeName name)))) |]
 
--- |
+-- | Generate an expression which fetches the column number for the identifying column.
 idColumnNumberE :: Name -> Name -> Q Exp
 idColumnNumberE res table =
 	[e| MaybeT (P.fnumber $(varE res) (fromString $(stringE (identField table)))) |]
 
--- |
+-- | Generate an expression which retrieves the OID for a column number.
 columnTypeE :: Name -> Name -> Q Exp
 columnTypeE res col =
 	[e| lift (P.ftype $(varE res) $(varE col)) |]
 
--- |
+-- | Generate an expression which retrieves the format for a column number.
 columnFormatE :: Name -> Name -> Q Exp
 columnFormatE res col =
 	[e| lift (P.fformat $(varE res) $(varE col)) |]
 
--- |
-fieldColumnInfoE :: Name -> Name -> Q Exp
-fieldColumnInfoE res name =
+-- | Generate an expression which gathers information about a column.
+columnInfoE :: Name -> Name -> Q Exp
+columnInfoE res name =
 	[e| do col <- $(columnNumberE res name)
 	       oid <- $(columnTypeE res 'col)
 	       fmt <- $(columnFormatE res 'col)
 	       pure (col, oid, fmt) |]
 
--- |
-bindFieldInfoS :: Name -> Name -> Name -> Q Stmt
-bindFieldInfoS target res name =
-	BindS (VarP target) <$> fieldColumnInfoE res name
+-- | Generate an expression which gathers information about the identifying column.
+identColumnInfo :: Name -> Name -> Q Exp
+identColumnInfo res table =
+	[e| do col <- $(idColumnNumberE res table)
+	       oid <- $(columnTypeE res 'col)
+	       fmt <- $(columnFormatE res 'col)
+	       pure (col, oid, fmt) |]
 
--- |
-unqualifiedFieldName :: Name -> Name
-unqualifiedFieldName = mkName . nameBase
+-- | Generate a statement which binds information about a column to the column's info name.
+bindColumnInfoS :: Name -> Name -> Q Stmt
+bindColumnInfoS res name =
+	BindS (VarP (columnInfoName name)) <$> columnInfoE res name
 
--- |
-infoFieldName :: Name -> Name
-infoFieldName name =
+-- | Generate a name which is reserved for information about a column.
+columnInfoName :: Name -> Name
+columnInfoName name =
 	mkName (nameBase name ++ "_info")
 
--- |
-fieldDataE :: Name -> Name -> Name -> Q Exp
-fieldDataE res row col =
+-- | Generate an expression which fetches data for a cell.
+columnDataE :: Name -> Name -> Name -> Q Exp
+columnDataE res row col =
 	[e| MaybeT (P.getvalue' $(varE res) $(varE row) $(varE col)) |]
 
--- |
-unpackFieldE :: Name -> Name -> Name -> Q Exp
-unpackFieldE res row name =
-	[e| do let (col, oid, fmt) = $(varE infoName)
-	       dat <- $(fieldDataE res row 'col)
+-- | Generate an expression which unpacks a column at a given row.
+unpackColumnE :: Name -> Name -> Name -> Q Exp
+unpackColumnE res row name =
+	[e| do let (col, oid, fmt) = $(varE (columnInfoName name))
+	       dat <- $(columnDataE res row 'col)
 	       let val = Value {
 	           valueType = oid,
 	           valueData = dat,
 	           valueFormat = fmt
 	       }
 	       MaybeT (pure (unpack val)) |]
+
+-- | Generate an expression which unpacks the identifying column at a given
+unpackIdentColumnE :: Name -> Name -> Name -> Q Exp
+unpackIdentColumnE res row idNfo =
+	[e| do let (col, oid, fmt) = $(varE idNfo)
+	       dat <- $(columnDataE res row 'col)
+	       let val = Value {
+	           valueType = oid,
+	           valueData = dat,
+	           valueFormat = fmt
+	       }
+	       MaybeT (pure (unpack val)) |]
+
+-- | Generate a statement which binds the unpacked data for a column at a given row to the column's name.
+bindColumnS :: Name -> Name -> Name -> Q Stmt
+bindColumnS res row name =
+	BindS (VarP (unqualifyName name)) <$> unpackColumnE res row name
+
+-- | Generate an expression which uses a record constructor with variables that correspond to its fields.
+constructRecordE :: Name -> [Name] -> Q Exp
+constructRecordE ctor fields =
+	[e| lift (pure $(pure construction)) |]
 	where
-		infoName = infoFieldName name
+		construction = RecConE ctor (map (\ n -> (n, VarE (unqualifyName n))) fields)
 
--- |
-bindFieldS :: Name -> Name -> Name -> Q Stmt
-bindFieldS res row name =
-	BindS (VarP (unqualifiedFieldName name)) <$> unpackFieldE res row name
+-- | Generate an expression which unpacks a table instance from a given row.
+unpackInstanceE :: Name -> Name -> Name -> [Name] -> Q Exp
+unpackInstanceE res ctor row fields = do
+	boundFields <- mapM (bindColumnS res row) fields
+	unboundConstruction <- constructRecordE ctor fields
+	pure (DoE (boundFields ++ [NoBindS unboundConstruction]))
 
--- |
-unpackParamsE :: Name -> Name -> Name -> [Name] -> Q Exp
-unpackParamsE res table ctor fields = do
-	infoBinds <- mapM bindFieldInfo fields
-	rowTraversal <- traverseRows
+-- | Generate an expression which traverses all rows in order to unpack table instances from them.
+unpackRowsE :: Name -> Name -> Name -> [Name] -> Q Exp
+unpackRowsE res table ctor fields =
+	[e| do rows <- lift (P.ntuples $(varE res))
+	       idNfo <- $(identColumnInfo res table)
+	       forM [0 .. rows - 1] $ \ row ->
+	           Resolved <$> $(unpackIdentColumnE res 'row 'idNfo)
+	                    <*> $(unpackInstanceE res ctor 'row fields) |]
+
+-- | Generate an expression which retrieves a table instance from each row.
+fromResultE :: Name -> Name -> Name -> [Name] -> Q Exp
+fromResultE res table ctor fields = do
+	infoBinds <- mapM (bindColumnInfoS res) fields
+	rowTraversal <- unpackRowsE res table ctor fields
 	pure (DoE (infoBinds ++ [NoBindS rowTraversal]))
-	where
-		bindFieldInfo n =
-			bindFieldInfoS (infoFieldName n) res n
-
-		recordConstruction =
-			RecConE ctor (map (\ n -> (n, VarE (unqualifiedFieldName n))) fields)
-
-		instanceFromRow row = do
-			boundFields <- mapM (bindFieldS res row) fields
-			unboundConstruction <- [e| lift (pure $(pure recordConstruction)) |]
-			pure (DoE (boundFields ++ [NoBindS unboundConstruction]))
-
-		idInfo =
-			[e| do col <- $(idColumnNumberE res table)
-			       oid <- $(columnTypeE res 'col)
-			       fmt <- $(columnFormatE res 'col)
-			       pure (col, oid, fmt) |]
-
-		idFromRow row idNfo =
-			[e| do let (col, oid, fmt) = $(varE idNfo)
-			       dat <- $(fieldDataE res row 'col)
-			       let val = Value {
-			           valueType = oid,
-			           valueData = dat,
-			           valueFormat = fmt
-			       }
-			       MaybeT (pure (unpack val)) |]
-
-		traverseRows =
-			[e| do rows <- lift (P.ntuples $(varE res))
-			       idNfo <- $(idInfo)
-			       forM [0 .. rows - 1] $ \ row ->
-			           Resolved <$> $(idFromRow 'row 'idNfo) <*> $(instanceFromRow 'row) |]
 
 -- | Implement an instance 'Table' for the given type.
-implementTable :: Name -> Name -> [(Name, Type)] -> Q [Dec]
-implementTable table ctor fields =
+implementTableD :: Name -> Name -> [(Name, Type)] -> Q [Dec]
+implementTableD table ctor fields =
 	[d| instance Table $(pure (ConT table)) where
 	        insertStatement row =
 	            Statement {
@@ -256,7 +264,7 @@ implementTable table ctor fields =
 	            }
 
 	        fromResult res =
-	            $(unpackParamsE 'res table ctor fieldNames) |]
+	            $(fromResultE 'res table ctor fieldNames) |]
 	where
 		fieldNames = map fst fields
 
@@ -266,7 +274,7 @@ mkTable name = do
 	info <- reify name
 	case info of
 		TyConI (DataD [] _ [] [RecC ctor records] _) | length records > 0 ->
-			implementTable name ctor fields
+			implementTableD name ctor fields
 			where
 				fields = map (\ (fn, _, ft) -> (fn, ft)) records
 
