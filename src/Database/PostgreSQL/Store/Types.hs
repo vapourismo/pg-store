@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell, RecordWildCards #-}
 
 module Database.PostgreSQL.Store.Types where
 
@@ -7,6 +7,7 @@ import           Data.Word
 import           Data.Bits
 import           Data.Monoid
 import           Data.String
+import           Data.Typeable
 import qualified Data.ByteString           as B
 import qualified Database.PostgreSQL.LibPQ as P
 
@@ -21,9 +22,24 @@ data Statement = Statement {
 	statementParams  :: [Value]
 } deriving Show
 
+-- | Description of a column type
+data ColumnTypeDescription a = ColumnTypeDescription {
+	-- | Type name (e.g. bool, integer)
+	columnTypeName :: String,
+
+	-- | Can the column be null?
+	columnTypeNull :: Bool
+}
+
+instance Show (ColumnTypeDescription a) where
+	show ColumnTypeDescription {..} =
+		columnTypeName ++ (if columnTypeNull then "" else " NOT NULL")
+
 class ColumnType a where
 	pack   :: a -> Value
 	unpack :: Value -> Maybe a
+
+	columnTypeDescription :: ColumnTypeDescription a
 
 instance ColumnType Int where
 	pack n =
@@ -36,6 +52,12 @@ instance ColumnType Int where
 	unpack _ =
 		Nothing
 
+	columnTypeDescription =
+		ColumnTypeDescription {
+			columnTypeName = "integer",
+			columnTypeNull = False
+		}
+
 instance ColumnType Int64 where
 	pack n =
 		Value {
@@ -46,6 +68,12 @@ instance ColumnType Int64 where
 
 	unpack _ =
 		Nothing
+
+	columnTypeDescription =
+		ColumnTypeDescription {
+			columnTypeName = "bigint",
+			columnTypeNull = False
+		}
 
 word8ToHex :: Word8 -> B.ByteString
 word8ToHex w =
@@ -71,6 +99,13 @@ instance ColumnType B.ByteString where
 	unpack _ =
 		Nothing
 
+	columnTypeDescription =
+		ColumnTypeDescription {
+			columnTypeName = "bytea",
+			columnTypeNull = False
+		}
+
 class Table a where
-	insert :: a -> Statement
-	update :: Int64 -> a -> Statement
+	insertStatement :: a -> Statement
+	updateStatement :: Int64 -> a -> Statement
+	createStatement :: Proxy a -> Statement
