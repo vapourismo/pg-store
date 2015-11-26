@@ -95,7 +95,7 @@ createQueryE name fields =
 
 		describeField (fname, ftype) =
 			[e| $(stringE (sanitizeName fname)) ++ " " ++
-			    show (columnTypeDescription :: ColumnTypeDescription $(pure ftype)) |]
+			    show (columnDescription :: ColumnDescription $(pure ftype)) |]
 
 -- | Generate the drop query for a table.
 dropQueryE :: Name -> Q Exp
@@ -213,8 +213,8 @@ unpackRowsE res table ctor fields =
 	[e| do rows <- lift (P.ntuples $(varE res))
 	       idNfo <- $(identColumnInfo res table)
 	       forM [0 .. rows - 1] $ \ row ->
-	           Resolved <$> $(unpackIdentColumnE res 'row 'idNfo)
-	                    <*> $(unpackInstanceE res ctor 'row fields) |]
+	           Row <$> $(unpackIdentColumnE res 'row 'idNfo)
+	               <*> $(unpackInstanceE res ctor 'row fields) |]
 
 -- | Generate an expression which retrieves a table instance from each row.
 fromResultE :: Name -> Name -> Name -> [Name] -> Q Exp
@@ -241,12 +241,7 @@ implementTableD table ctor fields =
 	                queryParams    = $(packParamsE 'row fieldNames)
 	            }
 
-	        updateQuery (Reference rid) =
-	        	Query {
-	                queryStatement = $(emptyUpdateQueryE table),
-	                queryParams    = [pack rid]
-	            }
-	        updateQuery (Resolved rid row) =
+	        updateQuery (Row rid row) =
 	            Query {
 	                queryStatement = $(updateQueryE table (length fieldNames)),
 	                queryParams    = pack rid : $(packParamsE 'row fieldNames)

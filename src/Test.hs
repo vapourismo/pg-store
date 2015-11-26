@@ -24,11 +24,11 @@ data Actor = Actor {
 mkTable ''Movie
 mkTable ''Actor
 
-class QueryResult a where
-	fromQueryResult :: P.Result -> MaybeT IO [a]
+class ResultRow a where
+	toResultRows :: P.Result -> MaybeT IO [a]
 
-instance (Table a) => QueryResult (Reference a) where
-	fromQueryResult = fromResult
+instance (Table a) => ResultRow (Row a) where
+	toResultRows = fromResult
 
 executeQuery_ :: P.Connection -> Query -> MaybeT IO ()
 executeQuery_ con Query {..} =
@@ -37,9 +37,9 @@ executeQuery_ con Query {..} =
 		makeParam Value {..} =
 			Just (valueType, valueData, valueFormat)
 
-executeQuery :: (QueryResult a) => P.Connection -> Query -> MaybeT IO [a]
+executeQuery :: (ResultRow a) => P.Connection -> Query -> MaybeT IO [a]
 executeQuery con Query {..} =
-	fromQueryResult =<< MaybeT (P.execParams con queryStatement (map makeParam queryParams) P.Text)
+	toResultRows =<< MaybeT (P.execParams con queryStatement (map makeParam queryParams) P.Text)
 	where
 		makeParam Value {..} =
 			Just (valueType, valueData, valueFormat)
@@ -58,10 +58,9 @@ test = do
 		executeQuery_ con (insertQuery (Movie "Test Movie 3" 2003))
 		executeQuery_ con (insertQuery (Movie "Test Movie 4" 2004))
 
-	let name = "Test Movie 1" :: B.ByteString
-	let q = [pgsq| SELECT * FROM Movie WHERE title = $name |]
-	print q
-	Just result <- runMaybeT (executeQuery con q) :: IO (Maybe [Reference Movie])
+	let name = "Test Movie%" :: B.ByteString
+	let q = [pgsq| SELECT * FROM Movie WHERE title LIKE $name AND year > 2002 |]
+	Just result <- runMaybeT (executeQuery con q) :: IO (Maybe [Row Movie])
 	print result
 
 	runMaybeT $
