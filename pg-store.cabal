@@ -20,4 +20,5 @@ library
                     Database.PostgreSQL.Store,
                     Database.PostgreSQL.Store.Types
   other-modules:    Database.PostgreSQL.Store.TH.Table,
-                    Database.PostgreSQL.Store.TH.Query
+                    Database.PostgreSQL.Store.TH.Query,
+                    Database.PostgreSQL.Store.Monad

@@ -1,8 +1,10 @@
-{-# LANGUAGE OverloadedStrings, TemplateHaskell, RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell, RecordWildCards, ExistentialQuantification,
+             StandaloneDeriving #-}
 
 module Database.PostgreSQL.Store.Types where
 
-import           Control.Monad.Trans.Maybe
+import           Control.Monad.Trans.Reader
+import           Control.Monad.Trans.Except
 
 import           Data.Int
 import           Data.Word
@@ -48,6 +50,17 @@ instance Show (ColumnDescription a) where
 	show ColumnDescription {..} =
 		columnTypeName ++ (if columnTypeNull then "" else " NOT NULL")
 
+-- | Error that occured during result processing
+data ResultError
+	= UnknownColumnName B.ByteString
+	| ColumnDataMissing P.Row P.Column
+	| forall a. ValueError P.Row P.Column P.Oid P.Format (ColumnDescription a)
+
+deriving instance Show ResultError
+
+-- | Result processor
+type ResultProcessor = ReaderT P.Result (ExceptT ResultError IO)
+
 -- | Description of a table type
 data TableDescription a = TableDescription {
 	-- | Table name
@@ -74,11 +87,17 @@ class Table a where
 	-- | Generate a DROP query which removes the table.
 	dropQuery :: Proxy a -> Query
 
-	-- | Extract rows of a table from the given result.
-	fromResult :: P.Result -> MaybeT IO [Row a]
+	-- | Extract rows of this table from the given result.
+	tableResultProcessor :: ResultProcessor [Row a]
 
 	-- | Describe the table.
 	tableDescription :: TableDescription a
+
+
+-- | Result row
+class ResultRow a where
+	-- | Extract rows from the given result.
+	fromResult :: ResultProcessor [a]
 
 -- | A value of that type contains an ID.
 class HasID a where
@@ -163,6 +182,9 @@ data Row a = Row Int64 a
 
 instance HasID Row where
 	referenceID (Row rid _) = rid
+
+instance (Table a) => ResultRow (Row a) where
+	fromResult = tableResultProcessor
 
 -- | Reference to a row or the resolved row
 data Reference a = Reference Int64 | Resolved (Row a)

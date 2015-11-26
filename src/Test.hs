@@ -2,13 +2,16 @@
 
 module Test where
 
-import           Control.Monad.Trans.Maybe
+import           Control.Monad.Trans.Class
+import           Control.Monad.Trans.Reader
+import           Control.Monad.Trans.Except
 
 import qualified Data.ByteString as B
 
-import qualified Database.PostgreSQL.LibPQ as P
 import           Database.PostgreSQL.Store
 import           Database.PostgreSQL.Store.Types
+import           Database.PostgreSQL.Store.Monad
+import qualified Database.PostgreSQL.LibPQ as P
 
 data Movie = Movie {
 	title  :: B.ByteString,
@@ -24,46 +27,58 @@ data Actor = Actor {
 mkTable ''Movie
 mkTable ''Actor
 
-class ResultRow a where
-	toResultRows :: P.Result -> MaybeT IO [a]
+data XError
+	= NoResult
+	| ResultError ResultError
+	deriving Show
 
-instance (Table a) => ResultRow (Row a) where
-	toResultRows = fromResult
+type X = ReaderT P.Connection (ExceptT XError IO)
 
-executeQuery_ :: P.Connection -> Query -> MaybeT IO ()
-executeQuery_ con Query {..} =
-	() <$ MaybeT (P.execParams con queryStatement (map makeParam queryParams) P.Text)
+runX :: P.Connection -> X a -> ExceptT XError IO a
+runX = flip runReaderT
+
+query_ :: Query -> X ()
+query_ Query {..} = do
+	con <- ask
+	lift (ExceptT (maybe (Left NoResult) (const (pure ())) <$> P.execParams con queryStatement (map makeParam queryParams) P.Text))
 	where
 		makeParam Value {..} =
 			Just (valueType, valueData, valueFormat)
 
-executeQuery :: (ResultRow a) => P.Connection -> Query -> MaybeT IO [a]
-executeQuery con Query {..} =
-	toResultRows =<< MaybeT (P.execParams con queryStatement (map makeParam queryParams) P.Text)
+query :: (ResultRow a) => Query -> X [a]
+query Query {..} = do
+	con <- ask
+	lift $ do
+		result <- ExceptT (maybe (Left NoResult) pure <$> P.execParams con queryStatement (map makeParam queryParams) P.Text)
+		withExceptT ResultError (processResult result fromResult)
 	where
 		makeParam Value {..} =
 			Just (valueType, valueData, valueFormat)
+
+run :: (Show a) => P.Connection -> X a -> IO ()
+run con x =
+	runExceptT (runX con x) >>= print
 
 test :: IO ()
 test = do
 	con <- P.connectdb "postgres://localhost/ole"
 	P.status con >>= print
 
-	runMaybeT $
-		executeQuery_ con $(mkCreateQuery ''Movie)
+	run con $ do
+		query_ $(mkCreateQuery ''Movie)
 
-	runMaybeT $ do
-		executeQuery_ con (insertQuery (Movie "Test Movie 1" 2001))
-		executeQuery_ con (insertQuery (Movie "Test Movie 2" 2002))
-		executeQuery_ con (insertQuery (Movie "Test Movie 3" 2003))
-		executeQuery_ con (insertQuery (Movie "Test Movie 4" 2004))
+	run con $ do
+		query_ (insertQuery (Movie "Test Movie 1" 2001))
+		query_ (insertQuery (Movie "Test Movie 2" 2002))
+		query_ (insertQuery (Movie "Test Movie 3" 2003))
+		query_ (insertQuery (Movie "Test Movie 4" 2004))
 
-	let name = "Test Movie%" :: B.ByteString
-	let q = [pgsq| SELECT * FROM Movie WHERE title LIKE $name AND year > 2002 |]
-	Just result <- runMaybeT (executeQuery con q) :: IO (Maybe [Row Movie])
-	print result
+	run con $ do
+		let name = "Test Movie%" :: B.ByteString
+		let q = [pgsq| SELECT * FROM Movie WHERE title LIKE $name AND year > 2002 |]
+		query q :: X [Row Movie]
 
-	runMaybeT $
-		executeQuery_ con $(mkDropQuery ''Movie)
+	run con $ do
+		query_ $(mkDropQuery ''Movie)
 
 	P.finish con
