@@ -69,5 +69,3 @@ unpackCellValue row info = do
 		make :: ColumnDescription a -> Maybe a -> IO (Either ResultError a)
 		make desc =
 			maybe (valueError desc) (pure . pure)
-
--- |

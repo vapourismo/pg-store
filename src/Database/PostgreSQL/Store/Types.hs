@@ -84,9 +84,6 @@ class Table a where
 	-- | Generate a CREATE query which creates the table.
 	createQuery :: Proxy a -> Query
 
-	-- | Generate a DROP query which removes the table.
-	dropQuery :: Proxy a -> Query
-
 	-- | Extract rows of this table from the given result.
 	tableResultProcessor :: ResultProcessor [Row a]
 

@@ -79,6 +79,6 @@ test = do
 		query q :: X [Row Movie]
 
 	run con $ do
-		query_ $(mkDropQuery ''Movie)
+		query_ [pgsq| DROP TABLE Movie |]
 
 	P.finish con

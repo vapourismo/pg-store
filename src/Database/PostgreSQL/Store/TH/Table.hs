@@ -85,13 +85,6 @@ createQueryE name fields =
 			[e| $(stringE (sanitizeName fname)) ++ " " ++
 			    show (columnDescription :: ColumnDescription $(pure ftype)) |]
 
--- | Generate the drop query for a table.
-dropQueryE :: Name -> Q Exp
-dropQueryE name =
-	[e| fromString $(stringE query) |]
-	where
-		query = "DROP TABLE IF EXISTS " ++ sanitizeName name
-
 -- | Generate an expression which gathers all records from a type and packs them into a list.
 -- `packParamsE 'row ['field1, 'field2]` generates `[pack (field1 row), pack (field2 row)]`
 packParamsE :: Name -> [Name] -> Q Exp
@@ -191,12 +184,6 @@ implementTableD table ctor fields =
 	                queryParams    = []
 	            }
 
-	        dropQuery _ =
-	            Query {
-	                queryStatement = $(dropQueryE table),
-	                queryParams    = []
-	            }
-
 	        tableResultProcessor =
 	            $(fromResultE table ctor fieldNames)
 
@@ -221,8 +208,3 @@ mkTable name = do
 mkCreateQuery :: Name -> Q Exp
 mkCreateQuery name =
 	[e| createQuery (Proxy :: Proxy $(pure (ConT name))) |]
-
--- | Inline the drop table query of a table.
-mkDropQuery :: Name -> Q Exp
-mkDropQuery name =
-	[e| dropQuery (Proxy :: Proxy $(pure (ConT name))) |]
