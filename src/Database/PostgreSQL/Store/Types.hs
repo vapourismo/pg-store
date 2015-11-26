@@ -155,14 +155,35 @@ instance ColumnType B.ByteString where
 data Reference a = Reference Int64 | Resolved Int64 a
 	deriving (Show, Eq, Ord)
 
+instance (Table a) => ColumnType (Reference a) where
+	pack ref = pack (referenceID ref)
+	unpack val = Reference <$> unpack val
+
+	columnTypeDescription =
+		make tableDescription
+		where
+			make :: TableDescription a -> ColumnTypeDescription (Reference a)
+			make TableDescription {..} =
+				ColumnTypeDescription {
+					columnTypeName = "bigint references " ++ tableName ++ " (" ++ tableIdentColumn ++ ")",
+					columnTypeNull = False
+				}
+
+
 referenceID :: Reference a -> Int64
 referenceID (Reference rid)  = rid
 referenceID (Resolved rid _) = rid
 
+data TableDescription a = TableDescription {
+	tableName        :: String,
+	tableIdentColumn :: String
+} deriving (Show, Eq, Ord)
+
 class Table a where
-	insertStatement :: a -> Statement
-	updateStatement :: Reference a -> Statement
-	deleteStatement :: Reference a -> Statement
-	createStatement :: Proxy a -> Statement
-	dropStatement   :: Proxy a -> Statement
-	fromResult      :: P.Result -> MaybeT IO [Reference a]
+	insertStatement  :: a -> Statement
+	updateStatement  :: Reference a -> Statement
+	deleteStatement  :: Reference a -> Statement
+	createStatement  :: Proxy a -> Statement
+	dropStatement    :: Proxy a -> Statement
+	fromResult       :: P.Result -> MaybeT IO [Reference a]
+	tableDescription :: TableDescription a

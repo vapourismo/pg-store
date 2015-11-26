@@ -224,6 +224,14 @@ fromResultE res table ctor fields = do
 	rowTraversal <- unpackRowsE res table ctor fields
 	pure (DoE (infoBinds ++ [NoBindS rowTraversal]))
 
+-- | Generate an expression which instantiates a description for a given table.
+tableDescriptionE :: Name -> Q Exp
+tableDescriptionE table =
+	[e| TableDescription {
+	        tableName = $(stringE (sanitizeName table)),
+	        tableIdentColumn = $(stringE (identField table))
+	    } |]
+
 -- | Implement an instance 'Table' for the given type.
 implementTableD :: Name -> Name -> [(Name, Type)] -> Q [Dec]
 implementTableD table ctor fields =
@@ -264,7 +272,10 @@ implementTableD table ctor fields =
 	            }
 
 	        fromResult res =
-	            $(fromResultE 'res table ctor fieldNames) |]
+	            $(fromResultE 'res table ctor fieldNames)
+
+	        tableDescription =
+	            $(tableDescriptionE table) |]
 	where
 		fieldNames = map fst fields
 
