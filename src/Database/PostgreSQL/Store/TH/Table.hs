@@ -45,16 +45,6 @@ insertQueryE name fields =
 		values =
 			map (\ idx -> "$" ++ show idx) [1 .. length fields]
 
--- | Generate the empty update query for a table.
-emptyUpdateQueryE :: Name -> Q Exp
-emptyUpdateQueryE name =
-	[e| fromString $(stringE query) |]
-	where
-		query =
-			"UPDATE " ++ sanitizeName name ++
-			" SET " ++ identField name ++ " = $1" ++
-			" WHERE " ++ identField name ++ " = $1"
-
 -- | Generate the update query for a table.
 updateQueryE :: Name -> Int -> Q Exp
 updateQueryE name numFields =
@@ -111,35 +101,10 @@ packParamsE row fields =
 		extract name =
 			[e| pack ($(varE name) $(varE row)) |]
 
--- | Generate an expression which fetches the column number for a column name.
-columnNumberE :: Name -> Q Exp
-columnNumberE name =
-	[e| columnNumber (fromString $(stringE (sanitizeName name))) |]
-
--- | Generate an expression which fetches the column number for the identifying column.
-idColumnNumberE :: Name -> Q Exp
-idColumnNumberE table =
-	[e| columnNumber (fromString $(stringE (identField table))) |]
-
--- | Generate an expression which retrieves the OID for a column number.
-columnTypeE :: Name -> Q Exp
-columnTypeE col =
-	[e| columnType $(varE col) |]
-
--- | Generate an expression which retrieves the format for a column number.
-columnFormatE :: Name -> Q Exp
-columnFormatE col =
-	[e| columnFormat $(varE col) |]
-
 -- | Generate an expression which gathers information about a column.
 columnInfoE :: Name -> Q Exp
 columnInfoE name =
 	[e| columnInfo (fromString $(stringE (sanitizeName name))) |]
-
--- | Generate an expression which gathers information about the identifying column.
-identColumnInfo :: Name -> Q Exp
-identColumnInfo table =
-	[e| columnInfo (fromString $(stringE (identField table))) |]
 
 -- | Generate a query which binds information about a column to the column's info name.
 bindColumnInfoS :: Name -> Q Stmt
@@ -151,20 +116,10 @@ columnInfoName :: Name -> Name
 columnInfoName name =
 	mkName (nameBase name ++ "_info")
 
--- | Generate an expression which fetches data for a cell.
-columnDataE :: Name -> Name -> Q Exp
-columnDataE row col =
-	[e| cellData $(varE row) $(varE col) |]
-
 -- | Generate an expression which unpacks a column at a given row.
 unpackColumnE :: Name -> Name -> Q Exp
 unpackColumnE row name =
 	[e| unpackCellValue $(varE row) $(varE (columnInfoName name)) |]
-
--- | Generate an expression which unpacks the identifying column at a given
-unpackIdentColumnE :: Name -> Name -> Q Exp
-unpackIdentColumnE row idNfo =
-	[e| unpackCellValue $(varE row) $(varE idNfo) |]
 
 -- | Generate a query which binds the unpacked data for a column at a given row to the column's name.
 bindColumnS :: Name -> Name -> Q Stmt
@@ -179,8 +134,8 @@ constructRecordE ctor fields =
 		construction = RecConE ctor (map (\ n -> (n, VarE (unqualifyName n))) fields)
 
 -- | Generate an expression which unpacks a table instance from a given row.
-unpackInstanceE :: Name -> Name -> [Name] -> Q Exp
-unpackInstanceE ctor row fields = do
+unpackRowE :: Name -> Name -> [Name] -> Q Exp
+unpackRowE ctor row fields = do
 	boundFields <- mapM (bindColumnS row) fields
 	unboundConstruction <- constructRecordE ctor fields
 	pure (DoE (boundFields ++ [NoBindS unboundConstruction]))
@@ -188,10 +143,10 @@ unpackInstanceE ctor row fields = do
 -- | Generate an expression which traverses all rows in order to unpack table instances from them.
 unpackRowsE :: Name -> Name -> [Name] -> Q Exp
 unpackRowsE table ctor fields =
-	[e| do idNfo <- $(identColumnInfo table)
+	[e| do idNfo <- columnInfo (fromString $(stringE (identField table)))
 	       foreachRow $ \ row ->
-	           Row <$> $(unpackIdentColumnE 'row 'idNfo)
-	               <*> $(unpackInstanceE ctor 'row fields) |]
+	           Row <$> unpackCellValue row idNfo
+	               <*> $(unpackRowE ctor 'row fields) |]
 
 -- | Generate an expression which retrieves a table instance from each row.
 fromResultE :: Name -> Name -> [Name] -> Q Exp
