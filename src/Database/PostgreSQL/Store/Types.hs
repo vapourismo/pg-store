@@ -3,13 +3,15 @@
 module Database.PostgreSQL.Store.Types where
 
 import           Control.Monad.Trans.Maybe
+
 import           Data.Int
 import           Data.Word
 import           Data.Bits
 import           Data.Monoid
 import           Data.String
 import           Data.Typeable
-import qualified Data.ByteString           as B
+import qualified Data.ByteString as B
+
 import qualified Database.PostgreSQL.LibPQ as P
 
 data Value = Value {

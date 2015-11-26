@@ -2,11 +2,12 @@
 
 module Test where
 
-import           Control.Monad
 import           Control.Monad.Trans.Maybe
-import qualified Data.ByteString           as B
+
+import qualified Data.ByteString as B
+
 import qualified Database.PostgreSQL.LibPQ as P
-import           Database.PostgreSQL.Store.TH
+import           Database.PostgreSQL.Store
 import           Database.PostgreSQL.Store.Types
 
 data Movie = Movie {

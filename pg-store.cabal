@@ -16,6 +16,8 @@ library
                     template-haskell >= 2.10.0 && < 3,
                     bytestring, postgresql-libpq, transformers, parsec
   hs-source-dirs:   src
-  exposed-modules:  Test
-  other-modules:    Database.PostgreSQL.Store.TH,
+  exposed-modules:  Test,
+                    Database.PostgreSQL.Store,
                     Database.PostgreSQL.Store.Types
+  other-modules:    Database.PostgreSQL.Store.TH.Table,
+                    Database.PostgreSQL.Store.TH.Query
