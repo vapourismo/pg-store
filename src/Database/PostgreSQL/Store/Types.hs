@@ -18,9 +18,9 @@ data Value = Value {
 	valueFormat :: P.Format
 } deriving Show
 
-data Statement = Statement {
-	statementContent :: B.ByteString,
-	statementParams  :: [Value]
+data Query = Query {
+	queryStatement :: B.ByteString,
+	queryParams    :: [Value]
 } deriving Show
 
 -- | Description of a column type
@@ -169,7 +169,6 @@ instance (Table a) => ColumnType (Reference a) where
 					columnTypeNull = False
 				}
 
-
 referenceID :: Reference a -> Int64
 referenceID (Reference rid)  = rid
 referenceID (Resolved rid _) = rid
@@ -180,10 +179,10 @@ data TableDescription a = TableDescription {
 } deriving (Show, Eq, Ord)
 
 class Table a where
-	insertStatement  :: a -> Statement
-	updateStatement  :: Reference a -> Statement
-	deleteStatement  :: Reference a -> Statement
-	createStatement  :: Proxy a -> Statement
-	dropStatement    :: Proxy a -> Statement
+	insertQuery      :: a -> Query
+	updateQuery      :: Reference a -> Query
+	deleteQuery      :: Reference a -> Query
+	createQuery      :: Proxy a -> Query
+	dropQuery        :: Proxy a -> Query
 	fromResult       :: P.Result -> MaybeT IO [Reference a]
 	tableDescription :: TableDescription a

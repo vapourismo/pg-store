@@ -2,19 +2,23 @@
 
 module Database.PostgreSQL.Store.TH (
 	mkTable,
-	mkCreateStatement,
-	mkDropStatement
+	mkCreateQuery,
+	mkDropQuery,
+	pgsq
 ) where
 
 import           Control.Monad
+import           Control.Applicative
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Maybe
 import           Data.List
 import           Data.String
 import           Data.Typeable
+import           Text.Parsec hiding ((<|>), many)
 import           Database.PostgreSQL.Store.Types
 import qualified Database.PostgreSQL.LibPQ as P
 import           Language.Haskell.TH
+import           Language.Haskell.TH.Quote
 
 -- | Unqualify a name.
 unqualifyName :: Name -> Name
@@ -30,12 +34,12 @@ identField :: Name -> String
 identField name =
 	"\"" ++ maybe [] (++ ".") (nameModule name) ++ "$id\""
 
--- | Generate the insert statement for a table.
-insertStatementE :: Name -> [Name] -> Q Exp
-insertStatementE name fields =
-	[e| fromString $(stringE statement) |]
+-- | Generate the insert query for a table.
+insertQueryE :: Name -> [Name] -> Q Exp
+insertQueryE name fields =
+	[e| fromString $(stringE query) |]
 	where
-		statement =
+		query =
 			"INSERT INTO " ++ sanitizeName name ++ " (" ++
 				intercalate ", " columns ++
 			") VALUES (" ++
@@ -48,22 +52,22 @@ insertStatementE name fields =
 		values =
 			map (\ idx -> "$" ++ show idx) [1 .. length fields]
 
--- | Generate the empty update statement for a table.
-emptyUpdateStatementE :: Name -> Q Exp
-emptyUpdateStatementE name =
-	[e| fromString $(stringE statement) |]
+-- | Generate the empty update query for a table.
+emptyUpdateQueryE :: Name -> Q Exp
+emptyUpdateQueryE name =
+	[e| fromString $(stringE query) |]
 	where
-		statement =
+		query =
 			"UPDATE " ++ sanitizeName name ++
 			" SET " ++ identField name ++ " = $1" ++
 			" WHERE " ++ identField name ++ " = $1"
 
--- | Generate the update statement for a table.
-updateStatementE :: Name -> Int -> Q Exp
-updateStatementE name numFields =
-	[e| fromString $(stringE statement) |]
+-- | Generate the update query for a table.
+updateQueryE :: Name -> Int -> Q Exp
+updateQueryE name numFields =
+	[e| fromString $(stringE query) |]
 	where
-		statement =
+		query =
 			"UPDATE " ++ sanitizeName name ++
 			" SET " ++ intercalate ", " values ++
 			" WHERE " ++ identField name ++ " = $1"
@@ -71,22 +75,22 @@ updateStatementE name numFields =
 		values =
 			map (\ idx -> "$" ++ show idx) [2 .. numFields + 1]
 
--- | Generate the delete statement for a table.
-deleteStatementE :: Name -> Q Exp
-deleteStatementE name =
-	[e| fromString $(stringE statement) |]
+-- | Generate the delete query for a table.
+deleteQueryE :: Name -> Q Exp
+deleteQueryE name =
+	[e| fromString $(stringE query) |]
 	where
-		statement = "DELETE FROM " ++ sanitizeName name ++ " WHERE " ++ identField name ++ " = $1"
+		query = "DELETE FROM " ++ sanitizeName name ++ " WHERE " ++ identField name ++ " = $1"
 
--- | Generate the create statement for a table.
-createStatementE :: Name -> [(Name, Type)] -> Q Exp
-createStatementE name fields =
-	[e| fromString ($(stringE statementBegin) ++
+-- | Generate the create query for a table.
+createQueryE :: Name -> [(Name, Type)] -> Q Exp
+createQueryE name fields =
+	[e| fromString ($(stringE queryBegin) ++
 	                intercalate ", " ($(stringE anchorDescription) : $(descriptions)) ++
-	                $(stringE statementEnd)) |]
+	                $(stringE queryEnd)) |]
 	where
-		statementBegin = "CREATE TABLE IF NOT EXISTS " ++ sanitizeName name ++ " ("
-		statementEnd = ")"
+		queryBegin = "CREATE TABLE IF NOT EXISTS " ++ sanitizeName name ++ " ("
+		queryEnd = ")"
 
 		anchorDescription =
 			identField name ++ " BIGSERIAL NOT NULL PRIMARY KEY"
@@ -98,12 +102,12 @@ createStatementE name fields =
 			[e| $(stringE (sanitizeName fname)) ++ " " ++
 			    show (columnTypeDescription :: ColumnTypeDescription $(pure ftype)) |]
 
--- | Generate the drop statement for a table.
-dropStatementE :: Name -> Q Exp
-dropStatementE name =
-	[e| fromString $(stringE statement) |]
+-- | Generate the drop query for a table.
+dropQueryE :: Name -> Q Exp
+dropQueryE name =
+	[e| fromString $(stringE query) |]
 	where
-		statement = "DROP TABLE IF EXISTS " ++ sanitizeName name
+		query = "DROP TABLE IF EXISTS " ++ sanitizeName name
 
 -- | Generate an expression which gathers all records from a type and packs them into a list.
 -- `packParamsE 'row ['field1, 'field2]` generates `[pack (field1 row), pack (field2 row)]`
@@ -150,7 +154,7 @@ identColumnInfo res table =
 	       fmt <- $(columnFormatE res 'col)
 	       pure (col, oid, fmt) |]
 
--- | Generate a statement which binds information about a column to the column's info name.
+-- | Generate a query which binds information about a column to the column's info name.
 bindColumnInfoS :: Name -> Name -> Q Stmt
 bindColumnInfoS res name =
 	BindS (VarP (columnInfoName name)) <$> columnInfoE res name
@@ -189,7 +193,7 @@ unpackIdentColumnE res row idNfo =
 	       }
 	       MaybeT (pure (unpack val)) |]
 
--- | Generate a statement which binds the unpacked data for a column at a given row to the column's name.
+-- | Generate a query which binds the unpacked data for a column at a given row to the column's name.
 bindColumnS :: Name -> Name -> Name -> Q Stmt
 bindColumnS res row name =
 	BindS (VarP (unqualifyName name)) <$> unpackColumnE res row name
@@ -236,39 +240,39 @@ tableDescriptionE table =
 implementTableD :: Name -> Name -> [(Name, Type)] -> Q [Dec]
 implementTableD table ctor fields =
 	[d| instance Table $(pure (ConT table)) where
-	        insertStatement row =
-	            Statement {
-	                statementContent = $(insertStatementE table fieldNames),
-	                statementParams  = $(packParamsE 'row fieldNames)
+	        insertQuery row =
+	            Query {
+	                queryStatement = $(insertQueryE table fieldNames),
+	                queryParams    = $(packParamsE 'row fieldNames)
 	            }
 
-	        updateStatement (Reference rid) =
-	        	Statement {
-	                statementContent = $(emptyUpdateStatementE table),
-	                statementParams  = [pack rid]
+	        updateQuery (Reference rid) =
+	        	Query {
+	                queryStatement = $(emptyUpdateQueryE table),
+	                queryParams    = [pack rid]
 	            }
-	        updateStatement (Resolved rid row) =
-	            Statement {
-	                statementContent = $(updateStatementE table (length fieldNames)),
-	                statementParams  = pack rid : $(packParamsE 'row fieldNames)
-	            }
-
-	        deleteStatement ref =
-	            Statement {
-	                statementContent = $(deleteStatementE table),
-	                statementParams  = [pack (referenceID ref)]
+	        updateQuery (Resolved rid row) =
+	            Query {
+	                queryStatement = $(updateQueryE table (length fieldNames)),
+	                queryParams    = pack rid : $(packParamsE 'row fieldNames)
 	            }
 
-	        createStatement _ =
-	            Statement {
-	                statementContent = $(createStatementE table fields),
-	                statementParams  = []
+	        deleteQuery ref =
+	            Query {
+	                queryStatement = $(deleteQueryE table),
+	                queryParams    = [pack (referenceID ref)]
 	            }
 
-	        dropStatement _ =
-	            Statement {
-	                statementContent = $(dropStatementE table),
-	                statementParams  = []
+	        createQuery _ =
+	            Query {
+	                queryStatement = $(createQueryE table fields),
+	                queryParams    = []
+	            }
+
+	        dropQuery _ =
+	            Query {
+	                queryStatement = $(dropQueryE table),
+	                queryParams    = []
 	            }
 
 	        fromResult res =
@@ -291,12 +295,83 @@ mkTable name = do
 
 		_ -> fail "Need type-constructor for a context-less type-variable-free data type with only one record constructor and 1 or more records"
 
--- | Inline the create table statement of a table.
-mkCreateStatement :: Name -> Q Exp
-mkCreateStatement name =
-	[e| createStatement (Proxy :: Proxy $(pure (ConT name))) |]
+-- | Inline the create table query of a table.
+mkCreateQuery :: Name -> Q Exp
+mkCreateQuery name =
+	[e| createQuery (Proxy :: Proxy $(pure (ConT name))) |]
 
--- | Inline the drop table statement of a table.
-mkDropStatement :: Name -> Q Exp
-mkDropStatement name =
-	[e| dropStatement (Proxy :: Proxy $(pure (ConT name))) |]
+-- | Inline the drop table query of a table.
+mkDropQuery :: Name -> Q Exp
+mkDropQuery name =
+	[e| dropQuery (Proxy :: Proxy $(pure (ConT name))) |]
+
+-- | PG Store Query
+pgsq :: QuasiQuoter
+pgsq =
+	QuasiQuoter {
+		quoteExp  = parseStoreQueryE,
+		quotePat  = const (error "Cannot use 'pgsq' in pattern"),
+		quoteType = const (error "Cannot use 'pgsq' in type"),
+		quoteDec  = const (error "Cannot use 'pgsq' in declaration")
+	}
+
+-- |
+data QState = QState Int [Exp]
+
+-- |
+type QParser = ParsecT String QState Q
+
+-- |
+name :: QParser String
+name =
+	(:) <$> (letter <|> char '_')
+	    <*> many (alphaNum <|> char '_')
+
+-- |
+entity :: QParser String
+entity = do
+	strName <- name
+	mbTName <- lift (lookupTypeName strName)
+	mbVName <- lift (lookupValueName strName)
+	pure $ case mbTName <|> mbVName of
+		Just name -> sanitizeName name
+		Nothing   -> strName
+
+-- |
+variable :: QParser String
+variable = do
+	char '$'
+	strName <- name
+
+	paramExp <- lift $ do
+		mbName <- lookupValueName strName
+		name <- maybe (fail ("Cannot find value '" ++ strName ++ "'")) pure mbName
+		[e| pack $(varE name) |]
+
+	QState numParams params <- getState
+	putState (QState (numParams + 1) (params ++ [paramExp]))
+
+	pure ('$' : show (numParams + 1))
+
+-- |
+quasiQuotationParser :: Loc -> QParser Exp
+quasiQuotationParser loc = do
+	let (line, column) = loc_start loc
+	pos <- getPosition
+	setPosition (setSourceLine (setSourceColumn pos column) line)
+
+	contents <- many (variable <|> entity <|> ((: []) <$> anyChar))
+	eof
+
+	QState _ params <- getState
+	lift $
+		[e| Query {
+		        queryStatement = fromString $(stringE (concat contents)),
+		        queryParams    = $(pure (ListE params))
+		    } |]
+
+-- |
+parseStoreQueryE :: String -> Q Exp
+parseStoreQueryE code = do
+	loc <- location
+	either (fail . show) pure =<< runParserT (quasiQuotationParser loc) (QState 0 []) (loc_filename loc) code
