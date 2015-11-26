@@ -18,13 +18,14 @@ data Movie = Movie {
 	year   :: Int
 } deriving Show
 
+mkTable ''Movie
+
 data Actor = Actor {
 	movie     :: Reference Movie,
 	firstName :: B.ByteString,
 	lastName  :: B.ByteString
 } deriving Show
 
-mkTable ''Movie
 mkTable ''Actor
 
 data XError

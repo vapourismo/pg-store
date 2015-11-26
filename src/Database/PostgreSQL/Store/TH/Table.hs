@@ -2,6 +2,7 @@
 
 module Database.PostgreSQL.Store.TH.Table where
 
+import           Control.Monad
 import           Control.Monad.Trans.Class
 
 import           Data.List
@@ -158,7 +159,7 @@ tableDescriptionE table =
 
 -- | Implement an instance 'Table' for the given type.
 implementTableD :: Name -> Name -> [(Name, Type)] -> Q [Dec]
-implementTableD table ctor fields =
+implementTableD table ctor fields = do
 	[d| instance Table $(pure (ConT table)) where
 	        insertQuery row =
 	            Query {
@@ -192,19 +193,70 @@ implementTableD table ctor fields =
 	where
 		fieldNames = map fst fields
 
+-- | Check that all field types have an instance of Column.
+validateFields :: [(Name, Type)] -> Q ()
+validateFields fields =
+	forM_ fields $ \ (name, typ) -> do
+		ii <- isInstance ''Column [typ]
+		unless ii $
+			fail ("\ESC[35m" ++ show name ++ "\ESC[0m's type does not have an instance of \ESC[34mColumn\ESC[0m")
+
 -- | Make a type ready to be used as a table.
 mkTable :: Name -> Q [Dec]
 mkTable name = do
 	info <- reify name
 	case info of
-		TyConI (DataD [] _ [] [RecC ctor records] _) | length records > 0 ->
-			implementTableD name ctor fields
-			where
-				fields = map (\ (fn, _, ft) -> (fn, ft)) records
+		TyConI dec ->
+			case dec of
+				DataD [] _ [] [RecC ctor records@(_ : _)] _ -> do
+					let fields = map (\ (fn, _, ft) -> (fn, ft)) records
+					validateFields fields
+					implementTableD name ctor fields
 
-		_ -> fail "Need type-constructor for a context-less type-variable-free data type with only one record constructor and 1 or more records"
+				DataD (_ : _) _ _ _ _ ->
+					fail ("\ESC[34m" ++ show name ++ "\ESC[0m has a context")
+
+				DataD _ _ (_ : _) _ _ ->
+					fail ("\ESC[34m" ++ show name ++ "\ESC[0m has one or more type variables")
+
+				DataD _ _ _ [] _ ->
+					fail ("\ESC[34m" ++ show name ++ "\ESC[0m does not have a constructor")
+
+				DataD _ _ _ (_ : _ : _) _ ->
+					fail ("\ESC[34m" ++ show name ++ "\ESC[0m has more than one constructor")
+
+				DataD _ _ _ [RecC _ []] _ ->
+					fail ("\ESC[34m" ++ show name ++ "\ESC[0m has an empty record constructor")
+
+				DataD _ _ _ [_] _ ->
+					fail ("\ESC[34m" ++ show name ++ "\ESC[0m does not have a record constructor")
+
+				_ -> fail ("\ESC[34m" ++ show name ++ "\ESC[0m is not an eligible data type")
+
+		_ -> fail ("\ESC[34m" ++ show name ++ "\ESC[0m is not a type constructor")
+
+-- | Check if the given name refers to a type.
+isType :: Name -> Q Bool
+isType name = do
+	info <- reify name
+	pure $ case info of
+		TyConI _ -> True
+		_        -> False
 
 -- | Inline the create table query of a table.
 mkCreateQuery :: Name -> Q Exp
-mkCreateQuery name =
+mkCreateQuery name = do
+	-- Is the given name a type?
+	it <- isType name
+	unless it $
+		fail ("Given name does not refer to a type.")
+
+	-- Make sure the given name refers to a type which implements Table
+	ii <- isInstance ''Table [ConT name]
+	unless ii $
+		fail ("Type \ESC[34m" ++ show name ++ "\ESC[0m has to be an instance of \ESC[34mTable\ESC[0m.\n\
+		      \    To fix this add the following after the declaration of \ESC[34m" ++ show name ++ "\ESC[0m:\n\n\
+		      \        mkTable ''\ESC[34m" ++ show name ++ "\ESC[0m\n")
+
+	-- Actual splice
 	[e| createQuery (Proxy :: Proxy $(pure (ConT name))) |]
