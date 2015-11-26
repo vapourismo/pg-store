@@ -19,9 +19,9 @@ pgsq :: QuasiQuoter
 pgsq =
 	QuasiQuoter {
 		quoteExp  = parseStoreQueryE,
-		quotePat  = const (error "Cannot use 'pgsq' in pattern"),
-		quoteType = const (error "Cannot use 'pgsq' in type"),
-		quoteDec  = const (error "Cannot use 'pgsq' in declaration")
+		quotePat  = const (fail "Cannot use 'pgsq' in pattern"),
+		quoteType = const (fail "Cannot use 'pgsq' in type"),
+		quoteDec  = const (fail "Cannot use 'pgsq' in declaration")
 	}
 
 -- | State for the quasi-quotation parser
