@@ -73,8 +73,13 @@ data TableDescription a = TableDescription {
 } deriving (Show, Eq, Ord)
 
 -- | Resolved row
-data Row a = Row Int64 a
-	deriving (Show, Eq, Ord)
+data Row a = Row {
+	-- | Identifier
+	rowID :: Int64,
+
+	-- | Value
+	rowValue :: a
+} deriving (Show, Eq, Ord)
 
 -- | Reference to a row
 newtype Reference a = Reference Int64
