@@ -263,12 +263,5 @@ mkCreateQuery name = do
 	unless it $
 		fail ("Given name does not refer to a type.")
 
-	-- Make sure the given name refers to a type which implements Table
-	ii <- isInstance ''Table [ConT name]
-	unless ii $
-		fail ("Type \ESC[34m" ++ show name ++ "\ESC[0m has to be an instance of \ESC[34mTable\ESC[0m.\n\
-		      \    To fix this add the following after the declaration of \ESC[34m" ++ show name ++ "\ESC[0m:\n\n\
-		      \        mkTable ''\ESC[34m" ++ show name ++ "\ESC[0m\n")
-
 	-- Actual splice
 	[e| createQuery (Proxy :: Proxy $(pure (ConT name))) |]
