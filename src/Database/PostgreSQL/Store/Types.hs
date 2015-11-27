@@ -10,9 +10,14 @@ import           Data.Int
 import           Data.Word
 import           Data.Bits
 import           Data.Monoid
-import           Data.String
 import           Data.Typeable
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as BL
+import           Data.ByteString.Builder
+import           Data.Attoparsec.ByteString
+import           Data.Attoparsec.ByteString.Char8 (signed, decimal)
 
 import qualified Database.PostgreSQL.LibPQ as P
 
@@ -112,19 +117,91 @@ class Column a where
 	-- | Descripe the column.
 	columnDescription :: ColumnDescription a
 
+instance Column Bool where
+	pack v =
+		Value {
+			valueType   = P.Oid 16,
+			valueData   = if v then "true" else "false",
+			valueFormat = P.Text
+		}
+
+	unpack (Value (P.Oid 16) "true"  P.Text) = Just True
+	unpack (Value (P.Oid 16) "false" P.Text) = Just False
+	unpack _                                 = Nothing
+
+	columnDescription =
+		ColumnDescription {
+			columnTypeName = "bool",
+			columnTypeNull = False
+		}
+
 instance Column Int where
 	pack n =
 		Value {
 			valueType   = P.Oid 23,
-			valueData   = fromString (show n),
+			valueData   = buildByteString intDec n,
 			valueFormat = P.Text
 		}
 
-	unpack (Value (P.Oid 23) dat P.Text) =
-		Just (fromIntegralText dat)
+	unpack (Value (P.Oid 21) dat P.Text) = parseMaybe (signed decimal) dat
+	unpack (Value (P.Oid 23) dat P.Text) = parseMaybe (signed decimal) dat
+	unpack _                             = Nothing
+
+	columnDescription =
+		ColumnDescription {
+			columnTypeName = "integer",
+			columnTypeNull = False
+		}
+
+instance Column Int8 where
+	pack n =
+		Value {
+			valueType   = P.Oid 21,
+			valueData   = buildByteString int8Dec n,
+			valueFormat = P.Text
+		}
+
+	unpack (Value (P.Oid 21) dat P.Text) = parseMaybe (signed decimal) dat
+	unpack _                             = Nothing
+
+	columnDescription =
+		ColumnDescription {
+			columnTypeName = "smallint",
+			columnTypeNull = False
+		}
+
+instance Column Int16 where
+	pack n =
+		Value {
+			valueType   = P.Oid 21,
+			valueData   = buildByteString int16Dec n,
+			valueFormat = P.Text
+		}
+
+	unpack (Value (P.Oid 21) dat P.Text) =
+		pure (fromIntegralText dat)
 
 	unpack _ =
 		Nothing
+
+	columnDescription =
+		ColumnDescription {
+			columnTypeName = "smallint",
+			columnTypeNull = False
+		}
+
+instance Column Int32 where
+	pack n =
+		Value {
+			valueType   = P.Oid 23,
+			valueData   = buildByteString int32Dec n,
+			valueFormat = P.Text
+		}
+
+	unpack (Value (P.Oid 21) dat P.Text) = parseMaybe (signed decimal) dat
+	unpack (Value (P.Oid 23) dat P.Text) = parseMaybe (signed decimal) dat
+	unpack _                             = Nothing
+
 
 	columnDescription =
 		ColumnDescription {
@@ -136,18 +213,37 @@ instance Column Int64 where
 	pack n =
 		Value {
 			valueType   = P.Oid 20,
-			valueData   = fromString (show n),
+			valueData   = buildByteString int64Dec n,
 			valueFormat = P.Text
 		}
 
-	unpack (Value (P.Oid 20) dat P.Text) =
-		Just (fromIntegralText dat)
-
-	unpack _ = Nothing
+	unpack (Value (P.Oid 20) dat P.Text) = parseMaybe (signed decimal) dat
+	unpack (Value (P.Oid 21) dat P.Text) = parseMaybe (signed decimal) dat
+	unpack (Value (P.Oid 23) dat P.Text) = parseMaybe (signed decimal) dat
+	unpack _                             = Nothing
 
 	columnDescription =
 		ColumnDescription {
 			columnTypeName = "bigint",
+			columnTypeNull = False
+		}
+
+instance Column T.Text where
+	pack txt =
+		Value {
+			valueType   = P.Oid 25,
+			valueData   = T.encodeUtf8 txt,
+			valueFormat = P.Text
+		}
+
+	unpack (Value (P.Oid 16)   dat P.Text) = Just (T.decodeUtf8 dat)
+	unpack (Value (P.Oid 25)   dat P.Text) = Just (T.decodeUtf8 dat)
+	unpack (Value (P.Oid 1043) dat P.Text) = Just (T.decodeUtf8 dat)
+	unpack _                               = Nothing
+
+	columnDescription =
+		ColumnDescription {
+			columnTypeName = "text",
 			columnTypeNull = False
 		}
 
@@ -159,19 +255,25 @@ instance Column B.ByteString where
 			valueFormat = P.Text
 		}
 
-	unpack (Value (P.Oid 17) dat P.Binary) =
-		Just dat
-
-	unpack (Value (P.Oid 17) dat P.Text) =
-		fromTextByteArray dat
-
-	unpack _ = Nothing
+	unpack (Value (P.Oid 17) dat P.Binary) = pure dat
+	unpack (Value (P.Oid 17) dat P.Text)   = fromTextByteArray dat
+	unpack _                               = Nothing
 
 	columnDescription =
 		ColumnDescription {
 			columnTypeName = "bytea",
 			columnTypeNull = False
 		}
+
+instance Column BL.ByteString where
+	pack = pack . BL.toStrict
+
+	unpack (Value (P.Oid 17) dat P.Binary) = pure (BL.fromStrict dat)
+	unpack (Value (P.Oid 17) dat P.Text)   = BL.fromStrict <$> fromTextByteArray dat
+	unpack _                               = Nothing
+
+	columnDescription =
+		coerceColumnDescription (columnDescription :: ColumnDescription B.ByteString)
 
 -- | Resolved row
 data Row a = Row Int64 a
@@ -260,3 +362,20 @@ fromTextByteArray bs
 toTextByteArray :: B.ByteString -> B.ByteString
 toTextByteArray bs =
 	"\\x" <> B.concatMap word8ToHex bs
+
+-- | Parse a ByteString.
+parseMaybe :: Parser a -> B.ByteString -> Maybe a
+parseMaybe p i = maybeResult (parse p i)
+
+-- | Build strict ByteString.
+buildByteString :: (a -> Builder) -> a -> B.ByteString
+buildByteString f x =
+	BL.toStrict (toLazyByteString (f x))
+
+-- | Convert between to column descriptions
+coerceColumnDescription :: ColumnDescription a -> ColumnDescription b
+coerceColumnDescription ColumnDescription {..} =
+	ColumnDescription {
+		columnTypeName = columnTypeName,
+		columnTypeNull = columnTypeNull
+	}
