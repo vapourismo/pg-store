@@ -278,13 +278,12 @@ instance HasID Row where
 instance (Table a) => ResultRow (Row a) where
 	fromResult = tableResultProcessor
 
--- | Reference to a row or the resolved row
-data Reference a = Reference Int64 | Resolved (Row a)
+-- | Reference to a row
+newtype Reference a = Reference Int64
 	deriving (Show, Eq, Ord)
 
 instance HasID Reference where
 	referenceID (Reference rid) = rid
-	referenceID (Resolved row)  = referenceID row
 
 instance (Table a) => Column (Reference a) where
 	pack ref = pack (referenceID ref)
