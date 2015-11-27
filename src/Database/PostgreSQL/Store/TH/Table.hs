@@ -84,7 +84,7 @@ createQueryE name fields =
 
 		describeField (fname, ftype) =
 			[e| $(stringE (sanitizeName fname)) ++ " " ++
-			    show (columnDescription :: ColumnDescription $(pure ftype)) |]
+			    makeColumnDescription (columnDescription :: ColumnDescription $(pure ftype)) |]
 
 -- | Generate an expression which gathers all records from a type and packs them into a list.
 -- `packParamsE 'row ['field1, 'field2]` generates `[pack (field1 row), pack (field2 row)]`

@@ -49,11 +49,7 @@ data ColumnDescription a = ColumnDescription {
 
 	-- | Can the column be null?
 	columnTypeNull :: Bool
-}
-
-instance Show (ColumnDescription a) where
-	show ColumnDescription {..} =
-		columnTypeName ++ (if columnTypeNull then "" else " NOT NULL")
+} deriving (Show, Eq, Ord)
 
 -- | Error that occured during result processing
 data ResultError
@@ -178,11 +174,8 @@ instance Column Int16 where
 			valueFormat = P.Text
 		}
 
-	unpack (Value (P.Oid 21) dat P.Text) =
-		pure (fromIntegralText dat)
-
-	unpack _ =
-		Nothing
+	unpack (Value (P.Oid 21) dat P.Text) = parseMaybe (signed decimal) dat
+	unpack _                             = Nothing
 
 	columnDescription =
 		ColumnDescription {
@@ -307,15 +300,6 @@ instance (Table a) => Column (Reference a) where
 					columnTypeNull = False
 				}
 
--- | Read an integral type from its text representation.
-fromIntegralText :: (Integral a) => B.ByteString -> a
-fromIntegralText bs =
-	fromIntegral (B.foldl' reducer (0 :: Integer) bs)
-	where
-		reducer a b
-			| b >= 48 && b <= 57 = a * 10 + fromIntegral (b - 48)
-			| otherwise          = a
-
 -- | Produce the two-digit hexadecimal representation of a 8-bit word.
 word8ToHex :: Word8 -> B.ByteString
 word8ToHex w =
@@ -363,9 +347,15 @@ toTextByteArray :: B.ByteString -> B.ByteString
 toTextByteArray bs =
 	"\\x" <> B.concatMap word8ToHex bs
 
+-- | Finish the parsing process.
+finishParser :: Result r -> Result r
+finishParser (Partial f) = f B.empty
+finishParser x = x
+
 -- | Parse a ByteString.
 parseMaybe :: Parser a -> B.ByteString -> Maybe a
-parseMaybe p i = maybeResult (parse p i)
+parseMaybe p i =
+	maybeResult (finishParser (parse p i))
 
 -- | Build strict ByteString.
 buildByteString :: (a -> Builder) -> a -> B.ByteString
@@ -379,3 +369,8 @@ coerceColumnDescription ColumnDescription {..} =
 		columnTypeName = columnTypeName,
 		columnTypeNull = columnTypeNull
 	}
+
+-- | Generate SQL column description.
+makeColumnDescription :: ColumnDescription a -> String
+makeColumnDescription ColumnDescription {..} =
+	columnTypeName ++ (if columnTypeNull then "" else " NOT NULL")
