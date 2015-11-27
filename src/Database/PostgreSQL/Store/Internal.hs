@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, TemplateHaskell, RecordWildCards, ExistentialQuantification,
-             StandaloneDeriving #-}
+             StandaloneDeriving, FlexibleInstances #-}
 
 module Database.PostgreSQL.Store.Internal where
 
@@ -417,6 +417,25 @@ instance Column Int64 where
 	columnDescription =
 		ColumnDescription {
 			columnTypeName = "bigint",
+			columnTypeNull = False
+		}
+
+instance Column [Char] where
+	pack str =
+		Value {
+			valueType   = P.Oid 25,
+			valueData   = buildByteString stringUtf8 str,
+			valueFormat = P.Text
+		}
+
+	unpack (Value (P.Oid 16)   dat P.Text) = Just (T.unpack (T.decodeUtf8 dat))
+	unpack (Value (P.Oid 25)   dat P.Text) = Just (T.unpack (T.decodeUtf8 dat))
+	unpack (Value (P.Oid 1043) dat P.Text) = Just (T.unpack (T.decodeUtf8 dat))
+	unpack _                               = Nothing
+
+	columnDescription =
+		ColumnDescription {
+			columnTypeName = "text",
 			columnTypeNull = False
 		}
 
