@@ -153,6 +153,7 @@ newtype Reference a = Reference Int64
 -- | Error during errand
 data ErrandError
 	= NoResult
+	| ExecError P.ExecStatus (Maybe B.ByteString)
 	| ResultError ResultError
 	| UserError String
 	deriving Show
@@ -174,7 +175,18 @@ raiseErrandError msg =
 executeQuery :: Query -> Errand P.Result
 executeQuery (Query statement params) = do
 	con <- ask
-	lift (ExceptT (transformResult <$> P.execParams con statement transformedParams P.Text))
+	lift $ do
+		res <- ExceptT (transformResult <$> P.execParams con statement transformedParams P.Text)
+		status <- lift (P.resultStatus res)
+
+		case status of
+			P.CommandOk -> pure res
+			P.TuplesOk  -> pure res
+
+			other -> do
+				msg <- lift (P.resultErrorMessage res)
+				throwE (ExecError other msg)
+
 	where
 		transformResult =
 			maybe (Left NoResult) pure
