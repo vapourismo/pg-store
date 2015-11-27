@@ -211,10 +211,10 @@ query_ qry =
 -- | Table type
 class Table a where
 	-- | Insert a row into a table.
-	insert :: a -> Errand (Row a)
+	insert :: a -> Errand (Reference a)
 
 	-- | Generate an UPDATE query which updates an existing row.
-	update :: Row a -> Errand ()
+	update :: (HasID i) => i a -> a -> Errand ()
 
 	-- | Generate a DELETE query which removes an existing row.
 	delete :: (HasID i) => i a -> Errand ()
@@ -555,3 +555,7 @@ coerceColumnDescription ColumnDescription {..} =
 makeColumnDescription :: ColumnDescription a -> String
 makeColumnDescription ColumnDescription {..} =
 	columnTypeName ++ (if columnTypeNull then "" else " NOT NULL")
+
+-- | Reference a row
+referenceTo :: Row a -> Reference a
+referenceTo (Row rid _) = Reference rid

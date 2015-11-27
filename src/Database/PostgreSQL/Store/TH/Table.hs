@@ -172,14 +172,14 @@ implementTableD table ctor fields = do
 	                queryParams    = $(packParamsE 'row fieldNames)
 	            }
 
-	            case (rs :: [Reference $(pure (ConT table))]) of
-	            	(Reference rid : _) -> pure (Row rid row)
-	            	_       -> raiseErrandError "Result set for insertion is empty"
+	            case rs of
+	            	(ref : _) -> pure ref
+	            	_         -> raiseErrandError "Result set for insertion is empty"
 
-	        update (Row rid row) =
+	        update ref row =
 	            query_ Query {
 	                queryStatement = $(updateQueryE table (length fieldNames)),
-	                queryParams    = pack rid : $(packParamsE 'row fieldNames)
+	                queryParams    = pack (referenceID ref) : $(packParamsE 'row fieldNames)
 	            }
 
 	        delete ref =
