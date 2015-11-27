@@ -62,7 +62,7 @@ test = do
 		             FROM Movie, PlayedIn
 		             WHERE playedInMovie = &Movie AND
 		                   playedInActor IN ($act2, $act3)
-		             GROUP BY &Movie, &PlayedIn, playedInMovie |] :: Errand [Row Movie]
+		             GROUP BY &PlayedIn, &Movie |] :: Errand [Row Movie]
 
 	either print (mapM_ print) r
 
