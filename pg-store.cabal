@@ -18,7 +18,6 @@ library
   hs-source-dirs:   src
   exposed-modules:  Test,
                     Database.PostgreSQL.Store,
-                    Database.PostgreSQL.Store.Types,
-                    Database.PostgreSQL.Store.Monad,
+                    Database.PostgreSQL.Store.Internal,
                     Database.PostgreSQL.Store.TH.Table,
                     Database.PostgreSQL.Store.TH.Query

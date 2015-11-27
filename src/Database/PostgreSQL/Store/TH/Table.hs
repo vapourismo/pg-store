@@ -9,8 +9,7 @@ import           Data.List
 import           Data.String
 import           Data.Typeable
 
-import           Database.PostgreSQL.Store.Types
-import           Database.PostgreSQL.Store.Monad
+import           Database.PostgreSQL.Store.Internal
 
 import           Language.Haskell.TH
 

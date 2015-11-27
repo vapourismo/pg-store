@@ -12,7 +12,7 @@ import qualified Data.ByteString.Char8 as B
 import           Data.Attoparsec.ByteString.Char8 hiding (isDigit)
 
 import           Database.PostgreSQL.Store.TH.Table
-import           Database.PostgreSQL.Store.Types
+import           Database.PostgreSQL.Store.Internal
 
 import           Language.Haskell.TH
 import           Language.Haskell.TH.Quote

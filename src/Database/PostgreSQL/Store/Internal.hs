@@ -1,8 +1,9 @@
 {-# LANGUAGE OverloadedStrings, TemplateHaskell, RecordWildCards, ExistentialQuantification,
              StandaloneDeriving #-}
 
-module Database.PostgreSQL.Store.Types where
+module Database.PostgreSQL.Store.Internal where
 
+import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Reader
 import           Control.Monad.Trans.Except
 
@@ -23,16 +24,19 @@ import           Data.Attoparsec.ByteString.Char8 (signed, decimal)
 import qualified Database.PostgreSQL.LibPQ as P
 
 -- | Query parameter or value of a column
-data Value = Value {
-	-- | Type OID
-	valueType :: P.Oid,
+data Value
+	= Value {
+		-- | Type OID
+		valueType :: P.Oid,
 
-	-- | Data value
-	valueData :: B.ByteString,
+		-- | Data value
+		valueData :: B.ByteString,
 
-	-- | Data format
-	valueFormat :: P.Format
-} deriving (Show, Eq, Ord)
+		-- | Data format
+		valueFormat :: P.Format
+	}
+	| NullValue
+	deriving (Show, Eq, Ord)
 
 -- | Query including statement and parameters.
 data Query = Query {
@@ -63,6 +67,67 @@ deriving instance Show ResultError
 -- | Result processor
 type ResultProcessor = ReaderT P.Result (ExceptT ResultError IO)
 
+-- | Process the result.
+processResult :: P.Result -> ResultProcessor a -> ExceptT ResultError IO a
+processResult = flip runReaderT
+
+-- | Get the column number for a column name.
+columnNumber :: B.ByteString -> ResultProcessor P.Column
+columnNumber name = do
+	result <- ask
+	lift (ExceptT (maybe (Left (UnknownColumnName name)) pure <$> P.fnumber result name))
+
+-- | Get the type of a column.
+columnType :: P.Column -> ResultProcessor P.Oid
+columnType col = do
+	result <- ask
+	lift (lift (P.ftype result col))
+
+-- | Get the format of a column.
+columnFormat :: P.Column -> ResultProcessor P.Format
+columnFormat col = do
+	result <- ask
+	lift (lift (P.fformat result col))
+
+-- | Get information about a column.
+columnInfo :: B.ByteString -> ResultProcessor (P.Column, P.Oid, P.Format)
+columnInfo name = do
+	col <- columnNumber name
+	(,,) col <$> columnType col <*> columnFormat col
+
+-- | Do something for each row.
+foreachRow :: (P.Row -> ResultProcessor a) -> ResultProcessor [a]
+foreachRow rowProcessor = do
+	result <- ask
+	numRows <- lift (lift (P.ntuples result))
+	mapM rowProcessor [0 .. numRows - 1]
+
+-- | Get cell data.
+cellData :: P.Row -> P.Column -> ResultProcessor B.ByteString
+cellData row col = do
+	result <- ask
+	lift (ExceptT (maybe (Left (ColumnDataMissing row col)) pure <$> P.getvalue' result row col))
+
+-- | Get cell value.
+cellValue :: P.Row -> (P.Column, P.Oid, P.Format) -> ResultProcessor Value
+cellValue row (col, oid, fmt) = do
+	Value oid <$> cellData row col <*> pure fmt
+
+-- | Unpack cell value.
+unpackCellValue :: (Column a) => P.Row -> (P.Column, P.Oid, P.Format) -> ResultProcessor a
+unpackCellValue row info = do
+	value <- cellValue row info
+	lift (ExceptT (make columnDescription (unpack value)))
+	where
+		(col, oid, fmt) = info
+
+		valueError desc =
+			pure (Left (ValueError row col oid fmt desc))
+
+		make :: ColumnDescription a -> Maybe a -> IO (Either ResultError a)
+		make desc =
+			maybe (valueError desc) (pure . pure)
+
 -- | Description of a table type
 data TableDescription a = TableDescription {
 	-- | Table name
@@ -84,6 +149,46 @@ data Row a = Row {
 -- | Reference to a row
 newtype Reference a = Reference Int64
 	deriving (Show, Eq, Ord)
+
+-- | Error during errand
+data ErrandError
+	= NoResult
+	| ResultError ResultError
+	deriving Show
+
+-- | Database errand
+type Errand = ReaderT P.Connection (ExceptT ErrandError IO)
+
+-- | Run an errand.
+runErrand :: P.Connection -> Errand a -> IO (Either ErrandError a)
+runErrand con errand =
+	runExceptT (runReaderT errand con)
+
+-- | Execute a query and return its result.
+executeQuery :: Query -> Errand P.Result
+executeQuery (Query statement params) = do
+	con <- ask
+	lift (ExceptT (transformResult <$> P.execParams con statement transformedParams P.Text))
+	where
+		transformResult =
+			maybe (Left NoResult) pure
+
+		transformParam Value {..} = Just (valueType, valueData, valueFormat)
+		transformParam NullValue  = Nothing
+
+		transformedParams =
+			map transformParam params
+
+-- | Execute a query and process its result set.
+query :: (ResultRow a) => Query -> Errand [a]
+query qry = do
+	result <- executeQuery qry
+	lift (withExceptT ResultError (processResult result resultProcessor))
+
+-- | Execute a query.
+query_ :: Query -> Errand ()
+query_ qry =
+	() <$ executeQuery qry
 
 -- | Table type
 class Table a where
@@ -157,6 +262,9 @@ instance (ResultRow a, ResultRow b, ResultRow c, ResultRow d, ResultRow e, Resul
 
 instance (Table a) => ResultRow (Row a) where
 	resultProcessor = tableResultProcessor
+
+instance ResultRow () where
+	resultProcessor = foreachRow (const (pure ()))
 
 -- | A value of that type contains an ID.
 class HasID a where
