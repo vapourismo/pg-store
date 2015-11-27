@@ -25,7 +25,7 @@ sanitizeName name =
 -- | Generate the name of the identifying field.
 identField :: Name -> String
 identField name =
-	"\"" ++ maybe [] (++ ".") (nameModule name) ++ "$id\""
+	"\"" ++ show name ++ "$id\""
 
 -- | Generate the insert query for a table.
 insertQueryE :: Name -> [Name] -> Q Exp
