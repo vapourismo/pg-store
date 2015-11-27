@@ -52,7 +52,7 @@ query Query {..} = do
 	con <- ask
 	lift $ do
 		result <- ExceptT (maybe (Left NoResult) pure <$> P.execParams con queryStatement (map makeParam queryParams) P.Text)
-		withExceptT ResultError (processResult result fromResult)
+		withExceptT ResultError (processResult result resultProcessor)
 	where
 		makeParam Value {..} =
 			Just (valueType, valueData, valueFormat)

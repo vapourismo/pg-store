@@ -72,6 +72,14 @@ data TableDescription a = TableDescription {
 	tableIdentColumn :: String
 } deriving (Show, Eq, Ord)
 
+-- | Resolved row
+data Row a = Row Int64 a
+	deriving (Show, Eq, Ord)
+
+-- | Reference to a row
+newtype Reference a = Reference Int64
+	deriving (Show, Eq, Ord)
+
 -- | Table type
 class Table a where
 	-- | Generate an INSERT query which adds a row to the table and returns its identifier.
@@ -95,30 +103,66 @@ class Table a where
 -- | Result row
 class ResultRow a where
 	-- | Extract rows from the given result.
-	fromResult :: ResultProcessor [a]
+	resultProcessor :: ResultProcessor [a]
 
 instance (ResultRow a, ResultRow b) => ResultRow (a, b) where
-	fromResult = zip <$> fromResult <*> fromResult
+	resultProcessor =
+		zip <$> resultProcessor
+		    <*> resultProcessor
 
 instance (ResultRow a, ResultRow b, ResultRow c) => ResultRow (a, b, c) where
-	fromResult = zip3 <$> fromResult <*> fromResult <*> fromResult
+	resultProcessor =
+		zip3 <$> resultProcessor
+		     <*> resultProcessor
+		     <*> resultProcessor
 
 instance (ResultRow a, ResultRow b, ResultRow c, ResultRow d) => ResultRow (a, b, c, d) where
-	fromResult = zip4 <$> fromResult <*> fromResult <*> fromResult <*> fromResult
+	resultProcessor =
+		zip4 <$> resultProcessor
+		     <*> resultProcessor
+		     <*> resultProcessor
+		     <*> resultProcessor
 
 instance (ResultRow a, ResultRow b, ResultRow c, ResultRow d, ResultRow e) => ResultRow (a, b, c, d, e) where
-	fromResult = zip5 <$> fromResult <*> fromResult <*> fromResult <*> fromResult <*> fromResult
+	resultProcessor =
+		zip5 <$> resultProcessor
+		     <*> resultProcessor
+		     <*> resultProcessor
+		     <*> resultProcessor
+		     <*> resultProcessor
 
 instance (ResultRow a, ResultRow b, ResultRow c, ResultRow d, ResultRow e, ResultRow f) => ResultRow (a, b, c, d, e, f) where
-	fromResult = zip6 <$> fromResult <*> fromResult <*> fromResult <*> fromResult <*> fromResult <*> fromResult
+	resultProcessor =
+		zip6 <$> resultProcessor
+		     <*> resultProcessor
+		     <*> resultProcessor
+		     <*> resultProcessor
+		     <*> resultProcessor
+		     <*> resultProcessor
 
 instance (ResultRow a, ResultRow b, ResultRow c, ResultRow d, ResultRow e, ResultRow f, ResultRow g) => ResultRow (a, b, c, d, e, f, g) where
-	fromResult = zip7 <$> fromResult <*> fromResult <*> fromResult <*> fromResult <*> fromResult <*> fromResult <*> fromResult
+	resultProcessor =
+		zip7 <$> resultProcessor
+		     <*> resultProcessor
+		     <*> resultProcessor
+		     <*> resultProcessor
+		     <*> resultProcessor
+		     <*> resultProcessor
+		     <*> resultProcessor
+
+instance (Table a) => ResultRow (Row a) where
+	resultProcessor = tableResultProcessor
 
 -- | A value of that type contains an ID.
 class HasID a where
 	-- | Retrieve the underlying ID.
 	referenceID :: a b -> Int64
+
+instance HasID Row where
+	referenceID (Row rid _) = rid
+
+instance HasID Reference where
+	referenceID (Reference rid) = rid
 
 -- | Column type
 class Column a where
@@ -285,23 +329,6 @@ instance Column BL.ByteString where
 
 	columnDescription =
 		coerceColumnDescription (columnDescription :: ColumnDescription B.ByteString)
-
--- | Resolved row
-data Row a = Row Int64 a
-	deriving (Show, Eq, Ord)
-
-instance HasID Row where
-	referenceID (Row rid _) = rid
-
-instance (Table a) => ResultRow (Row a) where
-	fromResult = tableResultProcessor
-
--- | Reference to a row
-newtype Reference a = Reference Int64
-	deriving (Show, Eq, Ord)
-
-instance HasID Reference where
-	referenceID (Reference rid) = rid
 
 instance (Table a) => Column (Reference a) where
 	pack ref = pack (referenceID ref)
