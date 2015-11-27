@@ -58,7 +58,7 @@ data ColumnDescription a = ColumnDescription {
 
 -- | Error that occured during result processing
 data ResultError
-	= UnknownColumnName B.ByteString
+	= ColumnMissing B.ByteString
 	| ColumnDataMissing P.Row P.Column
 	| forall a. ValueError P.Row P.Column P.Oid P.Format (ColumnDescription a)
 
@@ -75,7 +75,7 @@ processResult = flip runReaderT
 columnNumber :: B.ByteString -> ResultProcessor P.Column
 columnNumber name = do
 	result <- ask
-	lift (ExceptT (maybe (Left (UnknownColumnName name)) pure <$> P.fnumber result name))
+	lift (ExceptT (maybe (Left (ColumnMissing name)) pure <$> P.fnumber result name))
 
 -- | Get the type of a column.
 columnType :: P.Column -> ResultProcessor P.Oid
