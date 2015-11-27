@@ -31,15 +31,16 @@ test = do
 	runErrand con $ do
 		query_ $(mkCreateQuery ''Movie)
 
-	runErrand con $ do
-		query_ (insertQuery (Movie "Test Movie 1" 2001))
-		query_ (insertQuery (Movie "Test Movie 2" 2002))
-		query_ (insertQuery (Movie "Test Movie 3" 2003))
-		query_ (insertQuery (Movie "Test Movie 4" 2004))
+	insertResult <- runErrand con $
+		sequence [insert (Movie "Test Movie 1" 2001),
+		          insert (Movie "Test Movie 2" 2002),
+		          insert (Movie "Test Movie 3" 2003),
+		          insert (Movie "Test Movie 4" 2004)]
+	print insertResult
 
-	runErrand con $ do
-		let q = [pgsq| SELECT * FROM Movie WHERE &Movie IN (1, 3) |]
-		query q :: Errand [Row Movie]
+	--runErrand con $ do
+	--	let q = [pgsq| SELECT * FROM Movie WHERE &Movie IN (1, 3) |]
+	--	query q :: Errand [Row Movie]
 
 	runErrand con $ do
 		query_ [pgsq| DROP TABLE Movie |]

@@ -154,6 +154,7 @@ newtype Reference a = Reference Int64
 data ErrandError
 	= NoResult
 	| ResultError ResultError
+	| UserError String
 	deriving Show
 
 -- | Database errand
@@ -163,6 +164,11 @@ type Errand = ReaderT P.Connection (ExceptT ErrandError IO)
 runErrand :: P.Connection -> Errand a -> IO (Either ErrandError a)
 runErrand con errand =
 	runExceptT (runReaderT errand con)
+
+-- | Raise a user error.
+raiseErrandError :: String -> Errand a
+raiseErrandError msg =
+	lift (ExceptT (pure (Left (UserError msg))))
 
 -- | Execute a query and return its result.
 executeQuery :: Query -> Errand P.Result
@@ -192,20 +198,23 @@ query_ qry =
 
 -- | Table type
 class Table a where
-	-- | Generate an INSERT query which adds a row to the table and returns its identifier.
-	insertQuery :: a -> Query
+	-- | Insert a row into a table.
+	insert :: a -> Errand (Row a)
 
 	-- | Generate an UPDATE query which updates an existing row.
-	updateQuery :: Row a -> Query
+	update :: Row a -> Errand ()
 
 	-- | Generate a DELETE query which removes an existing row.
-	deleteQuery :: (HasID i) => i a -> Query
+	delete :: (HasID i) => i a -> Errand ()
 
 	-- | Generate a CREATE query which creates the table.
 	createQuery :: Proxy a -> Query
 
 	-- | Extract rows of this table from the given result.
 	tableResultProcessor :: ResultProcessor [Row a]
+
+	-- | Extract references to rows of this table from a given result.
+	tableRefResultProcessor :: ResultProcessor [Reference a]
 
 	-- | Describe the table.
 	tableDescription :: TableDescription a
@@ -262,6 +271,9 @@ instance (ResultRow a, ResultRow b, ResultRow c, ResultRow d, ResultRow e, Resul
 
 instance (Table a) => ResultRow (Row a) where
 	resultProcessor = tableResultProcessor
+
+instance (Table a) => ResultRow (Reference a) where
+	resultProcessor = tableRefResultProcessor
 
 instance ResultRow () where
 	resultProcessor = foreachRow (const (pure ()))

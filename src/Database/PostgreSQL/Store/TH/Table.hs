@@ -142,11 +142,17 @@ unpackRowsE table ctor fields =
 	               <*> $(unpackRowE ctor 'row fields) |]
 
 -- | Generate an expression which retrieves a table instance from each row.
-fromResultE :: Name -> Name -> [Name] -> Q Exp
-fromResultE table ctor fields = do
+tableResultProcessorE :: Name -> Name -> [Name] -> Q Exp
+tableResultProcessorE table ctor fields = do
 	infoBinds <- mapM bindColumnInfoS fields
 	rowTraversal <- unpackRowsE table ctor fields
 	pure (DoE (infoBinds ++ [NoBindS rowTraversal]))
+
+-- |
+tableRefResultProcessorE :: Name -> Q Exp
+tableRefResultProcessorE table =
+	[e| do idNfo <- columnInfo (fromString $(stringE (identField table)))
+	       foreachRow (\ row -> Reference <$> unpackCellValue row idNfo) |]
 
 -- | Generate an expression which instantiates a description for a given table.
 tableDescriptionE :: Name -> Q Exp
@@ -160,20 +166,24 @@ tableDescriptionE table =
 implementTableD :: Name -> Name -> [(Name, Type)] -> Q [Dec]
 implementTableD table ctor fields = do
 	[d| instance Table $(pure (ConT table)) where
-	        insertQuery row =
-	            Query {
+	        insert row = do
+	            rs <- query Query {
 	                queryStatement = $(insertQueryE table fieldNames),
 	                queryParams    = $(packParamsE 'row fieldNames)
 	            }
 
-	        updateQuery (Row rid row) =
-	            Query {
+	            case (rs :: [Reference $(pure (ConT table))]) of
+	            	(Reference rid : _) -> pure (Row rid row)
+	            	_       -> raiseErrandError "Result set for insertion is empty"
+
+	        update (Row rid row) =
+	            query_ Query {
 	                queryStatement = $(updateQueryE table (length fieldNames)),
 	                queryParams    = pack rid : $(packParamsE 'row fieldNames)
 	            }
 
-	        deleteQuery ref =
-	            Query {
+	        delete ref =
+	            query_ Query {
 	                queryStatement = $(deleteQueryE table),
 	                queryParams    = [pack (referenceID ref)]
 	            }
@@ -185,7 +195,10 @@ implementTableD table ctor fields = do
 	            }
 
 	        tableResultProcessor =
-	            $(fromResultE table ctor fieldNames)
+	            $(tableResultProcessorE table ctor fieldNames)
+
+	        tableRefResultProcessor =
+	        	$(tableRefResultProcessorE table)
 
 	        tableDescription =
 	            $(tableDescriptionE table) |]
