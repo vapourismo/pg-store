@@ -9,6 +9,7 @@ import           Control.Monad.Trans.Except
 import           Data.Int
 import           Data.Word
 import           Data.Bits
+import           Data.List
 import           Data.Monoid
 import           Data.Typeable
 import qualified Data.Text as T
@@ -91,11 +92,28 @@ class Table a where
 	-- | Describe the table.
 	tableDescription :: TableDescription a
 
-
 -- | Result row
 class ResultRow a where
 	-- | Extract rows from the given result.
 	fromResult :: ResultProcessor [a]
+
+instance (ResultRow a, ResultRow b) => ResultRow (a, b) where
+	fromResult = zip <$> fromResult <*> fromResult
+
+instance (ResultRow a, ResultRow b, ResultRow c) => ResultRow (a, b, c) where
+	fromResult = zip3 <$> fromResult <*> fromResult <*> fromResult
+
+instance (ResultRow a, ResultRow b, ResultRow c, ResultRow d) => ResultRow (a, b, c, d) where
+	fromResult = zip4 <$> fromResult <*> fromResult <*> fromResult <*> fromResult
+
+instance (ResultRow a, ResultRow b, ResultRow c, ResultRow d, ResultRow e) => ResultRow (a, b, c, d, e) where
+	fromResult = zip5 <$> fromResult <*> fromResult <*> fromResult <*> fromResult <*> fromResult
+
+instance (ResultRow a, ResultRow b, ResultRow c, ResultRow d, ResultRow e, ResultRow f) => ResultRow (a, b, c, d, e, f) where
+	fromResult = zip6 <$> fromResult <*> fromResult <*> fromResult <*> fromResult <*> fromResult <*> fromResult
+
+instance (ResultRow a, ResultRow b, ResultRow c, ResultRow d, ResultRow e, ResultRow f, ResultRow g) => ResultRow (a, b, c, d, e, f, g) where
+	fromResult = zip7 <$> fromResult <*> fromResult <*> fromResult <*> fromResult <*> fromResult <*> fromResult <*> fromResult
 
 -- | A value of that type contains an ID.
 class HasID a where
