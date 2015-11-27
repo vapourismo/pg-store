@@ -8,6 +8,7 @@ import           Control.Monad.Trans.State
 
 import           Data.Char
 import           Data.String
+import           Data.Monoid
 import qualified Data.ByteString.Char8 as B
 import           Data.Attoparsec.ByteString.Char8 hiding (isDigit)
 
@@ -91,12 +92,13 @@ data Segment
 	| PossibleName B.ByteString
 	| Variable B.ByteString
 	| Identifier B.ByteString
+	| Quote Char B.ByteString
 	| Other Char
 
 -- | SQL keyword
 keyword :: Parser Segment
 keyword =
-	Keyword <$> choice (string <$> reservedSQLKeywords)
+	Keyword <$> choice (stringCI <$> reservedSQLKeywords)
 
 -- | Letter
 letter :: Parser Char
@@ -110,10 +112,14 @@ alphaNum = satisfy isAlphaNum
 underscore :: Parser Char
 underscore = char '_'
 
+-- | Dot
+dot :: Parser Char
+dot = char '.'
+
 -- | Name
 name :: Parser B.ByteString
 name =
-	bake <$> (letter <|> underscore) <*> many (alphaNum <|> underscore)
+	bake <$> (letter <|> underscore) <*> many (alphaNum <|> underscore <|> dot)
 	where
 		bake h t = B.pack (h : t)
 
@@ -134,10 +140,28 @@ identifier = do
 	char '&'
 	Identifier <$> name
 
+-- | State for the quote parser
+data QuoteState = QuoteState Bool B.ByteString
+
+-- | A quotation
+quote :: Char -> Parser Segment
+quote delim = do
+	char delim
+	cnt <- scan (QuoteState False B.empty) scanner
+	char delim
+	pure (Quote delim cnt)
+	where
+		scanner (QuoteState False cnt) '\\' =
+			Just (QuoteState True (cnt <> "\\"))
+		scanner (QuoteState False _) chr
+			| chr == delim = Nothing
+		scanner (QuoteState _     cnt) chr =
+			Just (QuoteState False (cnt <> B.singleton chr))
+
 -- | Segments
 segments :: Parser [Segment]
 segments =
-	many (variable <|> identifier <|> keyword <|> possibleName <|> fmap Other anyChar)
+	many (quote '"' <|> quote '\'' <|> variable <|> identifier <|> keyword <|> possibleName <|> fmap Other anyChar)
 
 -- | Reduce segments in order to resolve names and collect query parameters.
 reduceSegment :: Segment -> StateT (Int, [Exp]) Q B.ByteString
@@ -148,6 +172,9 @@ reduceSegment seg =
 
 		Other o ->
 			pure (B.singleton o)
+
+		Quote delim cnt ->
+			pure (B.singleton delim <> cnt <> B.singleton delim)
 
 		Variable varName -> do
 			mbName <- lift (lookupValueName (B.unpack varName))
