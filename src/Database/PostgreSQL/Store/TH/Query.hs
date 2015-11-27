@@ -86,7 +86,12 @@ reservedSQLKeywords =
 	 "XMLTABLE", "XMLTEXT", "XMLVALIDATE", "YEAR", "ZONE"]
 
 -- | Query segment
-data Segment = Keyword B.ByteString | PossibleName B.ByteString | Variable B.ByteString | Other Char
+data Segment
+	= Keyword B.ByteString
+	| PossibleName B.ByteString
+	| Variable B.ByteString
+	| Identifier B.ByteString
+	| Other Char
 
 -- | SQL keyword
 keyword :: Parser Segment
@@ -105,23 +110,34 @@ alphaNum = satisfy isAlphaNum
 underscore :: Parser Char
 underscore = char '_'
 
+-- | Name
+name :: Parser B.ByteString
+name =
+	bake <$> (letter <|> underscore) <*> many (alphaNum <|> underscore)
+	where
+		bake h t = B.pack (h : t)
+
 -- | Possible name
 possibleName :: Parser Segment
 possibleName =
-	bake <$> (letter <|> underscore) <*> many (alphaNum <|> underscore)
-	where
-		bake h t = PossibleName (B.pack (h : t))
+	PossibleName <$> name
 
 -- | Variable
 variable :: Parser Segment
 variable = do
 	char '$'
-	Variable . B.pack <$> some alphaNum
+	Variable <$> name
+
+-- | Identifier
+identifier :: Parser Segment
+identifier = do
+	char '&'
+	Identifier <$> name
 
 -- | Segments
 segments :: Parser [Segment]
 segments =
-	many (variable <|> keyword <|> possibleName <|> fmap Other anyChar)
+	many (variable <|> identifier <|> keyword <|> possibleName <|> fmap Other anyChar)
 
 -- | Reduce segments in order to resolve names and collect query parameters.
 reduceSegment :: Segment -> StateT (Int, [Exp]) Q B.ByteString
@@ -158,6 +174,15 @@ reduceSegment seg =
 
 				Nothing ->
 					posName
+
+		Identifier idnName -> do
+			mbName <- lift (lookupTypeName (B.unpack idnName))
+			case mbName of
+				Just name ->
+					pure (B.pack (identField name))
+
+				Nothing ->
+					lift (fail ("\ESC[34m" ++ B.unpack idnName ++ "\ESC[0m does not refer to anything"))
 
 -- | Parse quasi-quoted PG Store Query.
 parseStoreQueryE :: String -> Q Exp

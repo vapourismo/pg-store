@@ -2,6 +2,7 @@
 
 module Test where
 
+import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Reader
 import           Control.Monad.Trans.Except
@@ -75,8 +76,8 @@ test = do
 		query_ (insertQuery (Movie "Test Movie 4" 2004))
 
 	run con $ do
-		let name = "Test Movie%" :: B.ByteString
-		let q = [pgsq| SELECT * FROM Movie WHERE title LIKE $name AND year > 2002 |]
+		let q = [pgsq| SELECT * FROM Movie WHERE &Movie IN (1, 3) |]
+		liftIO (print q)
 		query q :: X [Row Movie]
 
 	run con $ do
