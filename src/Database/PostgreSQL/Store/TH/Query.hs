@@ -1,20 +1,23 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 
 module Database.PostgreSQL.Store.TH.Query where
 
-import Control.Applicative
-import Control.Monad.Trans.Class
+import           Control.Applicative
+import           Control.Monad.Trans.Class
+import           Control.Monad.Trans.State
 
-import Data.String
-import Text.Parsec hiding ((<|>), many)
+import           Data.Char
+import           Data.String
+import qualified Data.ByteString.Char8 as B
+import           Data.Attoparsec.ByteString.Char8 hiding (isDigit)
 
-import Database.PostgreSQL.Store.TH.Table
-import Database.PostgreSQL.Store.Types
+import           Database.PostgreSQL.Store.TH.Table
+import           Database.PostgreSQL.Store.Types
 
-import Language.Haskell.TH
-import Language.Haskell.TH.Quote
+import           Language.Haskell.TH
+import           Language.Haskell.TH.Quote
 
--- | PG Store Query
+-- | Store query quasi-quoter
 pgsq :: QuasiQuoter
 pgsq =
 	QuasiQuoter {
@@ -24,14 +27,8 @@ pgsq =
 		quoteDec  = const (fail "Cannot use 'pgsq' in declaration")
 	}
 
--- | State for the quasi-quotation parser
-data QState = QState Int [Exp]
-
--- | Quasi-quotation parser
-type QParser = ParsecT String QState Q
-
 -- | List of relevant SQL keywords
-reservedSQLKeywords :: [String]
+reservedSQLKeywords :: [B.ByteString]
 reservedSQLKeywords =
 	["ABS", "ABSOLUTE", "ACTION", "ADD", "ALL", "ALLOCATE", "ALTER", "ANALYSE", "ANALYZE", "AND",
 	 "ANY", "ARE", "ARRAY", "ARRAY_AGG", "ARRAY_MAX_CARDINALITY", "AS", "ASC", "ASENSITIVE",
@@ -88,63 +85,90 @@ reservedSQLKeywords =
 	 "XMLFOREST", "XMLITERATE", "XMLNAMESPACES", "XMLPARSE", "XMLPI", "XMLQUERY", "XMLSERIALIZE",
 	 "XMLTABLE", "XMLTEXT", "XMLVALIDATE", "YEAR", "ZONE"]
 
--- | A SQL keyword
-keyword :: QParser String
+-- | Query segment
+data Segment = Keyword B.ByteString | PossibleName B.ByteString | Variable B.ByteString | Other Char
+
+-- | SQL keyword
+keyword :: Parser Segment
 keyword =
-	choice (string <$> reservedSQLKeywords)
+	Keyword <$> choice (string <$> reservedSQLKeywords)
 
--- | Possible identifier
-identifier :: QParser String
-identifier =
-	(:) <$> (letter <|> char '_')
-	    <*> many (alphaNum <|> char '_')
+-- | Letter
+letter :: Parser Char
+letter = satisfy isLetter
 
--- | Possible type or value entity
-entity :: QParser String
-entity = do
-	strName <- identifier
-	mbTName <- lift (lookupTypeName strName)
-	mbVName <- lift (lookupValueName strName)
-	pure $ case mbTName <|> mbVName of
-		Just name -> sanitizeName name
-		Nothing   -> strName
+-- | Alpha numeric character
+alphaNum :: Parser Char
+alphaNum = satisfy isAlphaNum
 
--- | Variable binding
-variable :: QParser String
+-- | Underscore
+underscore :: Parser Char
+underscore = char '_'
+
+-- | Possible name
+possibleName :: Parser Segment
+possibleName =
+	bake <$> (letter <|> underscore) <*> many (alphaNum <|> underscore)
+	where
+		bake h t = PossibleName (B.pack (h : t))
+
+-- | Variable
+variable :: Parser Segment
 variable = do
 	char '$'
-	strName <- identifier
+	Variable . B.pack <$> some alphaNum
 
-	paramExp <- lift $ do
-		mbName <- lookupValueName strName
-		name <- maybe (fail ("Cannot find value name '" ++ strName ++ "'")) pure mbName
-		[e| pack $(varE name) |]
+-- | Segments
+segments :: Parser [Segment]
+segments =
+	many (variable <|> keyword <|> possibleName <|> fmap Other anyChar)
 
-	QState numParams params <- getState
-	putState (QState (numParams + 1) (params ++ [paramExp]))
+-- | Reduce segments in order to resolve names and collect query parameters.
+reduceSegment :: Segment -> StateT (Int, [Exp]) Q B.ByteString
+reduceSegment seg =
+	case seg of
+		Keyword kw ->
+			pure kw
 
-	pure ('$' : show (numParams + 1))
+		Other o ->
+			pure (B.singleton o)
 
--- | Quasi-quotation code
-quote :: Loc -> QParser Exp
-quote loc = do
-	let (line, column) = loc_start loc
-	pos <- getPosition
-	setPosition (setSourceLine (setSourceColumn pos column) line)
+		Variable varName -> do
+			mbName <- lift (lookupValueName (B.unpack varName))
+			case mbName of
+				Just name -> do
+					-- Generate the pack expression
+					lit <- lift [e| pack $(varE name) |]
 
-	contents <- many (try keyword <|> variable <|> entity <|> ((: []) <$> anyChar))
-	eof
+					-- Register parameter
+					(numParams, params) <- get
+					put (numParams + 1, params ++ [lit])
 
-	QState _ params <- getState
-	lift $
-		[e| Query {
-		        queryStatement = fromString $(stringE (concat contents)),
-		        queryParams    = $(pure (ListE params))
-		    } |]
+					pure (B.pack ("$" ++ show (numParams + 1)))
 
--- | Parse
+				Nothing ->
+					lift (fail ("\ESC[34m" ++ B.unpack varName ++ "\ESC[0m does not refer to anything"))
+
+		PossibleName posName -> do
+			let strName = B.unpack posName
+			mbName <- lift ((<|>) <$> lookupTypeName strName <*> lookupValueName strName)
+			pure $ case mbName of
+				Just name ->
+					B.pack (sanitizeName name)
+
+				Nothing ->
+					posName
+
+-- | Parse quasi-quoted PG Store Query.
 parseStoreQueryE :: String -> Q Exp
 parseStoreQueryE code = do
-	loc <- location
-	result <- runParserT (quote loc) (QState 0 []) (loc_filename loc) code
-	either (fail . show) pure result
+	case parseOnly segments (fromString code) of
+		Left msg ->
+			fail msg
+
+		Right xs -> do
+			(statement, (_, params)) <- runStateT (mapM reduceSegment xs) (0, [])
+			[e| Query {
+			        queryStatement = fromString $(stringE (B.unpack (B.concat statement))),
+			        queryParams    = $(pure (ListE params))
+			    } |]
