@@ -1,6 +1,12 @@
 {-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 
-module Database.PostgreSQL.Store.TH.Query (pgsq) where
+module Database.PostgreSQL.Store.Query (
+	Query (..),
+	pgsq
+) where
+
+import           Language.Haskell.TH
+import           Language.Haskell.TH.Quote
 
 import           Control.Applicative
 import           Control.Monad.Trans.Class
@@ -12,11 +18,17 @@ import           Data.Monoid
 import qualified Data.ByteString.Char8 as B
 import           Data.Attoparsec.ByteString.Char8 hiding (isDigit)
 
-import           Database.PostgreSQL.Store.TH.Table
-import           Database.PostgreSQL.Store.Internal
+import           Database.PostgreSQL.Store.Columns
 
-import           Language.Haskell.TH
-import           Language.Haskell.TH.Quote
+-- | Query including statement and parameters.
+-- Use the 'pgsq' quasi-quoter to conveniently create queries.
+data Query = Query {
+	-- | Statement
+	queryStatement :: B.ByteString,
+
+	-- | Parameters
+	queryParams :: [Value]
+} deriving (Show, Eq, Ord)
 
 -- | Generate a 'Query' from a SQL statement.
 --

@@ -1,35 +1,27 @@
 module Database.PostgreSQL.Store (
 	-- * Tables
 	mkTable,
-	mkCreateQuery,
+	Row (..),
+	Reference (..),
 
 	-- * Queries
-	pgsq,
 	Query (..),
-	Value (..),
+	pgsq,
+	mkCreateQuery,
 
 	-- * Errands
+	ResultError (..),
+	ErrandError (..),
 	Errand,
 	runErrand,
 	query,
 	query_,
 	insert,
 	update,
-	delete,
-
-	-- * Rows
-	Row (..),
-	Reference (..),
-	referenceTo,
-
-	-- * Errors
-	ResultError (..),
-	ErrandError (..),
-
-	-- * Type-classes
-	Column (pack, unpack)
+	delete
 ) where
 
-import Database.PostgreSQL.Store.TH.Table
-import Database.PostgreSQL.Store.TH.Query
-import Database.PostgreSQL.Store.Internal
+import Database.PostgreSQL.Store.Table
+import Database.PostgreSQL.Store.Query
+import Database.PostgreSQL.Store.Errand
+import Database.PostgreSQL.Store.Result

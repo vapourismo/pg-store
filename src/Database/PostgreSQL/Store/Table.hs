@@ -1,31 +1,108 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, RecordWildCards #-}
 
-module Database.PostgreSQL.Store.TH.Table where
+module Database.PostgreSQL.Store.Table (
+	TableDescription (..),
+	Row (..),
+	Reference (..),
+	Table (..),
+	mkTable,
+	mkCreateQuery
+) where
 
-import           Control.Monad
-import           Control.Monad.Trans.Class
+import Control.Monad
+import Control.Monad.Trans.Class
 
-import           Data.List
-import           Data.String
-import           Data.Typeable
+import Data.Int
+import Data.List
+import Data.String
+import Data.Typeable
 
-import           Database.PostgreSQL.Store.Internal
+import Language.Haskell.TH
 
-import           Language.Haskell.TH
+import Database.PostgreSQL.Store.Query
+import Database.PostgreSQL.Store.Columns
+import Database.PostgreSQL.Store.Result
+import Database.PostgreSQL.Store.Errand
+
+-- | Description of a table type
+data TableDescription a = TableDescription {
+	-- | Table name
+	tableName :: String,
+
+	-- | Identifier column name - 'pgsq' does not respect this value when generating row identifiers
+	tableIdentColumn :: String
+} deriving (Show, Eq, Ord)
+
+-- | Resolved row
+data Row a = Row {
+	-- | Identifier
+	rowID :: Int64,
+
+	-- | Value
+	rowValue :: a
+} deriving (Show, Eq, Ord)
+
+-- | Reference to a row
+newtype Reference a = Reference Int64
+	deriving (Show, Eq, Ord)
+
+instance (Table a) => Column (Reference a) where
+	pack ref = pack (referenceID ref)
+	unpack val = Reference <$> unpack val
+
+	columnDescription =
+		make tableDescription
+		where
+			make :: TableDescription a -> ColumnDescription (Reference a)
+			make TableDescription {..} =
+				ColumnDescription {
+					columnTypeName = "bigint references " ++ tableName ++ " (" ++ tableIdentColumn ++ ")",
+					columnTypeNull = False
+				}
+
+class Table a where
+	-- | Insert a row into the table and return a 'Reference' to the inserted row.
+	insert :: a -> Errand (Reference a)
+
+	-- | Update an existing row.
+	update :: (HasID i) => i a -> a -> Errand ()
+
+	-- | Delete a row from the table.
+	delete :: (HasID i) => i a -> Errand ()
+
+	-- | Generate the query which creates this table inside the database.
+	-- Use @mkCreateQuery@ for convenience.
+	createQuery :: Proxy a -> Query
+
+	-- | Extract rows from a result set.
+	tableResultProcessor :: ResultProcessor [Row a]
+
+	-- | Extract only a 'Reference' to each row.
+	tableRefResultProcessor :: ResultProcessor [Reference a]
+
+	-- | Describe the table.
+	tableDescription :: TableDescription a
+
+instance (Table a) => ResultRow (Row a) where
+	resultProcessor = tableResultProcessor
+
+instance (Table a) => ResultRow (Reference a) where
+	resultProcessor = tableRefResultProcessor
+
+-- | A value of that type contains an ID.
+class HasID a where
+	-- | Retrieve the underlying ID.
+	referenceID :: a b -> Int64
+
+instance HasID Row where
+	referenceID (Row rid _) = rid
+
+instance HasID Reference where
+	referenceID (Reference rid) = rid
 
 -- | Unqualify a name.
 unqualifyName :: Name -> Name
 unqualifyName = mkName . nameBase
-
--- | Generate the sanitized representation of a name.
-sanitizeName :: Name -> String
-sanitizeName name =
-	"\"" ++ show name ++ "\""
-
--- | Generate the name of the identifying field.
-identField :: Name -> String
-identField name =
-	"\"" ++ show name ++ "$id\""
 
 -- | Generate the insert query for a table.
 insertQueryE :: Name -> [Name] -> Q Exp

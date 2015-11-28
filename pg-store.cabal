@@ -17,6 +17,8 @@ library
   hs-source-dirs:   src
   exposed-modules:  Test,
                     Database.PostgreSQL.Store,
-                    Database.PostgreSQL.Store.Internal,
-                    Database.PostgreSQL.Store.TH.Table,
-                    Database.PostgreSQL.Store.TH.Query
+                    Database.PostgreSQL.Store.Table,
+                    Database.PostgreSQL.Store.Columns,
+                    Database.PostgreSQL.Store.Query,
+                    Database.PostgreSQL.Store.Result,
+                    Database.PostgreSQL.Store.Errand

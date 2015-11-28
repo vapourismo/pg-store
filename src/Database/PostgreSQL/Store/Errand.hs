@@ -1,0 +1,80 @@
+{-# LANGUAGE RecordWildCards #-}
+
+module Database.PostgreSQL.Store.Errand (
+	ErrandError (..),
+	Errand,
+	runErrand,
+	raiseErrandError,
+	executeQuery,
+	query,
+	query_
+) where
+
+import           Control.Monad.Trans.Class
+import           Control.Monad.Trans.Except
+import           Control.Monad.Trans.Reader
+
+import qualified Data.ByteString           as B
+
+import qualified Database.PostgreSQL.LibPQ as P
+import           Database.PostgreSQL.Store.Query
+import           Database.PostgreSQL.Store.Result
+import           Database.PostgreSQL.Store.Columns
+
+-- | Error during errand
+data ErrandError
+	= NoResult
+	| ExecError P.ExecStatus (Maybe B.ByteString)
+	| ResultError ResultError
+	| UserError String
+	deriving Show
+
+type Errand = ReaderT P.Connection (ExceptT ErrandError IO)
+
+-- | Run an errand.
+runErrand :: P.Connection -> Errand a -> IO (Either ErrandError a)
+runErrand con errand =
+	runExceptT (runReaderT errand con)
+
+-- | Raise a user error.
+raiseErrandError :: String -> Errand a
+raiseErrandError msg =
+	lift (ExceptT (pure (Left (UserError msg))))
+
+-- | Execute a query and return its result.
+executeQuery :: Query -> Errand P.Result
+executeQuery (Query statement params) = do
+	con <- ask
+	lift $ do
+		res <- ExceptT (transformResult <$> P.execParams con statement transformedParams P.Text)
+		status <- lift (P.resultStatus res)
+
+		case status of
+			P.CommandOk -> pure res
+			P.TuplesOk  -> pure res
+
+			other -> do
+				msg <- lift (P.resultErrorMessage res)
+				throwE (ExecError other msg)
+
+	where
+		transformResult =
+			maybe (Left NoResult) pure
+
+		transformParam Value {..} = Just (valueType, valueData, valueFormat)
+		transformParam NullValue  = Nothing
+
+		transformedParams =
+			map transformParam params
+
+-- | Execute a query and process its result set.
+query :: (ResultRow a) => Query -> Errand [a]
+query qry = do
+	result <- executeQuery qry
+	lift (withExceptT ResultError (runResultProcessor result resultProcessor))
+
+-- | Execute a query.
+query_ :: Query -> Errand ()
+query_ qry =
+	() <$ executeQuery qry
+
