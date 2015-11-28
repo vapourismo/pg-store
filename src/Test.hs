@@ -5,7 +5,6 @@ module Test where
 import qualified Data.ByteString as B
 
 import           Database.PostgreSQL.Store
-import           Database.PostgreSQL.Store.Internal
 import qualified Database.PostgreSQL.LibPQ as P
 
 data Movie = Movie {

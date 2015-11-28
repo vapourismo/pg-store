@@ -39,6 +39,7 @@ data Value
 	deriving (Show, Eq, Ord)
 
 -- | Query including statement and parameters.
+-- Use the 'pgsq' quasi-quoter to conveniently create queries.
 data Query = Query {
 	-- | Statement
 	queryStatement :: B.ByteString,
@@ -133,7 +134,7 @@ data TableDescription a = TableDescription {
 	-- | Table name
 	tableName :: String,
 
-	-- | Identifer column name
+	-- | Identifier column name - 'pgsq' does not respect this value when generating row identifiers
 	tableIdentColumn :: String
 } deriving (Show, Eq, Ord)
 
@@ -158,7 +159,6 @@ data ErrandError
 	| UserError String
 	deriving Show
 
--- | Database errand
 type Errand = ReaderT P.Connection (ExceptT ErrandError IO)
 
 -- | Run an errand.
@@ -208,24 +208,24 @@ query_ :: Query -> Errand ()
 query_ qry =
 	() <$ executeQuery qry
 
--- | Table type
 class Table a where
-	-- | Insert a row into a table.
+	-- | Insert a row into the table and return a 'Reference' to the inserted row.
 	insert :: a -> Errand (Reference a)
 
-	-- | Generate an UPDATE query which updates an existing row.
+	-- | Update an existing row.
 	update :: (HasID i) => i a -> a -> Errand ()
 
-	-- | Generate a DELETE query which removes an existing row.
+	-- | Delete a row from the table.
 	delete :: (HasID i) => i a -> Errand ()
 
-	-- | Generate a CREATE query which creates the table.
+	-- | Generate the query which creates this table inside the database.
+	-- Use @mkCreateQuery@ for convenience.
 	createQuery :: Proxy a -> Query
 
-	-- | Extract rows of this table from the given result.
+	-- | Extract rows from a result set.
 	tableResultProcessor :: ResultProcessor [Row a]
 
-	-- | Extract references to rows of this table from a given result.
+	-- | Extract only a 'Reference' to each row.
 	tableRefResultProcessor :: ResultProcessor [Reference a]
 
 	-- | Describe the table.

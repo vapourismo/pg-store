@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 
-module Database.PostgreSQL.Store.TH.Query where
+module Database.PostgreSQL.Store.TH.Query (pgsq) where
 
 import           Control.Applicative
 import           Control.Monad.Trans.Class
@@ -18,7 +18,69 @@ import           Database.PostgreSQL.Store.Internal
 import           Language.Haskell.TH
 import           Language.Haskell.TH.Quote
 
--- | Store query quasi-quoter
+-- | Generate a 'Query' from a SQL statement.
+--
+-- = Table and column names
+--
+-- All plain identifiers will be treated as Haskell names. They are going to be resolved to their
+-- fully-qualified and quoted version. Beware, the use of names which don't refer to a table type
+-- or field will likely result in unknown table or column errors. If you don't want a name to be
+-- resolved use a quoted identifier.
+--
+-- Example:
+--
+-- @
+-- module MyModule where
+--
+-- ...
+--
+-- data Table = Table { myField :: Int }
+-- 'mkTable' ''Table
+--
+-- myQuery :: 'Query'
+-- myQuery = ['pgsq'| SELECT * FROM Table WHERE myField > 1337 |]
+-- @
+--
+-- The SQL statement associated with @myQuery@ will be:
+--
+-- > SELECT * FROM "MyModule.Table" WHERE "MyModule.myField" > 1337
+--
+-- = Variables
+--
+-- You can use reference variables with @$myVariable@. The variable's type has to be an instance of
+-- 'Column', otherwise it cannot be attached as query parameter.
+--
+-- Example:
+--
+-- @
+-- magicNumber :: Int
+-- magicNumber = 1337
+--
+-- myQuery :: 'Query'
+-- myQuery = ['pgsq'| SELECT * FROM Table WHERE myField > $magicNumber |]
+-- @
+--
+-- = Row identifiers
+--
+-- Each instance of @('Table' a) => 'Row' a@ and each row of the actual table inside the database
+-- has an identifier value. These identifiers are used to reference specific rows. The identifier
+-- column is exposed via the @&MyTable@ pattern.
+--
+-- Example:
+--
+-- @
+-- ['pgsq'| SELECT *
+--        FROM TableA, TableB
+--        WHERE refToB = &TableB |]
+-- @
+--
+-- Note @refToB@ is a field of @TableA@.
+-- In different circumstances one would write such query as follows.
+--
+-- > SELECT *
+-- > FROM TableA a, Table b
+-- > WHERE a.refToB = b.id
+--
 pgsq :: QuasiQuoter
 pgsq =
 	QuasiQuoter {
@@ -143,7 +205,7 @@ identifier = do
 -- | State for the quote parser
 data QuoteState = QuoteState Bool B.ByteString
 
--- | A quotation
+-- | Quote
 quote :: Char -> Parser Segment
 quote delim = do
 	char delim

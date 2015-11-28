@@ -148,7 +148,7 @@ tableResultProcessorE table ctor fields = do
 	rowTraversal <- unpackRowsE table ctor fields
 	pure (DoE (infoBinds ++ [NoBindS rowTraversal]))
 
--- |
+-- | Generate an expression which retrieves a reference to each row.
 tableRefResultProcessorE :: Name -> Q Exp
 tableRefResultProcessorE table =
 	[e| do idNfo <- columnInfo (fromString $(stringE (identField table)))
@@ -213,7 +213,43 @@ validateFields fields =
 		unless ii $
 			fail ("\ESC[35m" ++ show name ++ "\ESC[0m's type does not have an instance of \ESC[34mColumn\ESC[0m")
 
--- | Make a type ready to be used as a table.
+-- | Implement 'Table' for a data type. The given type must fulfill these requirements:
+--
+--   * Data type
+--   * No type context
+--   * No type variables
+--   * One record constructor with 1 or more fields
+--   * All field types must have an instance of 'Column'
+--
+-- Example:
+--
+-- @
+-- module Movies where
+--
+-- ...
+--
+-- data Movie = Movie {
+--     movieTitle :: String,
+--     movieYear  :: Int
+-- } deriving Show
+--
+-- 'mkTable' ''Movie
+--
+-- data Actor = Actor {
+--     actorName :: String,
+--     actorAge  :: Int
+-- } deriving Show
+--
+-- 'mkTable' ''Actor
+--
+-- data MovieCast = MovieCast {
+--     movieCastMovie :: 'Reference' Movie,
+--     movieCastActor :: 'Reference' Actor
+-- } deriving Show
+--
+-- 'mkTable' ''MovieCast
+-- @
+--
 mkTable :: Name -> Q [Dec]
 mkTable name = do
 	info <- reify name
@@ -255,7 +291,17 @@ isType name = do
 		TyConI _ -> True
 		_        -> False
 
--- | Inline the create table query of a table.
+-- | Generate a 'Query' which will create the table described my the given type.
+--
+-- Example:
+--
+-- @
+-- data Table = Table { myField :: Int }
+-- 'mkTable' ''Table
+-- ...
+-- 'query_' $('mkCreateQuery' ''Table)
+-- @
+--
 mkCreateQuery :: Name -> Q Exp
 mkCreateQuery name = do
 	-- Is the given name a type?
