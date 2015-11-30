@@ -2,9 +2,10 @@
 
 module Database.PostgreSQL.Store.Table (
 	TableDescription (..),
+	Table (..),
 	Row (..),
 	Reference (..),
-	Table (..),
+	HasID (..),
 	mkTable,
 	mkCreateQuery
 ) where
