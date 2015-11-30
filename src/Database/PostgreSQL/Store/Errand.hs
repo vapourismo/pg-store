@@ -68,6 +68,7 @@ executeQuery (Query statement params) = do
 			map transformParam params
 
 -- | Execute a query and process its result set.
+-- It is essential that all fields required by the underlying result parser are present.
 query :: (ResultRow a) => Query -> Errand [a]
 query qry = do
 	result <- executeQuery qry

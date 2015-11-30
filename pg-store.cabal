@@ -1,12 +1,19 @@
 name:                pg-store
 version:             0.0.0
+category:            Database
+synopsis:            Dead simple storage interface to PostgreSQL
+homepage:            https://github.com/vapourismo/pg-store
 license:             BSD3
 license-file:        LICENSE
-author:              Ole Krüger
-maintainer:          ole@vprsm.de
-copyright:           Copyright (c) Ole Krüger 2015
+author:              Ole Krüger <ole@vprsm.de>
+maintainer:          Ole Krüger <ole@vprsm.de>
+copyright:           (c) Ole Krüger 2015
 build-type:          Simple
 cabal-version:       >= 1.10
+
+source-repository head
+  type:     git
+  location: https://github.com/vapourismo/pg-store.git
 
 library
   ghc-options:      -Wall -fprof-auto -fno-warn-unused-do-bind -fno-warn-tabs
