@@ -26,7 +26,7 @@ import Database.PostgreSQL.Store.Result
 import Database.PostgreSQL.Store.Errand
 
 -- | Description of a table type
-data TableDescription a = TableDescription {
+data TableDescription = TableDescription {
 	-- | Table name
 	tableName :: String,
 
@@ -52,11 +52,12 @@ instance (Table a) => Column (Reference a) where
 	unpack val = Reference <$> unpack val
 
 	columnDescription =
-		make tableDescription
+		make Proxy
 		where
-			make :: TableDescription a -> ColumnDescription (Reference a)
-			make TableDescription {..} =
-				ColumnDescription {
+			make :: (Table a) => Proxy a -> ColumnDescription (Reference a)
+			make proxy =
+				let TableDescription {..} = describeTable proxy
+				in ColumnDescription {
 					columnTypeName = "bigint references " ++ tableName ++ " (" ++ tableIdentColumn ++ ")",
 					columnTypeNull = False
 				}
@@ -82,7 +83,7 @@ class Table a where
 	tableRefResultProcessor :: ResultProcessor [Reference a]
 
 	-- | Describe the table.
-	tableDescription :: TableDescription a
+	describeTable :: Proxy a -> TableDescription
 
 instance (Table a) => Result (Row a) where
 	resultProcessor = tableResultProcessor
@@ -278,7 +279,7 @@ implementTableD table ctor fields = do
 	        tableRefResultProcessor =
 	        	$(tableRefResultProcessorE table)
 
-	        tableDescription =
+	        describeTable _ =
 	            $(tableDescriptionE table) |]
 	where
 		fieldNames = map fst fields
