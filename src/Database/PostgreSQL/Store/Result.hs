@@ -14,8 +14,8 @@ module Database.PostgreSQL.Store.Result (
 	cellValue,
 	unpackCellValue,
 
-	-- * ResultRow
-	ResultRow (..)
+	-- * Result
+	Result (..)
 ) where
 
 import           Control.Monad.Trans.Class
@@ -101,32 +101,32 @@ unpackCellValue row info = do
 			maybe (valueError desc) (pure . pure)
 
 -- | Result row
-class ResultRow a where
+class Result a where
 	-- | Extract rows from the given result.
 	resultProcessor :: ResultProcessor [a]
 
-instance ResultRow () where
+instance Result () where
 	resultProcessor = foreachRow (const (pure ()))
 
-instance (ResultRow a, ResultRow b) => ResultRow (a, b) where
+instance (Result a, Result b) => Result (a, b) where
 	resultProcessor =
 		zip <$> resultProcessor
 		    <*> resultProcessor
 
-instance (ResultRow a, ResultRow b, ResultRow c) => ResultRow (a, b, c) where
+instance (Result a, Result b, Result c) => Result (a, b, c) where
 	resultProcessor =
 		zip3 <$> resultProcessor
 		     <*> resultProcessor
 		     <*> resultProcessor
 
-instance (ResultRow a, ResultRow b, ResultRow c, ResultRow d) => ResultRow (a, b, c, d) where
+instance (Result a, Result b, Result c, Result d) => Result (a, b, c, d) where
 	resultProcessor =
 		zip4 <$> resultProcessor
 		     <*> resultProcessor
 		     <*> resultProcessor
 		     <*> resultProcessor
 
-instance (ResultRow a, ResultRow b, ResultRow c, ResultRow d, ResultRow e) => ResultRow (a, b, c, d, e) where
+instance (Result a, Result b, Result c, Result d, Result e) => Result (a, b, c, d, e) where
 	resultProcessor =
 		zip5 <$> resultProcessor
 		     <*> resultProcessor
@@ -134,7 +134,7 @@ instance (ResultRow a, ResultRow b, ResultRow c, ResultRow d, ResultRow e) => Re
 		     <*> resultProcessor
 		     <*> resultProcessor
 
-instance (ResultRow a, ResultRow b, ResultRow c, ResultRow d, ResultRow e, ResultRow f) => ResultRow (a, b, c, d, e, f) where
+instance (Result a, Result b, Result c, Result d, Result e, Result f) => Result (a, b, c, d, e, f) where
 	resultProcessor =
 		zip6 <$> resultProcessor
 		     <*> resultProcessor
@@ -143,7 +143,7 @@ instance (ResultRow a, ResultRow b, ResultRow c, ResultRow d, ResultRow e, Resul
 		     <*> resultProcessor
 		     <*> resultProcessor
 
-instance (ResultRow a, ResultRow b, ResultRow c, ResultRow d, ResultRow e, ResultRow f, ResultRow g) => ResultRow (a, b, c, d, e, f, g) where
+instance (Result a, Result b, Result c, Result d, Result e, Result f, Result g) => Result (a, b, c, d, e, f, g) where
 	resultProcessor =
 		zip7 <$> resultProcessor
 		     <*> resultProcessor

@@ -84,10 +84,10 @@ class Table a where
 	-- | Describe the table.
 	tableDescription :: TableDescription a
 
-instance (Table a) => ResultRow (Row a) where
+instance (Table a) => Result (Row a) where
 	resultProcessor = tableResultProcessor
 
-instance (Table a) => ResultRow (Reference a) where
+instance (Table a) => Result (Reference a) where
 	resultProcessor = tableRefResultProcessor
 
 -- | A value of that type contains an ID.
