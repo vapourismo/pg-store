@@ -65,13 +65,13 @@ tableSpec con =
 			let Right ref = eRef
 
 			-- Find
-			eRes <- runErrand con (query [pgsq| SELECT * FROM TestTable WHERE &TestTable = $ref |])
+			eRes <- runErrand con (find ref)
 			eRes `shouldSatisfy` \ r ->
 				case r of
-					Right [Row _ _] -> True
+					Right (Row _ _) -> True
 					_               -> False
 
-			let Right [Row _ row1] = eRes
+			let Right (Row _ row1) = eRes
 
 			row1 `shouldBe` testTableRow1
 
@@ -80,13 +80,13 @@ tableSpec con =
 			eRes2 `shouldBe` Right ()
 
 			-- Find
-			eRes3 <- runErrand con (query [pgsq| SELECT * FROM TestTable WHERE &TestTable = $ref |])
+			eRes3 <- runErrand con (find ref)
 			eRes3 `shouldSatisfy` \ r ->
 				case r of
-					Right [Row _ _] -> True
+					Right (Row _ _) -> True
 					_               -> False
 
-			let Right [Row _ row2] = eRes3
+			let Right (Row _ row2) = eRes3
 
 			row2 `shouldBe` testTableRow2
 
