@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell, RecordWildCards, BangPatterns #-}
 
 module Database.PostgreSQL.Store.Table (
 	TableDescription (..),
@@ -37,10 +37,10 @@ data TableDescription = TableDescription {
 -- | Resolved row
 data Row a = Row {
 	-- | Identifier
-	rowID :: Int64,
+	rowID :: !Int64,
 
 	-- | Value
-	rowValue :: a
+	rowValue :: !a
 } deriving (Show, Eq, Ord)
 
 -- | Reference to a row
