@@ -3,6 +3,8 @@
 module Database.PostgreSQL.Store.TableSpec (tableSpec) where
 
 import           Test.Hspec
+import           Test.QuickCheck
+import           Test.QuickCheck.Monadic
 
 import           Data.Int
 import qualified Data.ByteString as B
@@ -27,73 +29,65 @@ data TestTable = TestTable {
 	ttLazyByteString :: BL.ByteString
 } deriving (Show, Eq, Ord)
 
+instance Arbitrary TestTable where
+	arbitrary =
+		TestTable <$> arbitrary
+		          <*> arbitrary
+		          <*> arbitrary
+		          <*> arbitrary
+		          <*> arbitrary
+		          <*> arbitrary
+		          <*> arbitrary
+		          <*> fmap (T.pack) arbitrary
+		          <*> fmap (TL.pack) arbitrary
+		          <*> fmap (B.pack) arbitrary
+		          <*> fmap (BL.pack) arbitrary
+
 mkTable ''TestTable
 
-testTableRow1 :: TestTable
-testTableRow1 =
-	TestTable
-		True
-		13 37 1337 7331 42
-		"Hello World"
-		"Hello World" "Hello Lazy"
-		"Hello World" "Hello Lazy"
-
-testTableRow2 :: TestTable
-testTableRow2 =
-	TestTable
-		False
-		42 73 7331 1337 13
-		"World"
-		"Hello" "Lazy"
-		"Hello" "Lazy"
-
 tableSpec :: P.Connection -> Spec
-tableSpec con =
+tableSpec con = do
 	describe "Table" $ do
-		it "created" $ do
+		it "create" $ do
 			result <- runErrand con (query_ $(mkCreateQuery ''TestTable)) :: IO (Either ErrandError ())
 			result `shouldBe` Right ()
 
-		it "interact" $ do
-			-- Create
-			eRef <- runErrand con (insert testTableRow1)
-			eRef `shouldSatisfy` \ r ->
-				case r of
+	describe "Row" $ do
+		it "insert/find/update/find/delete" $ monadicIO $ do
+			row1 <- pick arbitrary :: PropertyM IO TestTable
+			eRef <- run (runErrand con (insert row1))
+
+			assert $
+				case eRef of
 					Right (Reference _) -> True
 					_                   -> False
 
 			let Right ref = eRef
+			eRow1 <- run (runErrand con (find ref))
 
-			-- Find
-			eRes <- runErrand con (find ref)
-			eRes `shouldSatisfy` \ r ->
-				case r of
-					Right (Row _ _) -> True
-					_               -> False
+			assert $
+				case eRow1 of
+					Right (Row _ row1') -> row1' == row1
+					_                   -> False
 
-			let Right (Row _ row1) = eRes
+			row2 <- pick arbitrary :: PropertyM IO TestTable
+			eUpdate <- run (runErrand con (update ref row2))
 
-			row1 `shouldBe` testTableRow1
+			assert (eUpdate == Right ())
 
-			-- Update
-			eRes2 <- runErrand con (update ref testTableRow2)
-			eRes2 `shouldBe` Right ()
+			eRow2 <- run (runErrand con (find ref))
 
-			-- Find
-			eRes3 <- runErrand con (find ref)
-			eRes3 `shouldSatisfy` \ r ->
-				case r of
-					Right (Row _ _) -> True
-					_               -> False
+			assert $
+				case eRow2 of
+					Right (Row _ row2') -> row2' == row2
+					_                   -> False
 
-			let Right (Row _ row2) = eRes3
+			eDelete <- run (runErrand con (delete ref))
 
-			row2 `shouldBe` testTableRow2
+			assert (eDelete == Right ())
 
-			-- Delete
-			eRes4 <- runErrand con (delete ref)
-			eRes4 `shouldBe` Right ()
 
-		it "dropped" $ do
+	describe "Table" $ do
+		it "drop" $ do
 			result <- runErrand con (query_ [pgsq| DROP TABLE TestTable |]) :: IO (Either ErrandError ())
 			result `shouldBe` Right ()
