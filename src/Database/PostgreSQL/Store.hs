@@ -24,6 +24,7 @@ module Database.PostgreSQL.Store (
 	query,
 	query_,
 	insert,
+	find,
 	update,
 	delete
 ) where

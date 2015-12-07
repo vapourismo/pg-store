@@ -70,6 +70,9 @@ class Table a where
 	-- | Insert a row into the table and return a 'Reference' to the inserted row.
 	insert :: a -> Errand (Reference a)
 
+	-- | Find the row identified by the given reference.
+	find :: (HasID i) => i a -> Errand (Row a)
+
 	-- | Update an existing row.
 	update :: (HasID i) => i a -> a -> Errand ()
 
@@ -127,6 +130,15 @@ insertQueryE name fields =
 
 		values =
 			map (\ idx -> "$" ++ show idx) [1 .. length fields]
+
+-- | Generate the select query for a table row.
+findQueryE :: Name -> Q Exp
+findQueryE name =
+	[e| fromString $(stringE query) |]
+	where
+		query =
+			"SELECT * FROM " ++ sanitizeName name ++
+			" WHERE " ++ identField name ++ " = $1 LIMIT 1"
 
 -- | Generate the update query for a table.
 updateQueryE :: Name -> [Name] -> Q Exp
@@ -258,6 +270,16 @@ implementTableD table ctor fields = do
 	            case rs of
 	            	(ref : _) -> pure ref
 	            	_         -> raiseErrandError "Result set for insertion is empty"
+
+	        find ref = do
+	            rs <- query Query {
+	                queryStatement = $(findQueryE table),
+	                queryParams    = [pack (referenceID ref)]
+	            }
+
+	            case rs of
+	                (row : _) -> pure row
+	                _         -> raiseErrandError "Could not find row"
 
 	        update ref row =
 	            query_ Query {
