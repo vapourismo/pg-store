@@ -26,6 +26,7 @@ import           Data.Typeable
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TL
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import           Data.ByteString.Builder
@@ -200,51 +201,33 @@ instance Column Int64 where
 
 instance Column [Char] where
 	pack str =
-		Value {
-			valueType   = P.Oid 25,
-			valueData   = buildByteString stringUtf8 str,
-			valueFormat = P.Text
-		}
+		pack (buildByteString stringUtf8 str)
 
-	unpack (Value (P.Oid 16)   dat P.Text) = Just (T.unpack (T.decodeUtf8 dat))
-	unpack (Value (P.Oid 25)   dat P.Text) = Just (T.unpack (T.decodeUtf8 dat))
-	unpack (Value (P.Oid 1043) dat P.Text) = Just (T.unpack (T.decodeUtf8 dat))
-	unpack _                               = Nothing
+	unpack val =
+		T.unpack . T.decodeUtf8 <$> unpack val
 
 	columnDescription _ =
-		ColumnDescription {
-			columnTypeName = "text",
-			columnTypeNull = False
-		}
+		columnDescription (Proxy :: Proxy B.ByteString)
 
 instance Column T.Text where
 	pack txt =
-		Value {
-			valueType   = P.Oid 25,
-			valueData   = T.encodeUtf8 txt,
-			valueFormat = P.Text
-		}
-
-	unpack (Value (P.Oid 16)   dat P.Text) = Just (T.decodeUtf8 dat)
-	unpack (Value (P.Oid 25)   dat P.Text) = Just (T.decodeUtf8 dat)
-	unpack (Value (P.Oid 1043) dat P.Text) = Just (T.decodeUtf8 dat)
-	unpack _                               = Nothing
-
-	columnDescription _ =
-		ColumnDescription {
-			columnTypeName = "text",
-			columnTypeNull = False
-		}
-
-instance Column TL.Text where
-	pack =
-		pack . TL.toStrict
+		pack (T.encodeUtf8 txt)
 
 	unpack val =
-		TL.fromStrict <$> unpack val
+		T.decodeUtf8 <$> unpack val
 
 	columnDescription _ =
-		columnDescription (Proxy :: Proxy T.Text)
+		columnDescription (Proxy :: Proxy B.ByteString)
+
+instance Column TL.Text where
+	pack txt =
+		pack (TL.encodeUtf8 txt)
+
+	unpack val =
+		TL.decodeUtf8 <$> unpack val
+
+	columnDescription _ =
+		columnDescription (Proxy :: Proxy BL.ByteString)
 
 instance Column B.ByteString where
 	pack bs =
@@ -265,11 +248,11 @@ instance Column B.ByteString where
 		}
 
 instance Column BL.ByteString where
-	pack = pack . BL.toStrict
+	pack bs =
+		pack (BL.toStrict bs)
 
-	unpack (Value (P.Oid 17) dat P.Binary) = pure (BL.fromStrict dat)
-	unpack (Value (P.Oid 17) dat P.Text)   = BL.fromStrict <$> fromTextByteArray dat
-	unpack _                               = Nothing
+	unpack val =
+		BL.fromStrict <$> unpack val
 
 	columnDescription _ =
 		columnDescription (Proxy :: Proxy B.ByteString)
