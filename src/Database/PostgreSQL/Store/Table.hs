@@ -129,8 +129,8 @@ insertQueryE name fields =
 			map (\ idx -> "$" ++ show idx) [1 .. length fields]
 
 -- | Generate the update query for a table.
-updateQueryE :: Name -> Int -> Q Exp
-updateQueryE name numFields =
+updateQueryE :: Name -> [Name] -> Q Exp
+updateQueryE name fields =
 	[e| fromString $(stringE query) |]
 	where
 		query =
@@ -139,7 +139,7 @@ updateQueryE name numFields =
 			" WHERE " ++ identField name ++ " = $1"
 
 		values =
-			map (\ idx -> "$" ++ show idx) [2 .. numFields + 1]
+			map (\ (nm, idx) -> sanitizeName nm ++ " = $" ++ show idx) (zip fields [2 .. length fields + 1])
 
 -- | Generate the delete query for a table.
 deleteQueryE :: Name -> Q Exp
@@ -261,7 +261,7 @@ implementTableD table ctor fields = do
 
 	        update ref row =
 	            query_ Query {
-	                queryStatement = $(updateQueryE table (length fieldNames)),
+	                queryStatement = $(updateQueryE table fieldNames),
 	                queryParams    = pack (referenceID ref) : $(packParamsE 'row fieldNames)
 	            }
 
