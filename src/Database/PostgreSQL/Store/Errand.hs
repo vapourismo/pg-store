@@ -27,7 +27,7 @@ data ErrandError
 	| ExecError P.ExecStatus (Maybe B.ByteString)
 	| ResultError ResultError
 	| UserError String
-	deriving Show
+	deriving (Show, Eq)
 
 type Errand = ReaderT P.Connection (ExceptT ErrandError IO)
 

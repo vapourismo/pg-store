@@ -7,6 +7,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 
 import           Database.PostgreSQL.Store.ColumnsSpec
+import           Database.PostgreSQL.Store.TableSpec
 import qualified Database.PostgreSQL.LibPQ as P
 
 -- | Test which will only be executed if 'PGINFO' environment variable is set
@@ -21,9 +22,7 @@ liveTests pgInfo = do
 		it "established" $
 			status `shouldBe` P.ConnectionOk
 
-	-- TODO: Insert live tests here
-
-	runIO (P.finish con)
+	afterAll_ (P.finish con) (tableSpec con)
 
 -- | Test entry point
 main :: IO ()

@@ -1,6 +1,5 @@
 module Database.PostgreSQL.Store.ColumnsSpec (columnsSpec) where
 
-
 import           Data.Int
 import           Data.Typeable
 import qualified Data.ByteString as B

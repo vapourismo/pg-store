@@ -32,7 +32,7 @@ data ResultError
 	= ColumnMissing B.ByteString
 	| ColumnDataMissing P.Row P.Column
 	| ValueError P.Row P.Column P.Oid P.Format ColumnDescription
-	deriving Show
+	deriving (Show, Eq)
 
 -- | Result processor
 type ResultProcessor = ReaderT P.Result (ExceptT ResultError IO)
