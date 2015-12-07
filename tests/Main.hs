@@ -18,7 +18,7 @@ liveTests pgInfo = do
 		pure (con, status)
 
 	describe "Database connection" $
-		it "should have been established" $
+		it "established" $
 			status `shouldBe` P.ConnectionOk
 
 	-- TODO: Insert live tests here
