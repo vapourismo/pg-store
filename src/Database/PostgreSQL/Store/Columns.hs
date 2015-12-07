@@ -22,6 +22,7 @@ import           Data.Int
 import           Data.Word
 import           Data.Bits
 import           Data.Monoid
+import           Data.Typeable
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as TL
@@ -49,7 +50,7 @@ data Value
 	deriving (Show, Eq, Ord)
 
 -- | Description of a column type
-data ColumnDescription a = ColumnDescription {
+data ColumnDescription = ColumnDescription {
 	-- | Type name (e.g. bool, integer)
 	columnTypeName :: String,
 
@@ -58,7 +59,7 @@ data ColumnDescription a = ColumnDescription {
 } deriving (Show, Eq, Ord)
 
 -- | Generate SQL column description.
-makeColumnDescription :: ColumnDescription a -> String
+makeColumnDescription :: ColumnDescription -> String
 makeColumnDescription ColumnDescription {..} =
 	columnTypeName ++ (if columnTypeNull then "" else " NOT NULL")
 
@@ -81,7 +82,7 @@ class Column a where
 	unpack :: Value -> Maybe a
 
 	-- | Descripe the column.
-	columnDescription :: ColumnDescription a
+	columnDescription :: Proxy a -> ColumnDescription
 
 instance Column Bool where
 	pack v =
@@ -95,7 +96,7 @@ instance Column Bool where
 	unpack (Value (P.Oid 16) "false" P.Text) = Just False
 	unpack _                                 = Nothing
 
-	columnDescription =
+	columnDescription _ =
 		ColumnDescription {
 			columnTypeName = "bool",
 			columnTypeNull = False
@@ -113,7 +114,7 @@ instance Column Int where
 	unpack (Value (P.Oid 23) dat P.Text) = parseMaybe (signed decimal) dat
 	unpack _                             = Nothing
 
-	columnDescription =
+	columnDescription _ =
 		ColumnDescription {
 			columnTypeName = "integer",
 			columnTypeNull = False
@@ -130,7 +131,7 @@ instance Column Int8 where
 	unpack (Value (P.Oid 21) dat P.Text) = parseMaybe (signed decimal) dat
 	unpack _                             = Nothing
 
-	columnDescription =
+	columnDescription _ =
 		ColumnDescription {
 			columnTypeName = "smallint",
 			columnTypeNull = False
@@ -147,7 +148,7 @@ instance Column Int16 where
 	unpack (Value (P.Oid 21) dat P.Text) = parseMaybe (signed decimal) dat
 	unpack _                             = Nothing
 
-	columnDescription =
+	columnDescription _ =
 		ColumnDescription {
 			columnTypeName = "smallint",
 			columnTypeNull = False
@@ -166,7 +167,7 @@ instance Column Int32 where
 	unpack _                             = Nothing
 
 
-	columnDescription =
+	columnDescription _ =
 		ColumnDescription {
 			columnTypeName = "integer",
 			columnTypeNull = False
@@ -185,7 +186,7 @@ instance Column Int64 where
 	unpack (Value (P.Oid 23) dat P.Text) = parseMaybe (signed decimal) dat
 	unpack _                             = Nothing
 
-	columnDescription =
+	columnDescription _ =
 		ColumnDescription {
 			columnTypeName = "bigint",
 			columnTypeNull = False
@@ -204,7 +205,7 @@ instance Column [Char] where
 	unpack (Value (P.Oid 1043) dat P.Text) = Just (T.unpack (T.decodeUtf8 dat))
 	unpack _                               = Nothing
 
-	columnDescription =
+	columnDescription _ =
 		ColumnDescription {
 			columnTypeName = "text",
 			columnTypeNull = False
@@ -223,7 +224,7 @@ instance Column T.Text where
 	unpack (Value (P.Oid 1043) dat P.Text) = Just (T.decodeUtf8 dat)
 	unpack _                               = Nothing
 
-	columnDescription =
+	columnDescription _ =
 		ColumnDescription {
 			columnTypeName = "text",
 			columnTypeNull = False
@@ -236,8 +237,8 @@ instance Column TL.Text where
 	unpack val =
 		TL.fromStrict <$> unpack val
 
-	columnDescription =
-		coerceColumnDescription (columnDescription :: ColumnDescription T.Text)
+	columnDescription _ =
+		columnDescription (Proxy :: Proxy T.Text)
 
 instance Column B.ByteString where
 	pack bs =
@@ -251,7 +252,7 @@ instance Column B.ByteString where
 	unpack (Value (P.Oid 17) dat P.Text)   = fromTextByteArray dat
 	unpack _                               = Nothing
 
-	columnDescription =
+	columnDescription _ =
 		ColumnDescription {
 			columnTypeName = "bytea",
 			columnTypeNull = False
@@ -264,8 +265,8 @@ instance Column BL.ByteString where
 	unpack (Value (P.Oid 17) dat P.Text)   = BL.fromStrict <$> fromTextByteArray dat
 	unpack _                               = Nothing
 
-	columnDescription =
-		coerceColumnDescription (columnDescription :: ColumnDescription B.ByteString)
+	columnDescription _ =
+		columnDescription (Proxy :: Proxy B.ByteString)
 
 -- | Produce the two-digit hexadecimal representation of a 8-bit word.
 word8ToHex :: Word8 -> B.ByteString
@@ -328,11 +329,3 @@ parseMaybe p i =
 buildByteString :: (a -> Builder) -> a -> B.ByteString
 buildByteString f x =
 	BL.toStrict (toLazyByteString (f x))
-
--- | Convert between to column descriptions
-coerceColumnDescription :: ColumnDescription a -> ColumnDescription b
-coerceColumnDescription ColumnDescription {..} =
-	ColumnDescription {
-		columnTypeName = columnTypeName,
-		columnTypeNull = columnTypeNull
-	}

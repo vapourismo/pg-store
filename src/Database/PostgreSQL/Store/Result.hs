@@ -1,5 +1,3 @@
-{-# LANGUAGE ExistentialQuantification, StandaloneDeriving #-}
-
 module Database.PostgreSQL.Store.Result (
 	-- *
 	ResultError (..),
@@ -23,6 +21,7 @@ import           Control.Monad.Trans.Reader
 import           Control.Monad.Trans.Except
 
 import           Data.List
+import           Data.Typeable
 import qualified Data.ByteString           as B
 
 import qualified Database.PostgreSQL.LibPQ as P
@@ -32,9 +31,8 @@ import           Database.PostgreSQL.Store.Columns
 data ResultError
 	= ColumnMissing B.ByteString
 	| ColumnDataMissing P.Row P.Column
-	| forall a. ValueError P.Row P.Column P.Oid P.Format (ColumnDescription a)
-
-deriving instance Show ResultError
+	| ValueError P.Row P.Column P.Oid P.Format ColumnDescription
+	deriving Show
 
 -- | Result processor
 type ResultProcessor = ReaderT P.Result (ExceptT ResultError IO)
@@ -87,16 +85,19 @@ cellValue row (col, oid, fmt) = do
 
 -- | Unpack cell value.
 unpackCellValue :: (Column a) => P.Row -> (P.Column, P.Oid, P.Format) -> ResultProcessor a
-unpackCellValue row info = do
-	value <- cellValue row info
-	lift (ExceptT (make columnDescription (unpack value)))
+unpackCellValue row info =
+	withProxy Proxy
 	where
+		withProxy :: (Column a) => Proxy a -> ResultProcessor a
+		withProxy proxy = do
+			value <- cellValue row info
+			lift (ExceptT (make (columnDescription proxy) (unpack value)))
+
 		(col, oid, fmt) = info
 
 		valueError desc =
 			pure (Left (ValueError row col oid fmt desc))
 
-		make :: ColumnDescription a -> Maybe a -> IO (Either ResultError a)
 		make desc =
 			maybe (valueError desc) (pure . pure)
 

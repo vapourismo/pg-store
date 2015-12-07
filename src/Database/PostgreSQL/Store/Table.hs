@@ -48,19 +48,23 @@ newtype Reference a = Reference Int64
 	deriving (Show, Eq, Ord)
 
 instance (Table a) => Column (Reference a) where
-	pack ref = pack (referenceID ref)
-	unpack val = Reference <$> unpack val
+	pack ref =
+		pack (referenceID ref)
 
-	columnDescription =
-		make Proxy
+	unpack val =
+		Reference <$> unpack val
+
+	columnDescription proxy =
+		ColumnDescription {
+			columnTypeName = "bigint references " ++ tableName ++ " (" ++ tableIdentColumn ++ ")",
+			columnTypeNull = False
+		}
 		where
-			make :: (Table a) => Proxy a -> ColumnDescription (Reference a)
-			make proxy =
-				let TableDescription {..} = describeTable proxy
-				in ColumnDescription {
-					columnTypeName = "bigint references " ++ tableName ++ " (" ++ tableIdentColumn ++ ")",
-					columnTypeNull = False
-				}
+			coerceProxy :: Proxy (Reference a) -> Proxy a
+			coerceProxy _ = Proxy
+
+			TableDescription {..} =
+				describeTable (coerceProxy proxy)
 
 class Table a where
 	-- | Insert a row into the table and return a 'Reference' to the inserted row.
