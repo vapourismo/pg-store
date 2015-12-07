@@ -92,9 +92,15 @@ instance Column Bool where
 			valueFormat = P.Text
 		}
 
-	unpack (Value (P.Oid 16) "true"  P.Text) = Just True
-	unpack (Value (P.Oid 16) "false" P.Text) = Just False
-	unpack _                                 = Nothing
+	unpack (Value (P.Oid 16) "true" P.Text) = Just True
+	unpack (Value (P.Oid 16) "TRUE" P.Text) = Just True
+	unpack (Value (P.Oid 16) "t"    P.Text) = Just True
+	unpack (Value (P.Oid 16) "y"    P.Text) = Just True
+	unpack (Value (P.Oid 16) "yes"  P.Text) = Just True
+	unpack (Value (P.Oid 16) "on"   P.Text) = Just True
+	unpack (Value (P.Oid 16) "1"    P.Text) = Just True
+	unpack (Value (P.Oid 16) _      P.Text) = Just False
+	unpack _                                = Nothing
 
 	columnDescription _ =
 		ColumnDescription {
