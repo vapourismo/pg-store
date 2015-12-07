@@ -24,6 +24,7 @@ import           Data.Bits
 import           Data.Monoid
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import qualified Data.Text.Lazy as TL
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import           Data.ByteString.Builder
@@ -227,6 +228,16 @@ instance Column T.Text where
 			columnTypeName = "text",
 			columnTypeNull = False
 		}
+
+instance Column TL.Text where
+	pack =
+		pack . TL.toStrict
+
+	unpack val =
+		TL.fromStrict <$> unpack val
+
+	columnDescription =
+		coerceColumnDescription (columnDescription :: ColumnDescription T.Text)
 
 instance Column B.ByteString where
 	pack bs =
