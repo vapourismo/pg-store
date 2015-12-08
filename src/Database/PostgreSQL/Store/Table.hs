@@ -54,7 +54,7 @@ instance (Table a) => Column (Reference a) where
 	unpack val =
 		Reference <$> unpack val
 
-	columnDescription proxy =
+	describeColumn proxy =
 		ColumnDescription {
 			columnTypeName = "bigint references " ++ tableName ++ " (" ++ tableIdentColumn ++ ")",
 			columnTypeNull = False
@@ -178,7 +178,7 @@ createQueryE name fields =
 
 		describeField (fname, ftype) =
 			[e| $(stringE (sanitizeName fname)) ++ " " ++
-			    makeColumnDescription (columnDescription (Proxy :: Proxy $(pure ftype))) |]
+			    makeColumnDescription (describeColumn (Proxy :: Proxy $(pure ftype))) |]
 
 -- | Generate an expression which gathers all records from a type and packs them into a list.
 -- `packParamsE 'row ['field1, 'field2]` generates `[pack (field1 row), pack (field2 row)]`

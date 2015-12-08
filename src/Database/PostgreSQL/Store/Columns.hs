@@ -83,7 +83,7 @@ class Column a where
 	unpack :: Value -> Maybe a
 
 	-- | Descripe the column.
-	columnDescription :: Proxy a -> ColumnDescription
+	describeColumn :: Proxy a -> ColumnDescription
 
 instance Column Bool where
 	pack v =
@@ -103,7 +103,7 @@ instance Column Bool where
 	unpack (Value (P.Oid 16) _      P.Text) = Just False
 	unpack _                                = Nothing
 
-	columnDescription _ =
+	describeColumn _ =
 		ColumnDescription {
 			columnTypeName = "bool",
 			columnTypeNull = False
@@ -121,7 +121,7 @@ instance Column Int where
 	unpack (Value (P.Oid 23) dat P.Text) = parseMaybe (signed decimal) dat
 	unpack _                             = Nothing
 
-	columnDescription _ =
+	describeColumn _ =
 		ColumnDescription {
 			columnTypeName = "integer",
 			columnTypeNull = False
@@ -138,7 +138,7 @@ instance Column Int8 where
 	unpack (Value (P.Oid 21) dat P.Text) = parseMaybe (signed decimal) dat
 	unpack _                             = Nothing
 
-	columnDescription _ =
+	describeColumn _ =
 		ColumnDescription {
 			columnTypeName = "smallint",
 			columnTypeNull = False
@@ -155,7 +155,7 @@ instance Column Int16 where
 	unpack (Value (P.Oid 21) dat P.Text) = parseMaybe (signed decimal) dat
 	unpack _                             = Nothing
 
-	columnDescription _ =
+	describeColumn _ =
 		ColumnDescription {
 			columnTypeName = "smallint",
 			columnTypeNull = False
@@ -174,7 +174,7 @@ instance Column Int32 where
 	unpack _                             = Nothing
 
 
-	columnDescription _ =
+	describeColumn _ =
 		ColumnDescription {
 			columnTypeName = "integer",
 			columnTypeNull = False
@@ -193,7 +193,7 @@ instance Column Int64 where
 	unpack (Value (P.Oid 23) dat P.Text) = parseMaybe (signed decimal) dat
 	unpack _                             = Nothing
 
-	columnDescription _ =
+	describeColumn _ =
 		ColumnDescription {
 			columnTypeName = "bigint",
 			columnTypeNull = False
@@ -206,8 +206,8 @@ instance Column [Char] where
 	unpack val =
 		T.unpack . T.decodeUtf8 <$> unpack val
 
-	columnDescription _ =
-		columnDescription (Proxy :: Proxy B.ByteString)
+	describeColumn _ =
+		describeColumn (Proxy :: Proxy B.ByteString)
 
 instance Column T.Text where
 	pack txt =
@@ -216,8 +216,8 @@ instance Column T.Text where
 	unpack val =
 		T.decodeUtf8 <$> unpack val
 
-	columnDescription _ =
-		columnDescription (Proxy :: Proxy B.ByteString)
+	describeColumn _ =
+		describeColumn (Proxy :: Proxy B.ByteString)
 
 instance Column TL.Text where
 	pack txt =
@@ -226,8 +226,8 @@ instance Column TL.Text where
 	unpack val =
 		TL.decodeUtf8 <$> unpack val
 
-	columnDescription _ =
-		columnDescription (Proxy :: Proxy BL.ByteString)
+	describeColumn _ =
+		describeColumn (Proxy :: Proxy BL.ByteString)
 
 instance Column B.ByteString where
 	pack bs =
@@ -241,7 +241,7 @@ instance Column B.ByteString where
 	unpack (Value (P.Oid 17) dat P.Text)   = fromTextByteArray dat
 	unpack _                               = Nothing
 
-	columnDescription _ =
+	describeColumn _ =
 		ColumnDescription {
 			columnTypeName = "bytea",
 			columnTypeNull = False
@@ -254,8 +254,8 @@ instance Column BL.ByteString where
 	unpack val =
 		BL.fromStrict <$> unpack val
 
-	columnDescription _ =
-		columnDescription (Proxy :: Proxy B.ByteString)
+	describeColumn _ =
+		describeColumn (Proxy :: Proxy B.ByteString)
 
 -- | Produce the two-digit hexadecimal representation of a 8-bit word.
 word8ToHex :: Word8 -> B.ByteString

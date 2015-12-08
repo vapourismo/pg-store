@@ -91,7 +91,7 @@ unpackCellValue row info =
 		withProxy :: (Column a) => Proxy a -> ResultProcessor a
 		withProxy proxy = do
 			value <- cellValue row info
-			lift (ExceptT (make (columnDescription proxy) (unpack value)))
+			lift (ExceptT (make (describeColumn proxy) (unpack value)))
 
 		(col, oid, fmt) = info
 
