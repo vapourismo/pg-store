@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell, BangPatterns #-}
 
 module Database.PostgreSQL.Store.Query (
 	-- * Tables
@@ -21,8 +21,9 @@ import           Data.Char
 import           Data.String
 import           Data.Monoid
 import           Data.Typeable
-import qualified Data.ByteString.Char8 as B
-import           Data.Attoparsec.ByteString.Char8
+import           Data.Attoparsec.Text
+import qualified Data.Text as T
+import qualified Data.ByteString as B
 
 import           Database.PostgreSQL.Store.Columns
 
@@ -59,10 +60,10 @@ class DescribableTable a where
 -- Use the 'pgsq' quasi-quoter to conveniently create queries.
 data Query = Query {
 	-- | Statement
-	queryStatement :: B.ByteString,
+	queryStatement :: !B.ByteString,
 
 	-- | Parameters
-	queryParams :: [Value]
+	queryParams :: ![Value]
 } deriving (Show, Eq, Ord)
 
 -- | Generate a 'Query' from a SQL statement.
@@ -138,7 +139,7 @@ pgsq =
 	}
 
 -- | List of relevant SQL keywords
-reservedSQLKeywords :: [B.ByteString]
+reservedSQLKeywords :: [T.Text]
 reservedSQLKeywords =
 	["ABS", "ABSOLUTE", "ACTION", "ADD", "ALL", "ALLOCATE", "ALTER", "ANALYSE", "ANALYZE", "AND",
 	 "ANY", "ARE", "ARRAY", "ARRAY_AGG", "ARRAY_MAX_CARDINALITY", "AS", "ASC", "ASENSITIVE",
@@ -197,21 +198,17 @@ reservedSQLKeywords =
 
 -- | Query segment
 data Segment
-	= Keyword B.ByteString
-	| PossibleName B.ByteString
-	| Variable B.ByteString
-	| Identifier B.ByteString
-	| Quote Char B.ByteString
+	= Keyword T.Text
+	| PossibleName T.Text
+	| Variable T.Text
+	| Identifier T.Text
+	| Quote Char T.Text
 	| Other Char
 
 -- | SQL keyword
 keyword :: Parser Segment
 keyword =
-	Keyword <$> choice (stringCI <$> reservedSQLKeywords)
-
--- | Letter
-letter :: Parser Char
-letter = satisfy isLetter
+	Keyword <$> choice (asciiCI <$> reservedSQLKeywords)
 
 -- | Alpha numeric character
 alphaNum :: Parser Char
@@ -226,11 +223,11 @@ dot :: Parser Char
 dot = char '.'
 
 -- | Name
-name :: Parser B.ByteString
+name :: Parser T.Text
 name =
 	bake <$> (letter <|> underscore) <*> many (alphaNum <|> underscore <|> dot)
 	where
-		bake h t = B.pack (h : t)
+		bake h t = T.pack (h : t)
 
 -- | Possible name
 possibleName :: Parser Segment
@@ -249,44 +246,45 @@ identifier = do
 	char '&'
 	Identifier <$> name
 
--- | State for the quote parser
-data QuoteState = QuoteState Bool B.ByteString
-
 -- | Quote
 quote :: Char -> Parser Segment
 quote delim = do
 	char delim
-	cnt <- scan (QuoteState False B.empty) scanner
+	cnt <- scan (False, T.empty) scanner
 	char delim
 	pure (Quote delim cnt)
 	where
-		scanner (QuoteState False cnt) '\\' =
-			Just (QuoteState True (cnt <> "\\"))
-		scanner (QuoteState False _) chr
-			| chr == delim = Nothing
-		scanner (QuoteState _     cnt) chr =
-			Just (QuoteState False (cnt <> B.singleton chr))
+		scanner (False, _) chr | chr == delim = Nothing
+		scanner (esc, cnt) chr = Just (not esc && chr == '\\', cnt `T.snoc` chr)
 
 -- | Segments
 segments :: Parser [Segment]
 segments =
-	many (quote '"' <|> quote '\'' <|> variable <|> identifier <|> keyword <|> possibleName <|> fmap Other anyChar)
+	many (choice [
+		quote '"',
+		quote '\'',
+		variable,
+		identifier,
+		keyword,
+		possibleName,
+		Other <$> anyChar
+	])
 
 -- | Reduce segments in order to resolve names and collect query parameters.
-reduceSegment :: Segment -> StateT (Int, [Exp]) Q B.ByteString
+reduceSegment :: Segment -> StateT (Int, [Exp]) Q T.Text
 reduceSegment seg =
 	case seg of
 		Keyword kw ->
 			pure kw
 
 		Other o ->
-			pure (B.singleton o)
+			pure (T.singleton o)
 
 		Quote delim cnt ->
-			pure (B.singleton delim <> cnt <> B.singleton delim)
+			pure (T.singleton delim <> cnt <> T.singleton delim)
 
 		Variable varName -> do
-			mbName <- lift (lookupValueName (B.unpack varName))
+			mbName <- lift (lookupValueName (T.unpack varName))
 			case mbName of
 				Just name -> do
 					-- Generate the pack expression
@@ -296,29 +294,29 @@ reduceSegment seg =
 					(numParams, params) <- get
 					put (numParams + 1, params ++ [lit])
 
-					pure (B.pack ("$" ++ show (numParams + 1)))
+					pure (T.pack ("$" ++ show (numParams + 1)))
 
 				Nothing ->
-					lift (fail ("\ESC[34m" ++ B.unpack varName ++ "\ESC[0m does not refer to anything"))
+					lift (fail ("\ESC[34m" ++ T.unpack varName ++ "\ESC[0m does not refer to anything"))
 
 		PossibleName posName -> do
-			let strName = B.unpack posName
+			let strName = T.unpack posName
 			mbName <- lift ((<|>) <$> lookupTypeName strName <*> lookupValueName strName)
 			pure $ case mbName of
 				Just name ->
-					B.pack ("" ++ sanitizeName' name ++ "")
+					T.pack (sanitizeName' name)
 
 				Nothing ->
 					posName
 
 		Identifier idnName -> do
-			mbName <- lift (lookupTypeName (B.unpack idnName))
+			mbName <- lift (lookupTypeName (T.unpack idnName))
 			case mbName of
 				Just name ->
-					pure (B.pack ("" ++ identField' name ++ ""))
+					pure (T.pack (identField' name))
 
 				Nothing ->
-					lift (fail ("\ESC[34m" ++ B.unpack idnName ++ "\ESC[0m does not refer to anything"))
+					lift (fail ("\ESC[34m" ++ T.unpack idnName ++ "\ESC[0m does not refer to anything"))
 
 -- | Parse quasi-quoted PG Store Query.
 parseStoreQueryE :: String -> Q Exp
@@ -330,6 +328,6 @@ parseStoreQueryE code = do
 		Right xs -> do
 			(statement, (_, params)) <- runStateT (mapM reduceSegment xs) (0, [])
 			[e| Query {
-			        queryStatement = fromString $(stringE (B.unpack (B.concat statement))),
+			        queryStatement = fromString $(stringE (T.unpack (T.concat statement))),
 			        queryParams    = $(pure (ListE params))
 			    } |]
