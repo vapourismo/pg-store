@@ -23,6 +23,7 @@ import           Data.Monoid
 import           Data.Typeable
 import           Data.Attoparsec.Text
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import qualified Data.ByteString as B
 
 import           Database.PostgreSQL.Store.Columns
@@ -270,18 +271,23 @@ segments =
 		Other <$> anyChar
 	])
 
+-- | Turn "Text" into a UTF-8-encoded "ByteString" expression.
+utf8E :: T.Text -> StateT (Int, [Exp]) Q Exp
+utf8E txt =
+	lift [e| T.encodeUtf8 (fromString $(stringE (T.unpack txt))) |]
+
 -- | Reduce segments in order to resolve names and collect query parameters.
-reduceSegment :: Segment -> StateT (Int, [Exp]) Q T.Text
+reduceSegment :: Segment -> StateT (Int, [Exp]) Q Exp
 reduceSegment seg =
 	case seg of
 		Keyword kw ->
-			pure kw
+			utf8E kw
 
 		Other o ->
-			pure (T.singleton o)
+			utf8E (T.singleton o)
 
 		Quote delim cnt ->
-			pure (T.singleton delim <> cnt <> T.singleton delim)
+			utf8E (T.singleton delim <> cnt <> T.singleton delim)
 
 		Variable varName -> do
 			mbName <- lift (lookupValueName (T.unpack varName))
@@ -294,29 +300,28 @@ reduceSegment seg =
 					(numParams, params) <- get
 					put (numParams + 1, params ++ [lit])
 
-					pure (T.pack ("$" ++ show (numParams + 1)))
+					utf8E (T.pack ("$" ++ show (numParams + 1)))
 
 				Nothing ->
-					lift (fail ("\ESC[34m" ++ T.unpack varName ++ "\ESC[0m does not refer to anything"))
+					lift (fail ("\ESC[34m" ++ T.unpack varName ++
+					            "\ESC[0m does not refer to anything"))
 
 		PossibleName posName -> do
 			let strName = T.unpack posName
 			mbName <- lift ((<|>) <$> lookupTypeName strName <*> lookupValueName strName)
-			pure $ case mbName of
-				Just name ->
-					T.pack (sanitizeName' name)
-
-				Nothing ->
-					posName
+			utf8E $ case mbName of
+				Just name -> T.pack (sanitizeName' name)
+				Nothing   -> posName
 
 		Identifier idnName -> do
 			mbName <- lift (lookupTypeName (T.unpack idnName))
 			case mbName of
 				Just name ->
-					pure (T.pack (identField' name))
+					utf8E (T.pack (identField' name))
 
 				Nothing ->
-					lift (fail ("\ESC[34m" ++ T.unpack idnName ++ "\ESC[0m does not refer to anything"))
+					lift (fail ("\ESC[34m" ++ T.unpack idnName ++
+					            "\ESC[0m does not refer to anything"))
 
 -- | Parse quasi-quoted PG Store Query.
 parseStoreQueryE :: String -> Q Exp
@@ -326,8 +331,8 @@ parseStoreQueryE code = do
 			fail msg
 
 		Right xs -> do
-			(statement, (_, params)) <- runStateT (mapM reduceSegment xs) (0, [])
+			(parts, (_, params)) <- runStateT (mapM reduceSegment xs) (0, [])
 			[e| Query {
-			        queryStatement = fromString $(stringE (T.unpack (T.concat statement))),
+			        queryStatement = B.concat $(pure (ListE parts)),
 			        queryParams    = $(pure (ListE params))
 			    } |]
