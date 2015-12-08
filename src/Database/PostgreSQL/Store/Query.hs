@@ -19,7 +19,6 @@ import           Control.Monad.Trans.State
 
 import           Data.Char
 import           Data.String
-import           Data.Monoid
 import           Data.Typeable
 import           Data.Attoparsec.Text
 import qualified Data.Text as T
@@ -272,22 +271,22 @@ segments =
 	])
 
 -- | Turn "Text" into a UTF-8-encoded "ByteString" expression.
-utf8E :: T.Text -> StateT (Int, [Exp]) Q Exp
-utf8E txt =
-	lift [e| T.encodeUtf8 (fromString $(stringE (T.unpack txt))) |]
+textE :: T.Text -> StateT (Int, [Exp]) Q Exp
+textE txt =
+	lift (stringE (T.unpack txt))
 
 -- | Reduce segments in order to resolve names and collect query parameters.
 reduceSegment :: Segment -> StateT (Int, [Exp]) Q Exp
 reduceSegment seg =
 	case seg of
 		Keyword kw ->
-			utf8E kw
+			textE kw
 
 		Other o ->
-			utf8E (T.singleton o)
+			lift (stringE [o])
 
 		Quote delim cnt ->
-			utf8E (T.singleton delim <> cnt <> T.singleton delim)
+			lift (stringE (delim : T.unpack cnt ++ [delim]))
 
 		Variable varName -> do
 			mbName <- lift (lookupValueName (T.unpack varName))
@@ -300,7 +299,7 @@ reduceSegment seg =
 					(numParams, params) <- get
 					put (numParams + 1, params ++ [lit])
 
-					utf8E (T.pack ("$" ++ show (numParams + 1)))
+					lift (stringE ("$" ++ show (numParams + 1)))
 
 				Nothing ->
 					lift (fail ("\ESC[34m" ++ T.unpack varName ++
@@ -308,16 +307,21 @@ reduceSegment seg =
 
 		PossibleName posName -> do
 			let strName = T.unpack posName
-			mbName <- lift ((<|>) <$> lookupTypeName strName <*> lookupValueName strName)
-			utf8E $ case mbName of
-				Just name -> T.pack (sanitizeName' name)
-				Nothing   -> posName
+			mbName <- lift ((,) <$> lookupTypeName strName <*> lookupValueName strName)
+			case mbName of
+				(Just typName, _) ->
+					lift [e| "\"" ++ describeTableName (Proxy :: Proxy $(conT typName)) ++ "\"" |]
+
+				(_, Just varName) ->
+					lift (stringE (sanitizeName' varName))
+
+				_ -> textE posName
 
 		Identifier idnName -> do
 			mbName <- lift (lookupTypeName (T.unpack idnName))
 			case mbName of
 				Just name ->
-					utf8E (T.pack (identField' name))
+					lift [e| "\"" ++ describeTableIdentifier (Proxy :: Proxy $(conT name)) ++ "\"" |]
 
 				Nothing ->
 					lift (fail ("\ESC[34m" ++ T.unpack idnName ++
@@ -333,6 +337,6 @@ parseStoreQueryE code = do
 		Right xs -> do
 			(parts, (_, params)) <- runStateT (mapM reduceSegment xs) (0, [])
 			[e| Query {
-			        queryStatement = B.concat $(pure (ListE parts)),
+			        queryStatement = T.encodeUtf8 (T.pack (concat $(pure (ListE parts)))),
 			        queryParams    = $(pure (ListE params))
 			    } |]
