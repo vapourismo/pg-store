@@ -10,7 +10,9 @@ module Database.PostgreSQL.Store.Columns (
 
 	-- *
 	sanitizeName,
+	sanitizeName',
 	identField,
+	identField',
 
 	-- *
 	Column (..),
@@ -67,12 +69,22 @@ makeColumnDescription ColumnDescription {..} =
 -- | Generate the sanitized representation of a name.
 sanitizeName :: Name -> String
 sanitizeName name =
-	"\"" ++ show name ++ "\""
+	show name
+
+-- | Similiar to "sanitizeName" but encloses the name in quotes.
+sanitizeName' :: Name -> String
+sanitizeName' name =
+	"\"" ++ sanitizeName name ++ "\""
 
 -- | Generate the name of the identifying field.
 identField :: Name -> String
 identField name =
-	"\"" ++ show name ++ "$id\""
+	show name ++ "$id"
+
+-- | Similiar to "identField" but encloses the name in quotes.
+identField' :: Name -> String
+identField' name =
+	"\"" ++ identField name ++ "\""
 
 -- | Column type
 class Column a where

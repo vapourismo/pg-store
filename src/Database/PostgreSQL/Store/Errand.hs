@@ -26,6 +26,7 @@ data ErrandError
 	= NoResult
 	| ExecError P.ExecStatus (Maybe B.ByteString)
 	| ResultError ResultError
+	| UnexpectedEmptyResult
 	| UserError String
 	deriving (Show, Eq)
 
@@ -36,10 +37,10 @@ runErrand :: P.Connection -> Errand a -> IO (Either ErrandError a)
 runErrand con errand =
 	runExceptT (runReaderT errand con)
 
--- | Raise a user error.
-raiseErrandError :: String -> Errand a
-raiseErrandError msg =
-	lift (ExceptT (pure (Left (UserError msg))))
+-- | Raise an error.
+raiseErrandError :: ErrandError -> Errand a
+raiseErrandError err =
+	lift (ExceptT (pure (Left err)))
 
 -- | Execute a query and return its result.
 executeQuery :: Query -> Errand P.Result

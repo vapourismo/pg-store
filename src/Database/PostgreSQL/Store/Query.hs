@@ -16,7 +16,7 @@ import           Data.Char
 import           Data.String
 import           Data.Monoid
 import qualified Data.ByteString.Char8 as B
-import           Data.Attoparsec.ByteString.Char8 hiding (isDigit)
+import           Data.Attoparsec.ByteString.Char8
 
 import           Database.PostgreSQL.Store.Columns
 
@@ -271,7 +271,7 @@ reduceSegment seg =
 			mbName <- lift ((<|>) <$> lookupTypeName strName <*> lookupValueName strName)
 			pure $ case mbName of
 				Just name ->
-					B.pack (sanitizeName name)
+					B.pack ("" ++ sanitizeName' name ++ "")
 
 				Nothing ->
 					posName
@@ -280,7 +280,7 @@ reduceSegment seg =
 			mbName <- lift (lookupTypeName (B.unpack idnName))
 			case mbName of
 				Just name ->
-					pure (B.pack (identField name))
+					pure (B.pack ("" ++ identField' name ++ ""))
 
 				Nothing ->
 					lift (fail ("\ESC[34m" ++ B.unpack idnName ++ "\ESC[0m does not refer to anything"))

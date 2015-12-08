@@ -56,7 +56,7 @@ instance (Table a) => Column (Reference a) where
 
 	describeColumn proxy =
 		ColumnDescription {
-			columnTypeName = "bigint references " ++ tableName ++ " (" ++ tableIdentColumn ++ ")",
+			columnTypeName = "bigint references \"" ++ tableName ++ "\" (\"" ++ tableIdentColumn ++ "\")",
 			columnTypeNull = False
 		}
 		where
@@ -119,14 +119,14 @@ insertQueryE name fields =
 	[e| fromString $(stringE query) |]
 	where
 		query =
-			"INSERT INTO " ++ sanitizeName name ++ " (" ++
+			"INSERT INTO " ++ sanitizeName' name ++ " (" ++
 				intercalate ", " columns ++
 			") VALUES (" ++
 				intercalate ", " values ++
-			") RETURNING " ++ identField name
+			") RETURNING " ++ identField' name
 
 		columns =
-			map sanitizeName fields
+			map (\ nm -> "\"" ++ sanitizeName nm ++ "\"") fields
 
 		values =
 			map (\ idx -> "$" ++ show idx) [1 .. length fields]
@@ -137,8 +137,8 @@ findQueryE name =
 	[e| fromString $(stringE query) |]
 	where
 		query =
-			"SELECT * FROM " ++ sanitizeName name ++
-			" WHERE " ++ identField name ++ " = $1 LIMIT 1"
+			"SELECT * FROM " ++ sanitizeName' name ++
+			" WHERE " ++ identField' name ++ " = $1 LIMIT 1"
 
 -- | Generate the update query for a table.
 updateQueryE :: Name -> [Name] -> Q Exp
@@ -146,19 +146,22 @@ updateQueryE name fields =
 	[e| fromString $(stringE query) |]
 	where
 		query =
-			"UPDATE " ++ sanitizeName name ++
+			"UPDATE " ++ sanitizeName' name ++
 			" SET " ++ intercalate ", " values ++
-			" WHERE " ++ identField name ++ " = $1"
+			" WHERE " ++ identField' name ++ " = $1"
 
 		values =
-			map (\ (nm, idx) -> sanitizeName nm ++ " = $" ++ show idx) (zip fields [2 .. length fields + 1])
+			map (\ (nm, idx) -> sanitizeName' nm ++ " = $" ++ show idx)
+			    (zip fields [2 .. length fields + 1])
 
 -- | Generate the delete query for a table.
 deleteQueryE :: Name -> Q Exp
 deleteQueryE name =
 	[e| fromString $(stringE query) |]
 	where
-		query = "DELETE FROM " ++ sanitizeName name ++ " WHERE " ++ identField name ++ " = $1"
+		query =
+			"DELETE FROM " ++ sanitizeName' name ++
+			" WHERE " ++ identField' name ++ " = $1"
 
 -- | Generate the create query for a table.
 createQueryE :: Name -> [(Name, Type)] -> Q Exp
@@ -167,17 +170,17 @@ createQueryE name fields =
 	                intercalate ", " ($(stringE anchorDescription) : $(descriptions)) ++
 	                $(stringE queryEnd)) |]
 	where
-		queryBegin = "CREATE TABLE IF NOT EXISTS " ++ sanitizeName name ++ " ("
+		queryBegin = "CREATE TABLE IF NOT EXISTS " ++ sanitizeName' name ++ " ("
 		queryEnd = ")"
 
 		anchorDescription =
-			identField name ++ " BIGSERIAL NOT NULL PRIMARY KEY"
+			identField' name ++ " BIGSERIAL NOT NULL PRIMARY KEY"
 
 		descriptions =
 			ListE <$> mapM describeField fields
 
 		describeField (fname, ftype) =
-			[e| $(stringE (sanitizeName fname)) ++ " " ++
+			[e| $(stringE (sanitizeName' fname)) ++
 			    makeColumnDescription (describeColumn (Proxy :: Proxy $(pure ftype))) |]
 
 -- | Generate an expression which gathers all records from a type and packs them into a list.
@@ -192,7 +195,7 @@ packParamsE row fields =
 -- | Generate an expression which gathers information about a column.
 columnInfoE :: Name -> Q Exp
 columnInfoE name =
-	[e| columnInfo (fromString $(stringE (sanitizeName name))) |]
+	[e| columnInfo (fromString $(stringE (sanitizeName' name))) |]
 
 -- | Generate a query which binds information about a column to the column's info name.
 bindColumnInfoS :: Name -> Q Stmt
@@ -231,7 +234,7 @@ unpackRowE ctor row fields = do
 -- | Generate an expression which traverses all rows in order to unpack table instances from them.
 unpackRowsE :: Name -> Name -> [Name] -> Q Exp
 unpackRowsE table ctor fields =
-	[e| do idNfo <- columnInfo (fromString $(stringE (identField table)))
+	[e| do idNfo <- columnInfo (fromString $(stringE (identField' table)))
 	       foreachRow $ \ row ->
 	           Row <$> unpackCellValue row idNfo
 	               <*> $(unpackRowE ctor 'row fields) |]
@@ -246,7 +249,7 @@ tableResultProcessorE table ctor fields = do
 -- | Generate an expression which retrieves a reference to each row.
 tableRefResultProcessorE :: Name -> Q Exp
 tableRefResultProcessorE table =
-	[e| do idNfo <- columnInfo (fromString $(stringE (identField table)))
+	[e| do idNfo <- columnInfo (fromString $(stringE (identField' table)))
 	       foreachRow (\ row -> Reference <$> unpackCellValue row idNfo) |]
 
 -- | Generate an expression which instantiates a description for a given table.
@@ -269,7 +272,7 @@ implementTableD table ctor fields = do
 
 	            case rs of
 	            	(ref : _) -> pure ref
-	            	_         -> raiseErrandError "Result set for insertion is empty"
+	            	_         -> raiseErrandError UnexpectedEmptyResult
 
 	        find ref = do
 	            rs <- query Query {
@@ -279,7 +282,7 @@ implementTableD table ctor fields = do
 
 	            case rs of
 	                (row : _) -> pure row
-	                _         -> raiseErrandError "Could not find row"
+	                _         -> raiseErrandError UnexpectedEmptyResult
 
 	        update ref row =
 	            query_ Query {
@@ -411,8 +414,7 @@ mkCreateQuery :: Name -> Q Exp
 mkCreateQuery name = do
 	-- Is the given name a type?
 	it <- isType name
-	unless it $
-		fail ("Given name does not refer to a type.")
+	unless it (fail "Given name does not refer to a type.")
 
 	-- Actual splice
 	[e| createQuery (Proxy :: Proxy $(pure (ConT name))) |]
