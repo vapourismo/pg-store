@@ -1,6 +1,11 @@
 {-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 
 module Database.PostgreSQL.Store.Query (
+	-- * Tables
+	TableDescription (..),
+	DescribableTable (..),
+
+	-- * Querying
 	Query (..),
 	pgsq
 ) where
@@ -15,10 +20,40 @@ import           Control.Monad.Trans.State
 import           Data.Char
 import           Data.String
 import           Data.Monoid
+import           Data.Typeable
 import qualified Data.ByteString.Char8 as B
 import           Data.Attoparsec.ByteString.Char8
 
 import           Database.PostgreSQL.Store.Columns
+
+-- | Description of a table type
+data TableDescription = TableDescription {
+	-- | Table name
+	tableName :: String,
+
+	-- | Identifier column name - 'pgsq' does not respect this value when generating row identifiers
+	tableIdentColumn :: String
+} deriving (Show, Eq, Ord)
+
+-- | Attach meta data to a table type
+class DescribableTable a where
+	-- | Describe the table.
+	describeTable :: Proxy a -> TableDescription
+	describeTable proxy =
+		TableDescription {
+			tableName = describeTableName proxy,
+			tableIdentColumn = describeTableIdentifier proxy
+		}
+
+	-- | Describe table name.
+	describeTableName :: Proxy a -> String
+	describeTableName proxy =
+		tableName (describeTable proxy)
+
+	-- | Describe table identifier.
+	describeTableIdentifier :: Proxy a -> String
+	describeTableIdentifier proxy =
+		tableIdentColumn (describeTable proxy)
 
 -- | Query including statement and parameters.
 -- Use the 'pgsq' quasi-quoter to conveniently create queries.

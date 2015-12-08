@@ -25,15 +25,6 @@ import Database.PostgreSQL.Store.Columns
 import Database.PostgreSQL.Store.Result
 import Database.PostgreSQL.Store.Errand
 
--- | Description of a table type
-data TableDescription = TableDescription {
-	-- | Table name
-	tableName :: String,
-
-	-- | Identifier column name - 'pgsq' does not respect this value when generating row identifiers
-	tableIdentColumn :: String
-} deriving (Show, Eq, Ord)
-
 -- | Resolved row
 data Row a = Row {
 	-- | Identifier
@@ -66,7 +57,7 @@ instance (Table a) => Column (Reference a) where
 			TableDescription {..} =
 				describeTable (coerceProxy proxy)
 
-class Table a where
+class (DescribableTable a) => Table a where
 	-- | Insert a row into the table and return a 'Reference' to the inserted row.
 	insert :: a -> Errand (Reference a)
 
@@ -88,9 +79,6 @@ class Table a where
 
 	-- | Extract only a 'Reference' to each row.
 	tableRefResultProcessor :: ResultProcessor [Reference a]
-
-	-- | Describe the table.
-	describeTable :: Proxy a -> TableDescription
 
 instance (Table a) => Result (Row a) where
 	resultProcessor = tableResultProcessor
@@ -252,18 +240,17 @@ tableRefResultProcessorE table =
 	[e| do idNfo <- columnInfo (fromString $(stringE (identField' table)))
 	       foreachRow (\ row -> Reference <$> unpackCellValue row idNfo) |]
 
--- | Generate an expression which instantiates a description for a given table.
-tableDescriptionE :: Name -> Q Exp
-tableDescriptionE table =
-	[e| TableDescription {
-	        tableName = $(stringE (sanitizeName table)),
-	        tableIdentColumn = $(stringE (identField table))
-	    } |]
-
 -- | Implement an instance 'Table' for the given type.
 implementTableD :: Name -> Name -> [(Name, Type)] -> Q [Dec]
-implementTableD table ctor fields = do
-	[d| instance Table $(pure (ConT table)) where
+implementTableD table ctor fields =
+	[d| instance DescribableTable $(conT table) where
+	        describeTableName _ =
+	            $(stringE (sanitizeName table))
+
+	        describeTableIdentifier _ =
+	            $(stringE (identField table))
+
+	    instance Table $(conT table) where
 	        insert row = do
 	            rs <- query Query {
 	                queryStatement = $(insertQueryE table fieldNames),
@@ -271,8 +258,8 @@ implementTableD table ctor fields = do
 	            }
 
 	            case rs of
-	            	(ref : _) -> pure ref
-	            	_         -> raiseErrandError UnexpectedEmptyResult
+	                (ref : _) -> pure ref
+	                _         -> raiseErrandError UnexpectedEmptyResult
 
 	        find ref = do
 	            rs <- query Query {
@@ -306,10 +293,7 @@ implementTableD table ctor fields = do
 	            $(tableResultProcessorE table ctor fieldNames)
 
 	        tableRefResultProcessor =
-	        	$(tableRefResultProcessorE table)
-
-	        describeTable _ =
-	            $(tableDescriptionE table) |]
+	            $(tableRefResultProcessorE table) |]
 	where
 		fieldNames = map fst fields
 
