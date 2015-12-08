@@ -31,5 +31,8 @@ main = hspec $ do
 
 	mbPGInfo <- runIO (lookupEnv "PGINFO")
 	case mbPGInfo of
-		Just pgInfo -> liveTests pgInfo
-		Nothing     -> pure ()
+		Just pgInfo ->
+			liveTests pgInfo
+
+		Nothing ->
+			runIO (putStrLn "Environment variable 'PGINFO' is missing")
