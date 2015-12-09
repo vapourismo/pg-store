@@ -47,7 +47,7 @@ instance (Table a) => Column (Reference a) where
 
 	describeColumn proxy =
 		ColumnDescription {
-			columnTypeName = "bigint references \"" ++ tableName ++ "\" (\"" ++ tableIdentColumn ++ "\")",
+			columnTypeName = "bigint references \"" ++ tableName ++ "\" (\"" ++ tableIdentifier ++ "\")",
 			columnTypeNull = False
 		}
 		where

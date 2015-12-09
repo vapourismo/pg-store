@@ -32,8 +32,8 @@ data TableDescription = TableDescription {
 	-- | Table name
 	tableName :: String,
 
-	-- | Identifier column name - 'pgsq' does not respect this value when generating row identifiers
-	tableIdentColumn :: String
+	-- | Identifier column name
+	tableIdentifier :: String
 } deriving (Show, Eq, Ord)
 
 -- | Attach meta data to a table type
@@ -43,7 +43,7 @@ class DescribableTable a where
 	describeTable proxy =
 		TableDescription {
 			tableName = describeTableName proxy,
-			tableIdentColumn = describeTableIdentifier proxy
+			tableIdentifier = describeTableIdentifier proxy
 		}
 
 	-- | Describe table name.
@@ -54,7 +54,7 @@ class DescribableTable a where
 	-- | Describe table identifier.
 	describeTableIdentifier :: Proxy a -> String
 	describeTableIdentifier proxy =
-		tableIdentColumn (describeTable proxy)
+		tableIdentifier (describeTable proxy)
 
 -- | Query including statement and parameters.
 -- Use the 'pgsq' quasi-quoter to conveniently create queries.
@@ -72,8 +72,9 @@ data Query = Query {
 --
 -- All plain identifiers will be treated as Haskell names. They are going to be resolved to their
 -- fully-qualified and quoted version. Beware, the use of names which don't refer to a table type
--- or field will likely result in unknown table or column errors. If you don't want a name to be
--- resolved use a quoted identifier.
+-- or field will likely result in unknown table or column errors. The associated table name of a
+-- type is retrieved using 'describeTableName'.
+-- If you don't want a name to be resolved use a quoted identifier.
 --
 -- Example:
 --
@@ -112,7 +113,8 @@ data Query = Query {
 --
 -- Each instance of @('Table' a) => 'Row' a@ and each row of the actual table inside the database
 -- has an identifier value. These identifiers are used to reference specific rows. The identifier
--- column is exposed via the @&MyTable@ pattern.
+-- column is exposed via the @&MyTable@ pattern. Identifier field names are resolved using
+-- 'describeTableIdentifier'.
 --
 -- Example:
 --
