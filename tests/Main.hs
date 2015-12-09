@@ -8,6 +8,7 @@ import qualified Data.Text.Encoding as T
 
 import           Database.PostgreSQL.Store.ColumnsSpec
 import           Database.PostgreSQL.Store.TableSpec
+import           Database.PostgreSQL.Store.QuerySpec
 import qualified Database.PostgreSQL.LibPQ as P
 
 -- | Test which will only be executed if 'PGINFO' environment variable is set
@@ -28,6 +29,7 @@ liveTests pgInfo = do
 main :: IO ()
 main = hspec $ do
 	columnsSpec
+	querySpec
 
 	mbPGInfo <- runIO (lookupEnv "PGINFO")
 	case mbPGInfo of

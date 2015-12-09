@@ -37,5 +37,6 @@ test-suite tests
   build-depends:    base, pg-store, hspec, QuickCheck, bytestring, text, postgresql-libpq
   hs-source-dirs:   tests
   other-modules:    Database.PostgreSQL.Store.ColumnsSpec,
-                    Database.PostgreSQL.Store.TableSpec
+                    Database.PostgreSQL.Store.TableSpec,
+                    Database.PostgreSQL.Store.QuerySpec
   main-is:          Main.hs
