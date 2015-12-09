@@ -111,7 +111,7 @@ data Query = Query {
 --
 -- = Row identifiers
 --
--- Each instance of @('Table' a) => 'Row' a@ and each row of the actual table inside the database
+-- Each instance of @('Table' a) => 'Row' a@, @('Table' a) => 'Reference' a@ and each row of the actual table inside the database
 -- has an identifier value. These identifiers are used to reference specific rows. The identifier
 -- column is exposed via the @&MyTable@ pattern. Identifier field names are resolved using
 -- 'describeTableIdentifier'.
