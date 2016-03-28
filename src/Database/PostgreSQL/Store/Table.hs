@@ -316,6 +316,7 @@ validateFields fields =
 -- Example:
 --
 -- @
+-- {-\# LANGUAGE TemplateHaskell \#-}
 -- module Movies where
 --
 -- ...

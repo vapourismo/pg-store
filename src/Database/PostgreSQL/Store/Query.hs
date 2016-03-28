@@ -79,6 +79,7 @@ data Query = Query {
 -- Example:
 --
 -- @
+-- {-\# LANGUAGE QuasiQuotes \#-}
 -- module MyModule where
 --
 -- ...
