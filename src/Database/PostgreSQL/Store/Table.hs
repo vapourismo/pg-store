@@ -168,7 +168,7 @@ createQueryE name fields =
 			ListE <$> mapM describeField fields
 
 		describeField (fname, ftype) =
-			[e| $(stringE (sanitizeName' fname)) ++
+			[e| $(stringE (sanitizeName' fname)) ++ " " ++
 			    makeColumnDescription (describeColumn (Proxy :: Proxy $(pure ftype))) |]
 
 -- | Generate an expression which gathers all records from a type and packs them into a list.
