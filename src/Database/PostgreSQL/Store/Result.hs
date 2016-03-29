@@ -8,7 +8,6 @@ module Database.PostgreSQL.Store.Result (
 	columnFormat,
 	columnInfo,
 	foreachRow,
-	cellData,
 	cellValue,
 	unpackCellValue,
 
@@ -72,16 +71,15 @@ foreachRow rowProcessor = do
 	numRows <- lift (lift (P.ntuples result))
 	mapM rowProcessor [0 .. numRows - 1]
 
--- | Get cell data.
-cellData :: P.Row -> P.Column -> ResultProcessor B.ByteString
-cellData row col = do
-	result <- ask
-	lift (ExceptT (maybe (Left (ColumnDataMissing row col)) pure <$> P.getvalue' result row col))
-
 -- | Get cell value.
 cellValue :: P.Row -> (P.Column, P.Oid, P.Format) -> ResultProcessor Value
 cellValue row (col, oid, fmt) = do
-	Value oid <$> cellData row col <*> pure fmt
+	result <- ask
+	value <- lift (lift (P.getvalue' result row col))
+
+	case value of
+		Just dat -> Value oid dat <$> pure fmt
+		Nothing  -> pure NullValue
 
 -- | Unpack cell value.
 unpackCellValue :: (Column a) => P.Row -> (P.Column, P.Oid, P.Format) -> ResultProcessor a
