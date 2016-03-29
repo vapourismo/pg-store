@@ -37,10 +37,11 @@ import           Data.Attoparsec.ByteString.Char8 (signed, decimal)
 
 import qualified Database.PostgreSQL.LibPQ as P
 
--- | Query parameter or value of a column
+-- | Query parameter or value of a column - see 'pack' on how to generate 'Value's manually but
+--   conveniently.
 data Value
 	= Value {
-		-- | Type OID
+		-- | Type object identifier
 		valueType :: P.Oid,
 
 		-- | Data value
@@ -52,7 +53,7 @@ data Value
 	| NullValue
 	deriving (Show, Eq, Ord)
 
--- | Description of a column type
+-- | Description of a column
 data ColumnDescription = ColumnDescription {
 	-- | Type name (e.g. bool, integer)
 	columnTypeName :: String,
@@ -61,30 +62,26 @@ data ColumnDescription = ColumnDescription {
 	columnTypeNull :: Bool
 } deriving (Show, Eq, Ord)
 
--- | Generate SQL column description.
+-- | Generate column description in SQL. Think @CREATE TABLE@.
 makeColumnDescription :: ColumnDescription -> String
 makeColumnDescription ColumnDescription {..} =
 	columnTypeName ++ (if columnTypeNull then "" else " NOT NULL")
 
 -- | Generate the sanitized representation of a name.
 sanitizeName :: Name -> String
-sanitizeName name =
-	show name
+sanitizeName = show
 
 -- | Similiar to "sanitizeName" but encloses the name in quotes.
 sanitizeName' :: Name -> String
-sanitizeName' name =
-	"\"" ++ sanitizeName name ++ "\""
+sanitizeName' name = "\"" ++ sanitizeName name ++ "\""
 
--- | Generate the name of the identifying field.
+-- | Generate the name for the identifying field.
 identField :: Name -> String
-identField name =
-	show name ++ "$id"
+identField name = show name ++ "$id"
 
 -- | Similiar to "identField" but encloses the name in quotes.
 identField' :: Name -> String
-identField' name =
-	"\"" ++ identField name ++ "\""
+identField' name = "\"" ++ identField name ++ "\""
 
 -- | Column type
 class Column a where
@@ -94,7 +91,7 @@ class Column a where
 	-- | Unpack column value.
 	unpack :: Value -> Maybe a
 
-	-- | Descripe the column.
+	-- | Descripe the column type.
 	describeColumn :: Proxy a -> ColumnDescription
 
 instance (Column a) => Column (Maybe a) where
