@@ -26,7 +26,8 @@ data TestTable = TestTable {
 	ttText           :: T.Text,
 	ttLazyText       :: TL.Text,
 	ttByteString     :: B.ByteString,
-	ttLazyByteString :: BL.ByteString
+	ttLazyByteString :: BL.ByteString,
+	ttMaybeInt       :: Maybe Int
 } deriving (Show, Eq, Ord)
 
 instance Arbitrary TestTable where
@@ -42,6 +43,7 @@ instance Arbitrary TestTable where
 		          <*> fmap (TL.pack) arbitrary
 		          <*> fmap (B.pack) arbitrary
 		          <*> fmap (BL.pack) arbitrary
+		          <*> arbitrary
 
 mkTable ''TestTable
 
@@ -85,7 +87,6 @@ tableSpec con = do
 			eDelete <- run (runErrand con (delete ref))
 
 			assert (eDelete == Right ())
-
 
 	describe "Table" $ do
 		it "drop" $ do

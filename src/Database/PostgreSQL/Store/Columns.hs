@@ -97,6 +97,18 @@ class Column a where
 	-- | Descripe the column.
 	describeColumn :: Proxy a -> ColumnDescription
 
+instance (Column a) => Column (Maybe a) where
+	pack = maybe NullValue pack
+
+	unpack NullValue = Just Nothing
+	unpack val       = fmap Just (unpack val)
+
+	describeColumn proxy =
+		(describeColumn (transformProxy proxy)) {columnTypeNull = True}
+		where
+			transformProxy :: Proxy (Maybe a) -> Proxy a
+			transformProxy _ = Proxy
+
 instance Column Bool where
 	pack v =
 		Value {
