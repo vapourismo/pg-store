@@ -29,7 +29,6 @@ import           Database.PostgreSQL.Store.Columns
 -- | Error that occured during result processing
 data ResultError
 	= ColumnMissing B.ByteString
-	| ColumnDataMissing P.Row P.Column
 	| ValueError P.Row P.Column P.Oid P.Format ColumnDescription
 	deriving (Show, Eq)
 
