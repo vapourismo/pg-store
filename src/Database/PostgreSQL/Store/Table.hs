@@ -1,5 +1,10 @@
 {-# LANGUAGE TemplateHaskell, RecordWildCards, BangPatterns #-}
 
+-- |
+-- Module:     Database.PostgreSQL.Store.Table
+-- Copyright:  (c) Ole Krüger 2015-2016
+-- License:    BSD3
+-- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Table (
 	TableDescription (..),
 	Table (..),

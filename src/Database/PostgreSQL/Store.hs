@@ -1,10 +1,8 @@
 -- |
--- Module     : Database.PostgreSQL.Store
--- Copyright  : (c) Ole Krüger 2015
--- License    : BSD3
--- Maintainer : Ole Krüger <ole@vprsm.de>
---
--- Further description here.
+-- Module:     Database.PostgreSQL.Store
+-- Copyright:  (c) Ole Krüger 2015-2016
+-- License:    BSD3
+-- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store (
 	-- * Tables
 	mkTable,
