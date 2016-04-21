@@ -7,6 +7,7 @@ module Database.PostgreSQL.Store.Result (
 	-- *
 	ResultError (..),
 	ResultProcessor,
+	ColumnInfo,
 	runResultProcessor,
 	columnNumber,
 	columnType,
@@ -40,6 +41,9 @@ data ResultError
 -- | Result processor
 type ResultProcessor = ReaderT P.Result (ExceptT ResultError IO)
 
+-- | Column information
+type ColumnInfo = (P.Column, P.Oid, P.Format)
+
 -- | Process the result.
 runResultProcessor :: P.Result -> ResultProcessor a -> ExceptT ResultError IO a
 runResultProcessor = flip runReaderT
@@ -63,7 +67,7 @@ columnFormat col = do
 	lift (lift (P.fformat result col))
 
 -- | Get information about a column.
-columnInfo :: B.ByteString -> ResultProcessor (P.Column, P.Oid, P.Format)
+columnInfo :: B.ByteString -> ResultProcessor ColumnInfo
 columnInfo name = do
 	col <- columnNumber name
 	(,,) col <$> columnType col <*> columnFormat col
@@ -76,7 +80,7 @@ foreachRow rowProcessor = do
 	mapM rowProcessor [0 .. numRows - 1]
 
 -- | Get cell value.
-cellValue :: P.Row -> (P.Column, P.Oid, P.Format) -> ResultProcessor Value
+cellValue :: P.Row -> ColumnInfo -> ResultProcessor Value
 cellValue row (col, oid, fmt) = do
 	result <- ask
 	value <- lift (lift (P.getvalue' result row col))
@@ -86,7 +90,7 @@ cellValue row (col, oid, fmt) = do
 		Nothing  -> pure NullValue
 
 -- | Unpack cell value.
-unpackCellValue :: (Column a) => P.Row -> (P.Column, P.Oid, P.Format) -> ResultProcessor a
+unpackCellValue :: (Column a) => P.Row -> ColumnInfo -> ResultProcessor a
 unpackCellValue row info =
 	withProxy Proxy
 	where
