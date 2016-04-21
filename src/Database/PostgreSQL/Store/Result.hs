@@ -18,9 +18,11 @@ module Database.PostgreSQL.Store.Result (
 	unpackCellValue,
 
 	-- * Result
-	Result (..)
+	Result (..),
+	RawRow (..)
 ) where
 
+import           Control.Monad
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Reader
 import           Control.Monad.Trans.Except
@@ -47,6 +49,12 @@ type ColumnInfo = (P.Column, P.Oid, P.Format)
 -- | Process the result.
 runResultProcessor :: P.Result -> ResultProcessor a -> ExceptT ResultError IO a
 runResultProcessor = flip runReaderT
+
+-- | Get the number of columns.
+numColumns :: ResultProcessor P.Column
+numColumns = do
+	result <- ask
+	lift (lift (P.nfields result))
 
 -- | Get the column number for a column name.
 columnNumber :: B.ByteString -> ResultProcessor P.Column
@@ -86,8 +94,21 @@ cellValue row (col, oid, fmt) = do
 	value <- lift (lift (P.getvalue' result row col))
 
 	case value of
-		Just dat -> Value oid dat <$> pure fmt
+		Just dat -> pure (Value oid dat fmt)
 		Nothing  -> pure NullValue
+
+-- | Get cell value.
+cellValue' :: P.Row -> P.Column -> ResultProcessor Value
+cellValue' row col = do
+	result <- ask
+	(oid, fmt, value) <- lift (lift ((,,) <$> P.ftype result col
+	                                      <*> P.fformat result col
+	                                      <*> P.getvalue' result row col))
+
+	case value of
+		Just dat -> pure (Value oid dat fmt)
+		Nothing  -> pure NullValue
+
 
 -- | Unpack cell value.
 unpackCellValue :: (Column a) => P.Row -> ColumnInfo -> ResultProcessor a
@@ -159,3 +180,13 @@ instance (Result a, Result b, Result c, Result d, Result e, Result f, Result g) 
 		     <*> resultProcessor
 		     <*> resultProcessor
 		     <*> resultProcessor
+
+-- | A row containing all a list of all column values.
+newtype RawRow = RawRow [Value]
+	deriving (Show, Eq, Ord)
+
+instance Result RawRow where
+	resultProcessor = do
+		ncols <- numColumns
+		foreachRow $ \ row ->
+			RawRow <$> forM [0 .. ncols - 1] (cellValue' row)
