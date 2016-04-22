@@ -5,6 +5,7 @@
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store (
 	-- * Tables
+	TableConstraint (..),
 	mkTable,
 	Row (..),
 	Reference (..),

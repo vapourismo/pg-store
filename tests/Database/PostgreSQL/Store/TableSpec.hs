@@ -45,7 +45,7 @@ instance Arbitrary TestTable where
 		          <*> fmap BL.pack arbitrary
 		          <*> arbitrary
 
-mkTable ''TestTable
+mkTable ''TestTable []
 
 tableSpec :: P.Connection -> Spec
 tableSpec con = do

@@ -11,6 +11,7 @@ module Database.PostgreSQL.Store.Table (
 	Row (..),
 	Reference (..),
 	HasID (..),
+	TableConstraint (..),
 	mkTable,
 	mkCreateQuery
 ) where
@@ -157,10 +158,12 @@ deleteQueryE name =
 			" WHERE " ++ identField' name ++ " = $1"
 
 -- | Generate the create query for a table.
-createQueryE :: Name -> [(Name, Type)] -> Q Exp
-createQueryE name fields =
+createQueryE :: Name -> [(Name, Type)] -> [TableConstraint] -> Q Exp
+createQueryE name fields constraints =
 	[e| fromString ($(stringE queryBegin) ++
-	                intercalate ", " ($(stringE anchorDescription) : $(descriptions)) ++
+	                intercalate ", " ($(stringE anchorDescription) :
+	                                  $fieldList ++
+	                                  $constraintList) ++
 	                $(stringE queryEnd)) |]
 	where
 		queryBegin = "CREATE TABLE IF NOT EXISTS " ++ sanitizeName' name ++ " ("
@@ -169,12 +172,25 @@ createQueryE name fields =
 		anchorDescription =
 			identField' name ++ " BIGSERIAL NOT NULL PRIMARY KEY"
 
-		descriptions =
+		fieldList =
 			ListE <$> mapM describeField fields
 
 		describeField (fname, ftype) =
 			[e| $(stringE (sanitizeName' fname)) ++ " " ++
 			    makeColumnDescription (describeColumn (Proxy :: Proxy $(pure ftype))) |]
+
+		constraintList =
+			ListE <$> mapM describeConstraint constraints
+
+		describeConstraint cont =
+			case cont of
+				Unique names ->
+					stringE ("UNIQUE (" ++ intercalate ", " (map sanitizeName' names) ++ ")")
+
+				ForeignKey names table tableNames ->
+					stringE ("FOREIGN KEY (" ++ intercalate ", " (map sanitizeName' names) ++
+					         ") REFERENCES " ++ sanitizeName' table ++
+					         "(" ++ intercalate ", " (map sanitizeName' tableNames) ++ ")")
 
 -- | Generate an expression which gathers all records from a type and packs them into a list.
 -- `packParamsE 'row ['field1, 'field2]` generates `[pack (field1 row), pack (field2 row)]`
@@ -246,8 +262,8 @@ tableRefResultProcessorE table =
 	       foreachRow (\ row -> Reference <$> unpackCellValue row idNfo) |]
 
 -- | Implement an instance 'Table' for the given type.
-implementTableD :: Name -> Name -> [(Name, Type)] -> Q [Dec]
-implementTableD table ctor fields =
+implementTableD :: Name -> Name -> [(Name, Type)] -> [TableConstraint] -> Q [Dec]
+implementTableD table ctor fields constraints =
 	[d| instance DescribableTable $(conT table) where
 	        describeTableName _ =
 	            $(stringE (sanitizeName table))
@@ -290,7 +306,7 @@ implementTableD table ctor fields =
 
 	        createQuery _ =
 	            Query {
-	                queryStatement = $(createQueryE table fields),
+	                queryStatement = $(createQueryE table fields constraints),
 	                queryParams    = []
 	            }
 
@@ -309,6 +325,19 @@ validateFields fields =
 		ii <- isInstance ''Column [typ]
 		unless ii $
 			fail ("\ESC[35m" ++ show name ++ "\ESC[0m's type does not have an instance of \ESC[34mColumn\ESC[0m")
+
+-- | Options to 'mkTable'.
+data TableConstraint
+	= Unique [Name]
+	  -- ^ A combination of fields must be unique.
+	  --   @Unique ['name1, 'name2, ...]@ works analogous to the following table constraint:
+	  --   @UNIQUE (name1, name2, ...)@
+	| ForeignKey [Name] Name [Name]
+	  -- ^ A combination of fields references another combination of fields from a different table.
+	  --   @ForeignKey ['name1, 'name2, ...] ''RefTable ['refname1, 'refname2, ...]@ works like this
+	  --   table constraint in SQL:
+	  --   @FOREIGN KEY (name1, name2, ...) REFERENCES RefTable(refname1, refname2, ...)@
+	deriving (Show, Eq, Ord)
 
 -- | Implement 'Table' for a data type. The given type must fulfill these requirements:
 --
@@ -331,25 +360,25 @@ validateFields fields =
 --     movieYear  :: Int
 -- } deriving Show
 --
--- 'mkTable' ''Movie
+-- 'mkTable' ''Movie []
 --
 -- data Actor = Actor {
 --     actorName :: String,
 --     actorAge  :: Int
 -- } deriving Show
 --
--- 'mkTable' ''Actor
+-- 'mkTable' ''Actor []
 --
 -- data MovieCast = MovieCast {
 --     movieCastMovie :: 'Reference' Movie,
 --     movieCastActor :: 'Reference' Actor
 -- } deriving Show
 --
--- 'mkTable' ''MovieCast
+-- 'mkTable' ''MovieCast []
 -- @
 --
-mkTable :: Name -> Q [Dec]
-mkTable name = do
+mkTable :: Name -> [TableConstraint] -> Q [Dec]
+mkTable name constraints = do
 	info <- reify name
 	case info of
 		TyConI dec ->
@@ -357,7 +386,7 @@ mkTable name = do
 				DataD [] _ [] [RecC ctor records@(_ : _)] _ -> do
 					let fields = map (\ (fn, _, ft) -> (fn, ft)) records
 					validateFields fields
-					implementTableD name ctor fields
+					implementTableD name ctor fields constraints
 
 				DataD (_ : _) _ _ _ _ ->
 					fail ("\ESC[34m" ++ show name ++ "\ESC[0m has a context")
@@ -395,7 +424,7 @@ isType name = do
 --
 -- @
 -- data Table = Table { myField :: Int }
--- 'mkTable' ''Table
+-- 'mkTable' ''Table []
 -- ...
 -- 'query_' $('mkCreateQuery' ''Table)
 -- @

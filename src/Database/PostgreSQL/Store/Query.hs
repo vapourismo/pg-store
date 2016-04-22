@@ -90,7 +90,7 @@ data Query = Query {
 -- ...
 --
 -- data Table = Table { myField :: Int }
--- 'mkTable' ''Table
+-- 'mkTable' ''Table []
 --
 -- myQuery :: 'Query'
 -- myQuery = ['pgsq'| SELECT * FROM Table WHERE myField > 1337 |]
