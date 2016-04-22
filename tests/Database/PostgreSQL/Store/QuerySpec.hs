@@ -11,9 +11,8 @@ import Database.PostgreSQL.Store
 import Database.PostgreSQL.Store.Query
 import Database.PostgreSQL.Store.Columns
 
-data MyType = MyConstructor {
-	myRecord :: Int
-} deriving (Show)
+data MyType = MyConstructor Int
+	deriving (Show)
 
 instance DescribableTable MyType where
 	describeTableName _ = "InsertTableName"
