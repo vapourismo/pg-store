@@ -1,7 +1,8 @@
 module Main (main) where
 
 import           Test.Hspec
-import           System.Environment
+
+import           Control.Monad
 
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -10,6 +11,8 @@ import           Database.PostgreSQL.Store.ColumnsSpec
 import           Database.PostgreSQL.Store.TableSpec
 import           Database.PostgreSQL.Store.QuerySpec
 import qualified Database.PostgreSQL.LibPQ as P
+
+import           System.Environment
 
 -- | Test which will only be executed if 'PGINFO' environment variable is set
 liveTests :: String -> Spec
@@ -20,10 +23,10 @@ liveTests pgInfo = do
 		pure (con, status)
 
 	describe "Database connection" $
-		it "established" $
+		it "must be established" $
 			status `shouldBe` P.ConnectionOk
 
-	afterAll_ (P.finish con) (tableSpec con)
+	when (status == P.ConnectionOk) (afterAll_ (P.finish con) (tableSpec con))
 
 -- | Test entry point
 main :: IO ()
@@ -33,8 +36,5 @@ main = hspec $ do
 
 	mbPGInfo <- runIO (lookupEnv "PGINFO")
 	case mbPGInfo of
-		Just pgInfo ->
-			liveTests pgInfo
-
-		Nothing ->
-			runIO (putStrLn "Environment variable 'PGINFO' is missing")
+		Just pgInfo -> liveTests pgInfo
+		Nothing     -> runIO (putStrLn "Environment variable 'PGINFO' is missing")

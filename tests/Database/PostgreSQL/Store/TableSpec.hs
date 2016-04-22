@@ -39,10 +39,10 @@ instance Arbitrary TestTable where
 		          <*> arbitrary
 		          <*> arbitrary
 		          <*> arbitrary
-		          <*> fmap (T.pack) arbitrary
-		          <*> fmap (TL.pack) arbitrary
-		          <*> fmap (B.pack) arbitrary
-		          <*> fmap (BL.pack) arbitrary
+		          <*> fmap T.pack arbitrary
+		          <*> fmap TL.pack arbitrary
+		          <*> fmap B.pack arbitrary
+		          <*> fmap BL.pack arbitrary
 		          <*> arbitrary
 
 mkTable ''TestTable
