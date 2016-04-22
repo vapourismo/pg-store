@@ -2,12 +2,14 @@
 
 module Database.PostgreSQL.Store.QuerySpec (querySpec) where
 
-import           Test.Hspec
-import           Data.String
-import           Data.Typeable
-import           Database.PostgreSQL.Store
-import           Database.PostgreSQL.Store.Query
-import           Database.PostgreSQL.Store.Columns
+import Test.Hspec
+
+import Data.String
+import Data.Typeable
+
+import Database.PostgreSQL.Store
+import Database.PostgreSQL.Store.Query
+import Database.PostgreSQL.Store.Columns
 
 data MyType = MyConstructor {
 	myRecord :: Int
@@ -22,14 +24,14 @@ testValue = 1337
 
 querySpec :: Spec
 querySpec =
-	describe "pgsq" $ do
-		it "table name" $
+	describe "parseStoreQueryE" $ do
+		it "must resolve tables names correctly" $
 			queryStatement [pgsq|MyType|]
 				`shouldBe` fromString ("\"" ++ describeTableName (Proxy :: Proxy MyType) ++ "\"")
 
-		it "table identifier" $
+		it "must resolve identifier column names correctly" $
 			queryStatement [pgsq|&MyType|]
 				`shouldBe` fromString ("\"" ++ describeTableIdentifier (Proxy :: Proxy MyType) ++ "\"")
 
-		it "variable" $ do
+		it "must insert and pack variables correctly" $
 			[pgsq|$testValue|] `shouldBe` Query "$1" [pack testValue]
