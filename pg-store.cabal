@@ -1,5 +1,5 @@
 name:                pg-store
-version:             0.0.0
+version:             0.0.1
 category:            Database
 synopsis:            Dead simple storage interface to PostgreSQL
 homepage:            https://github.com/vapourismo/pg-store
