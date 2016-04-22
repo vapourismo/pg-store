@@ -367,15 +367,18 @@ data TableConstraint
 --     actorAge  :: Int
 -- } deriving Show
 --
--- 'mkTable' ''Actor []
+-- 'mkTable' ''Actor [Unique ['actorName]]
 --
 -- data MovieCast = MovieCast {
 --     movieCastMovie :: 'Reference' Movie,
 --     movieCastActor :: 'Reference' Actor
 -- } deriving Show
 --
--- 'mkTable' ''MovieCast []
+-- 'mkTable' ''MovieCast [Unique ['movieCastMovie, 'movieCastActor]]
 -- @
+--
+-- In this example, 'Reference' takes care of adding the @FOREIGN KEY@ constraint, so we don't have
+-- to.
 --
 mkTable :: Name -> [TableConstraint] -> Q [Dec]
 mkTable name constraints = do
