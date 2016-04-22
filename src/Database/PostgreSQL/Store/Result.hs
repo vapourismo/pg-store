@@ -181,7 +181,7 @@ instance (Result a, Result b, Result c, Result d, Result e, Result f, Result g) 
 		     <*> resultProcessor
 		     <*> resultProcessor
 
--- | A row containing all a list of all column values.
+-- | A row containing a list of all column values.
 newtype RawRow = RawRow [Value]
 	deriving (Show, Eq, Ord)
 
