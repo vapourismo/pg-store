@@ -82,11 +82,11 @@ sanitizeName' name = "\"" ++ sanitizeName name ++ "\""
 
 -- | Generate the name for the identifying field.
 identField :: Name -> String
-identField name = show name ++ "$id"
+identField tableName = show tableName ++ "$id"
 
 -- | Similiar to "identField" but encloses the name in quotes.
 identField' :: Name -> String
-identField' name = "\"" ++ identField name ++ "\""
+identField' tableName = "\"" ++ identField tableName ++ "\""
 
 -- | Column type
 class Column a where
