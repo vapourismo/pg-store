@@ -12,7 +12,8 @@ module Database.PostgreSQL.Store.Query (
 
 	-- * Querying
 	Query (..),
-	pgsq
+	pgsq,
+	pgss
 ) where
 
 import           Language.Haskell.TH
@@ -364,3 +365,24 @@ parseStoreQueryE code = do
 			        queryStatement = T.encodeUtf8 (T.pack (concat $(pure (ListE parts)))),
 			        queryParams    = $(pure (ListE params))
 			    } |]
+
+-- | Similar to the 'pgsq' quasi-quoter but produces only the statement.
+pgss :: QuasiQuoter
+pgss =
+	QuasiQuoter {
+		quoteExp  = parseStoreStatementE,
+		quotePat  = const (fail "Cannot use 'pgss' in pattern"),
+		quoteType = const (fail "Cannot use 'pgss' in type"),
+		quoteDec  = const (fail "Cannot use 'pgss' in declaration")
+	}
+
+-- | Parse quasi-quoted PG Store Statement.
+parseStoreStatementE :: String -> Q Exp
+parseStoreStatementE code = do
+	case parseOnly segments (fromString code) of
+		Left msg ->
+			fail msg
+
+		Right xs -> do
+			(parts, _) <- runStateT (mapM reduceSegment xs) (0, [])
+			[e| concat $(pure (ListE parts)) |]

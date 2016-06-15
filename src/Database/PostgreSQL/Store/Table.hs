@@ -192,6 +192,9 @@ createQueryE name fields constraints =
 					         ") REFERENCES " ++ sanitizeName' table ++
 					         "(" ++ intercalate ", " (map sanitizeName' tableNames) ++ ")")
 
+				Check statement ->
+					stringE ("CHECK (" ++ statement ++ ")")
+
 -- | Generate an expression which gathers all records from a type and packs them into a list.
 -- `packParamsE 'row ['field1, 'field2]` generates `[pack (field1 row), pack (field2 row)]`
 packParamsE :: Name -> [Name] -> Q Exp
@@ -337,6 +340,8 @@ data TableConstraint
 	  --   @ForeignKey ['name1, 'name2, ...] ''RefTable ['refname1, 'refname2, ...]@ works like this
 	  --   table constraint in SQL:
 	  --   @FOREIGN KEY (name1, name2, ...) REFERENCES RefTable(refname1, refname2, ...)@
+	| Check String
+	  -- ^ The given statement must evaluate to true.
 	deriving (Show, Eq, Ord)
 
 -- | Implement 'Table' for a data type. The given type must fulfill these requirements:
