@@ -22,13 +22,13 @@ propColumnIsomorphism :: (Column a, Arbitrary a, Eq a, Show a) => Proxy a -> Pro
 propColumnIsomorphism proxy =
 	property (compare proxy)
 	where
-		compare :: (Column a, Arbitrary a, Eq a, Show a) => Proxy a -> a -> Bool
+		compare :: (Column a, Eq a) => Proxy a -> a -> Bool
 		compare _ x =
 			unpack (pack x) == Just x
 
 -- | Quick check an instance of Column which has to be generated first, because it does not have an
 --   instance of Arbitrary.
-propColumnIsomorphism' :: (Arbitrary b, Show b, Column a, Eq a, Show a) => ([b] -> a) -> Property
+propColumnIsomorphism' :: (Arbitrary b, Show b, Column a, Eq a) => ([b] -> a) -> Property
 propColumnIsomorphism' make =
 	property (\ xs -> unpack (pack (make xs)) == Just (make xs))
 
