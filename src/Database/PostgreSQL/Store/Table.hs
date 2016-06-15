@@ -386,27 +386,27 @@ mkTable name constraints = do
 	case info of
 		TyConI dec ->
 			case dec of
-				DataD [] _ [] [RecC ctor records@(_ : _)] _ -> do
+				DataD [] _ [] _ [RecC ctor records@(_ : _)] _ -> do
 					let fields = map (\ (fn, _, ft) -> (fn, ft)) records
 					validateFields fields
 					implementTableD name ctor fields constraints
 
-				DataD (_ : _) _ _ _ _ ->
+				DataD (_ : _) _ _ _ _ _ ->
 					fail ("\ESC[34m" ++ show name ++ "\ESC[0m has a context")
 
-				DataD _ _ (_ : _) _ _ ->
+				DataD _ _ (_ : _) _ _ _ ->
 					fail ("\ESC[34m" ++ show name ++ "\ESC[0m has one or more type variables")
 
-				DataD _ _ _ [] _ ->
+				DataD _ _ _ _ [] _ ->
 					fail ("\ESC[34m" ++ show name ++ "\ESC[0m does not have a constructor")
 
-				DataD _ _ _ (_ : _ : _) _ ->
+				DataD _ _ _ _ (_ : _ : _) _ ->
 					fail ("\ESC[34m" ++ show name ++ "\ESC[0m has more than one constructor")
 
-				DataD _ _ _ [RecC _ []] _ ->
+				DataD _ _ _ _ [RecC _ []] _ ->
 					fail ("\ESC[34m" ++ show name ++ "\ESC[0m has an empty record constructor")
 
-				DataD _ _ _ [_] _ ->
+				DataD _ _ _ _ [_] _ ->
 					fail ("\ESC[34m" ++ show name ++ "\ESC[0m does not have a record constructor")
 
 				_ -> fail ("\ESC[34m" ++ show name ++ "\ESC[0m is not an eligible data type")
