@@ -230,11 +230,6 @@ data Segment
 	| Quote Char T.Text
 	| Other Char
 
--- | SQL keyword
-keyword :: Parser Segment
-keyword =
-	Keyword <$> choice (asciiCI <$> reservedSQLKeywords)
-
 -- | Alpha numeric character
 alphaNum :: Parser Char
 alphaNum = satisfy isAlphaNum
@@ -256,8 +251,12 @@ name =
 
 -- | Possible name
 possibleName :: Parser Segment
-possibleName =
-	PossibleName <$> name
+possibleName = do
+	n <- name
+	if elem (T.toUpper n) reservedSQLKeywords then
+		pure (Keyword n)
+	else
+		pure (PossibleName n)
 
 -- | Variable
 variable :: Parser Segment
@@ -290,7 +289,6 @@ segments =
 		quote '\'',
 		variable,
 		identifier,
-		keyword,
 		possibleName,
 		Other <$> anyChar
 	])
