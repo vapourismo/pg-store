@@ -61,6 +61,8 @@ class DescribableTable a where
 	describeTableIdentifier proxy =
 		tableIdentifier (describeTable proxy)
 
+	{-# MINIMAL (describeTableName, describeTableIdentifier) | describeTable #-}
+
 -- | Query including statement and parameters.
 -- Use the 'pgsq' quasi-quoter to conveniently create queries.
 data Query = Query {
