@@ -13,6 +13,7 @@ module Database.PostgreSQL.Store (
 	-- * Queries
 	Query (..),
 	pgsq,
+	pgss,
 	mkCreateQuery,
 
 	-- * Errands
