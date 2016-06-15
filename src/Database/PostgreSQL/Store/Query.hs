@@ -278,7 +278,7 @@ segments =
 		Other <$> anyChar
 	])
 
--- | Turn "Text" into a UTF-8-encoded "ByteString" expression.
+-- | Turn "Text" into a "String" expression.
 textE :: T.Text -> StateT (Int, [Exp]) Q Exp
 textE txt =
 	lift (stringE (T.unpack txt))

@@ -96,7 +96,7 @@ class Column a where
 	-- | Unpack column value.
 	unpack :: Value -> Maybe a
 
-	-- | Descripe the column type.
+	-- | Describe the column type.
 	describeColumn :: Proxy a -> ColumnDescription
 
 instance (Column a) => Column (Maybe a) where
