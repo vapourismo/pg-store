@@ -125,16 +125,30 @@ data Query = Query {
 -- Example:
 --
 -- @
+-- data TableB = TableB {
+--     b :: Int
+-- }
+--
+-- 'mkTable' ''TableB []
+--
+-- data TableA = TableA {
+--     a       :: Int,
+--     refToB  :: Reference TableB
+-- }
+--
+-- 'mkTable' ''TableA []
+--
+-- ...
+--
 -- ['pgsq'| SELECT *
 --        FROM TableA, TableB
 --        WHERE refToB = &TableB |]
 -- @
 --
--- Note @refToB@ is a field of @TableA@.
--- In different circumstances one would write such query as follows.
+-- The resulting SQL statement works similar to the following.
 --
 -- > SELECT *
--- > FROM TableA a, Table b
+-- > FROM TableA a, TableB b
 -- > WHERE a.refToB = b.id
 --
 pgsq :: QuasiQuoter
