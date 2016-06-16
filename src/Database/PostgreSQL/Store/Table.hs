@@ -187,11 +187,6 @@ createQueryE name fields constraints =
 				Unique names ->
 					stringE ("UNIQUE (" ++ intercalate ", " (map sanitizeName' names) ++ ")")
 
-				ForeignKey names table tableNames ->
-					stringE ("FOREIGN KEY (" ++ intercalate ", " (map sanitizeName' names) ++
-					         ") REFERENCES " ++ sanitizeName' table ++
-					         "(" ++ intercalate ", " (map sanitizeName' tableNames) ++ ")")
-
 				Check statement ->
 					stringE ("CHECK (" ++ statement ++ ")")
 
@@ -335,11 +330,6 @@ data TableConstraint
 	  -- ^ A combination of fields must be unique.
 	  --   @Unique ['name1, 'name2, ...]@ works analogous to the following table constraint:
 	  --   @UNIQUE (name1, name2, ...)@
-	| ForeignKey [Name] Name [Name]
-	  -- ^ A combination of fields references another combination of fields from a different table.
-	  --   @ForeignKey ['name1, 'name2, ...] ''RefTable ['refname1, 'refname2, ...]@ works like this
-	  --   table constraint in SQL:
-	  --   @FOREIGN KEY (name1, name2, ...) REFERENCES RefTable(refname1, refname2, ...)@
 	| Check String
 	  -- ^ The given statement must evaluate to true.
 	deriving (Show, Eq, Ord)
