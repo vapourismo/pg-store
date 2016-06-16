@@ -134,3 +134,4 @@ query_ :: Query -> Errand ()
 query_ qry =
 	() <$ executeQuery qry
 
+

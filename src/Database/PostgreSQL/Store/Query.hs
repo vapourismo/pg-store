@@ -83,6 +83,8 @@ data Query = Query {
 -- or field will likely result in unknown table or column errors. The associated table name of a
 -- type is retrieved using 'describeTableName'.
 -- If you don't want a name to be resolved use a quoted identifier.
+-- SQL keywords are not treated as names. If your table or column name is also a SQL keyword, simply
+-- prefix the name with an @\@@.
 --
 -- Example:
 --
@@ -258,6 +260,12 @@ possibleName = do
 	else
 		pure (PossibleName n)
 
+-- | Explicit name
+explicitName :: Parser Segment
+explicitName = do
+	char '@'
+	PossibleName <$> name
+
 -- | Variable
 variable :: Parser Segment
 variable = do
@@ -289,6 +297,7 @@ segments =
 		quote '\'',
 		variable,
 		identifier,
+		explicitName,
 		possibleName,
 		Other <$> anyChar
 	])
