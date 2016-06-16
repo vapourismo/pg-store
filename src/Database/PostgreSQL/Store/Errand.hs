@@ -1,4 +1,4 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Errand
@@ -19,6 +19,7 @@ import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Except
 import           Control.Monad.Trans.Reader
 
+import           Data.Maybe
 import qualified Data.ByteString           as B
 
 import qualified Database.PostgreSQL.LibPQ as P
@@ -33,6 +34,13 @@ data ErrandError
 	| ResultError ResultError
 	| UnexpectedEmptyResult
 	| UserError String
+	| IntegrityViolation B.ByteString B.ByteString
+	| RestrictViolation B.ByteString B.ByteString
+	| NotNullViolation B.ByteString B.ByteString
+	| ForeignKeyViolation B.ByteString B.ByteString
+	| UniqueViolation B.ByteString B.ByteString
+	| CheckViolation B.ByteString B.ByteString
+	| ExclusionViolation B.ByteString B.ByteString
 	deriving (Show, Eq)
 
 -- | An interaction with the database
@@ -61,8 +69,48 @@ executeQuery (Query statement params) = do
 			P.TuplesOk  -> pure res
 
 			other -> do
-				msg <- lift (P.resultErrorMessage res)
-				throwE (ExecError other msg)
+				info <- lift $
+					(,,,,,,,) <$> P.resultErrorField res P.DiagSqlstate
+					          <*> P.resultErrorField res P.DiagMessagePrimary
+					          <*> P.resultErrorField res P.DiagMessageDetail
+					          <*> P.resultErrorField res P.DiagMessageHint
+					          <*> P.resultErrorField res P.DiagStatementPosition
+					          <*> P.resultErrorField res P.DiagInternalPosition
+					          <*> P.resultErrorField res P.DiagInternalQuery
+					          <*> P.resultErrorField res P.DiagContext
+
+				case info of
+					(Just "23000", msg, detail, _, _, _, _, _) ->
+						throwE (IntegrityViolation (fromMaybe B.empty msg)
+						                           (fromMaybe B.empty detail))
+
+					(Just "23001", msg, detail, _, _, _, _, _) ->
+						throwE (RestrictViolation (fromMaybe B.empty msg)
+						                          (fromMaybe B.empty detail))
+
+					(Just "23502", msg, detail, _, _, _, _, _) ->
+						throwE (NotNullViolation (fromMaybe B.empty msg)
+						                         (fromMaybe B.empty detail))
+
+					(Just "23503", msg, detail, _, _, _, _, _) ->
+						throwE (ForeignKeyViolation (fromMaybe B.empty msg)
+						                            (fromMaybe B.empty detail))
+
+					(Just "23505", msg, detail, _, _, _, _, _) ->
+						throwE (UniqueViolation (fromMaybe B.empty msg)
+						                        (fromMaybe B.empty detail))
+
+					(Just "23514", msg, detail, _, _, _, _, _) ->
+						throwE (CheckViolation (fromMaybe B.empty msg)
+						                       (fromMaybe B.empty detail))
+
+					(Just "23P01", msg, detail, _, _, _, _, _) ->
+						throwE (ExclusionViolation (fromMaybe B.empty msg)
+						                           (fromMaybe B.empty detail))
+
+					_ -> do
+						msg <- lift (P.resultErrorMessage res)
+						throwE (ExecError other msg)
 
 	where
 		transformResult =
