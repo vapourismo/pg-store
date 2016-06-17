@@ -6,11 +6,13 @@
 -- License:    BSD3
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Result (
-	ResultProcessor,
 	ResultError (..),
-	unpackColumn,
+
+	ResultProcessor,
 	processResult,
-	processOneResult
+	processOneResult,
+
+	unpackColumn
 ) where
 
 import           Control.Monad
