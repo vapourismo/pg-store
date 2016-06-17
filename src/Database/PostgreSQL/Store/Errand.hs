@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Errand
@@ -7,12 +7,18 @@
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Errand (
 	ErrandError (..),
+
 	Errand,
 	runErrand,
+
 	raiseErrandError,
 	executeQuery,
+
+	QueryResult (..),
 	query,
-	query_
+	query_,
+
+	Single (..)
 ) where
 
 import           Control.Monad.Trans.Class
@@ -113,25 +119,58 @@ executeQuery (Query statement params) = do
 						throwE (ExecError other msg)
 
 	where
-		transformResult =
-			maybe (Left NoResult) pure
+		transformResult = maybe (Left NoResult) pure
 
-		transformParam Value {..} = Just (valueType, valueData, valueFormat)
-		transformParam NullValue  = Nothing
+		transformParam (Value typ dat fmt) = Just (typ, dat, fmt)
+		transformParam NullValue           = Nothing
 
-		transformedParams =
-			map transformParam params
+		transformedParams = map transformParam params
+
+-- | Allows you to implement a custom result parser for queries.
+class QueryResult a where
+	queryResultProcessor :: ResultProcessor a
+
+instance (QueryResult a, QueryResult b) => QueryResult (a, b) where
+	queryResultProcessor =
+		(,) <$> queryResultProcessor <*> queryResultProcessor
+
+instance (QueryResult a, QueryResult b, QueryResult c) => QueryResult (a, b, c) where
+	queryResultProcessor =
+		(,,) <$> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor
+
+instance (QueryResult a, QueryResult b, QueryResult c, QueryResult d) => QueryResult (a, b, c, d) where
+	queryResultProcessor =
+		(,,,) <$> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor
+
+instance (QueryResult a, QueryResult b, QueryResult c, QueryResult d, QueryResult e) => QueryResult (a, b, c, d, e) where
+	queryResultProcessor =
+		(,,,,) <$> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor
+
+instance (QueryResult a, QueryResult b, QueryResult c, QueryResult d, QueryResult e, QueryResult f) => QueryResult (a, b, c, d, e, f) where
+	queryResultProcessor =
+		(,,,,,) <$> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor
+
+instance (QueryResult a, QueryResult b, QueryResult c, QueryResult d, QueryResult e, QueryResult f, QueryResult g) => QueryResult (a, b, c, d, e, f, g) where
+	queryResultProcessor =
+		(,,,,,,) <$> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor
 
 -- | Execute a query and process its result set.
--- It is essential that all fields required by the underlying result parser are present.
-query :: (Result a) => Query -> Errand [a]
+query :: (QueryResult a) => Query -> Errand [a]
 query qry = do
 	result <- executeQuery qry
-	lift (withExceptT ResultError (runResultProcessor result resultProcessor))
+	lift (withExceptT ResultError (processResult result queryResultProcessor))
 
 -- | Execute a query.
 query_ :: Query -> Errand ()
 query_ qry =
 	() <$ executeQuery qry
 
+-- | Helper type to capture an unassociated column.
+newtype Single a = Single { fromSingle :: a }
+	deriving (Eq, Ord)
 
+instance (Show a) => Show (Single a) where
+	show = show . fromSingle
+
+instance (Column a) => QueryResult (Single a) where
+	queryResultProcessor = Single <$> unpackColumn
