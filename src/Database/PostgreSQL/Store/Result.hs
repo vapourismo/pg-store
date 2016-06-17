@@ -51,8 +51,8 @@ setColumn :: P.Column -> ResultProcessor ()
 setColumn col = ResultProcessor (put col)
 
 -- | Throw a nerror.
-throwError :: ResultError -> ResultProcessor a
-throwError err = ResultProcessor (lift (lift (throwE err)))
+raiseResultError :: ResultError -> ResultProcessor a
+raiseResultError err = ResultProcessor (lift (lift (throwE err)))
 
 -- | Unpack a column.
 unpackColumn :: (Column a) => ResultProcessor a
@@ -62,7 +62,7 @@ unpackColumn = do
 	(res, row, numCol) <- readInfo
 
 	-- Make sure we're not trying to unpack a non-existing column
-	when (col >= numCol) (throwError (TooFewColumnsError numCol))
+	when (col >= numCol) (raiseResultError (TooFewColumnsError numCol))
 
 	-- Retrieve column-specific information
 	(typ, fmt, mbData) <- ResultProcessor . liftIO $
@@ -76,7 +76,7 @@ unpackColumn = do
 			ret <$ setColumn (col + 1)
 
 		nothing ->
-			throwError (UnpackError row col typ fmt (describeColumn (makeProxy nothing)))
+			raiseResultError (UnpackError row col typ fmt (describeColumn (makeProxy nothing)))
 	where
 		makeProxy :: Maybe a -> Proxy a
 		makeProxy _ = Proxy
