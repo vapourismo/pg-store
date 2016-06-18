@@ -8,11 +8,9 @@
 module Database.PostgreSQL.Store.Query (
 	Query (..),
 
-	QueryTable (..),
-
 	SelectorElement (..),
-	QuerySelector (..),
-	makeSelectorList,
+	QueryTable (..),
+	--makeTableSelectors,
 
 	pgsq,
 	pgss
@@ -44,11 +42,18 @@ data Query = Query {
 	queryParams :: ![Value]
 } deriving (Show, Eq, Ord)
 
+-- | A selector element
+data SelectorElement
+	= SelectorField String
+	  -- ^ Select a field.
+	| SelectorSpecial String
+	  -- ^ Select a special expression.
 
 -- | This type can be used as a table in a query.
 class QueryTable a where
 	tableName :: Proxy a -> String
 	tableIDName :: Proxy a -> String
+	tableSelectors :: Proxy a -> [SelectorElement]
 
 -- | Generate table name expression.
 tableNameE :: Name -> Q Exp
@@ -65,31 +70,28 @@ tableAbsoluteIDNameE :: Name -> Q Exp
 tableAbsoluteIDNameE typName =
 	[e| $(tableNameE typName) ++ "." ++ $(tableIDNameE typName) |]
 
--- | A selector element
-data SelectorElement
-	= SelectorField String
-	  -- ^ Select a field.
-	| SelectorSpecial String
-	  -- ^ Select a special expression.
+---- | Generate the list of expression used as selector.
+--makeTableSelectors :: (QueryTable a) => Proxy a -> String
+--makeTableSelectors proxy =
+--	intercalate ", " (idField : map makeElement (tableSelectors proxy))
+--	where
+--		idField = show (tableName proxy) ++ "." ++ show (tableIDName proxy)
 
--- | This type can be used as a selector in a query.
-class (QueryTable a) => QuerySelector a where
-	selectorElements :: Proxy a -> [SelectorElement]
-
--- | Generate the list of expression used as selector.
-makeSelectorList :: (QuerySelector a) => Proxy a -> String
-makeSelectorList proxy =
-	intercalate ", " (idField : map makeElement (selectorElements proxy))
-	where
-		idField = show (tableName proxy) ++ "." ++ show (tableIDName proxy)
-
-		makeElement (SelectorField name)   = show (tableName proxy) ++ "." ++ show name
-		makeElement (SelectorSpecial expr) = expr
+--		makeElement (SelectorField name)   = show (tableName proxy) ++ "." ++ show name
+--		makeElement (SelectorSpecial expr) = expr
 
 -- | Generate the selector list expression.
-selectorElementsE :: Name -> Q Exp
-selectorElementsE typName =
-	[e| makeSelectorList (Proxy :: Proxy $(conT typName)) |]
+makeTableSelectorsE :: Name -> Q Exp
+makeTableSelectorsE typName =
+	[e| let
+	        proxy = Proxy :: Proxy $(conT typName)
+
+	        idField = show (tableName proxy) ++ "." ++ show (tableIDName proxy)
+
+	        makeElement (SelectorField name)   = show (tableName proxy) ++ "." ++ show name
+	        makeElement (SelectorSpecial expr) = expr
+	    in
+	        intercalate ", " (idField : map makeElement (tableSelectors proxy)) |]
 
 -- | Query segment
 data Segment
@@ -170,7 +172,7 @@ reduceSegment seg =
 		SSelector tableName -> lift $ do
 			mbName <- lookupTypeName tableName
 			maybe (fail ("\ESC[34m" ++ tableName ++ "\ESC[0m does not refer to anything"))
-			      selectorElementsE -- Replace with selector list
+			      makeTableSelectorsE -- Replace with selector list
 			      mbName
 
 		SIdentifier tableName -> lift $ do
