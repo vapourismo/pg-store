@@ -57,8 +57,13 @@ data SelectorElement
 
 -- | This type can be used as a table in a query.
 class QueryTable a where
+	-- | Table name
 	tableName :: Proxy a -> String
+
+	-- | Name of the ID field
 	tableIDName :: Proxy a -> String
+
+	-- | Selectors needed to retrieve all fields necessary to construct the type
 	tableSelectors :: Proxy a -> [SelectorElement]
 
 -- | Generate table name expression.
