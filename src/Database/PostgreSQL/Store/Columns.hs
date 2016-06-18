@@ -14,16 +14,8 @@ module Database.PostgreSQL.Store.Columns (
 	makeColumnDescription,
 
 	-- *
-	sanitizeName,
-	sanitizeName',
-	identField,
-	identField',
-
-	-- *
 	Column (..),
 ) where
-
-import           Language.Haskell.TH
 
 import           Data.Int
 import           Data.Word
@@ -71,22 +63,6 @@ data ColumnDescription = ColumnDescription {
 makeColumnDescription :: ColumnDescription -> String
 makeColumnDescription ColumnDescription {..} =
 	columnTypeName ++ (if columnTypeNull then "" else " NOT NULL")
-
--- | Generate the sanitized representation of a name.
-sanitizeName :: Name -> String
-sanitizeName = show
-
--- | Similiar to "sanitizeName" but encloses the name in quotes.
-sanitizeName' :: Name -> String
-sanitizeName' name = "\"" ++ sanitizeName name ++ "\""
-
--- | Generate the name for the identifying field.
-identField :: Name -> String
-identField tableName = show tableName ++ "$id"
-
--- | Similiar to "identField" but encloses the name in quotes.
-identField' :: Name -> String
-identField' tableName = "\"" ++ identField tableName ++ "\""
 
 -- | Column type
 class Column a where
@@ -149,7 +125,7 @@ instance Column Int where
 
 	describeColumn _ =
 		ColumnDescription {
-			columnTypeName = "integer",
+			columnTypeName = "int4",
 			columnTypeNull = False
 		}
 
@@ -166,7 +142,7 @@ instance Column Int8 where
 
 	describeColumn _ =
 		ColumnDescription {
-			columnTypeName = "smallint",
+			columnTypeName = "int2",
 			columnTypeNull = False
 		}
 
@@ -183,7 +159,7 @@ instance Column Int16 where
 
 	describeColumn _ =
 		ColumnDescription {
-			columnTypeName = "smallint",
+			columnTypeName = "int2",
 			columnTypeNull = False
 		}
 
@@ -202,7 +178,7 @@ instance Column Int32 where
 
 	describeColumn _ =
 		ColumnDescription {
-			columnTypeName = "integer",
+			columnTypeName = "int4",
 			columnTypeNull = False
 		}
 
@@ -221,7 +197,7 @@ instance Column Int64 where
 
 	describeColumn _ =
 		ColumnDescription {
-			columnTypeName = "bigint",
+			columnTypeName = "int8",
 			columnTypeNull = False
 		}
 
@@ -269,7 +245,7 @@ instance Column B.ByteString where
 
 	describeColumn _ =
 		ColumnDescription {
-			columnTypeName = "bytea",
+			columnTypeName = "BYTEA",
 			columnTypeNull = False
 		}
 
