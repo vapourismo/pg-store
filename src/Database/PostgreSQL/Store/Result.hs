@@ -12,6 +12,7 @@ module Database.PostgreSQL.Store.Result (
 	processResult,
 	processOneResult,
 
+	skipColumn,
 	unpackColumn
 ) where
 
@@ -40,6 +41,10 @@ newtype ResultProcessor a =
 	ResultProcessor (StateT P.Column (ReaderT (P.Result, P.Row, P.Column) (ExceptT ResultError IO)) a)
 	deriving (Functor, Applicative, Monad, MonadIO)
 
+-- | Throw a nerror.
+raiseResultError :: ResultError -> ResultProcessor a
+raiseResultError err = ResultProcessor (lift (lift (throwE err)))
+
 -- | Read information packed into the "ReaderT".
 readInfo :: ResultProcessor (P.Result, P.Row, P.Column)
 readInfo = ResultProcessor (lift ask)
@@ -52,9 +57,10 @@ getColumn = ResultProcessor get
 setColumn :: P.Column -> ResultProcessor ()
 setColumn col = ResultProcessor (put col)
 
--- | Throw a nerror.
-raiseResultError :: ResultError -> ResultProcessor a
-raiseResultError err = ResultProcessor (lift (lift (throwE err)))
+-- | Skip the current column.
+skipColumn :: ResultProcessor ()
+skipColumn =
+	ResultProcessor (modify (+ 1))
 
 -- | Unpack a column.
 unpackColumn :: (Column a) => ResultProcessor a

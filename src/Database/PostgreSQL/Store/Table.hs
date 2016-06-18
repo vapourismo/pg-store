@@ -5,19 +5,9 @@
 -- Copyright:  (c) Ole Krüger 2015-2016
 -- License:    BSD3
 -- Maintainer: Ole Krüger <ole@vprsm.de>
-module Database.PostgreSQL.Store.Table (
-	TableDescription (..),
-	Table (..),
-	Row (..),
-	Reference (..),
-	HasID (..),
-	TableConstraint (..),
-	mkTable,
-	mkCreateQuery
-) where
+module Database.PostgreSQL.Store.Table where
 
 import Control.Monad
-import Control.Monad.Trans.Class
 
 import Data.Int
 import Data.List
@@ -31,6 +21,11 @@ import Database.PostgreSQL.Store.Columns
 import Database.PostgreSQL.Store.Result
 import Database.PostgreSQL.Store.Errand
 
+-- | A value of that type contains an ID.
+class HasID a where
+	-- | Retrieve the underlying ID.
+	referenceID :: a b -> Int64
+
 -- | Resolved row
 data Row a = Row {
 	-- | Identifier
@@ -40,11 +35,22 @@ data Row a = Row {
 	rowValue :: !a
 } deriving (Show, Eq, Ord)
 
+instance HasID Row where
+	referenceID (Row rid _) = rid
+
+instance (Table a) => QueryResult (Row a) where
+	queryResultProcessor =
+		Row <$> unpackColumn
+		    <*> tableResultProcessor
+
 -- | Reference to a row
 newtype Reference a = Reference Int64
 	deriving (Show, Eq, Ord)
 
-instance (Table a) => Column (Reference a) where
+instance HasID Reference where
+	referenceID (Reference rid) = rid
+
+instance (QueryTable a) => Column (Reference a) where
 	pack ref =
 		pack (referenceID ref)
 
@@ -53,17 +59,21 @@ instance (Table a) => Column (Reference a) where
 
 	describeColumn proxy =
 		ColumnDescription {
-			columnTypeName = "BIGINT REFERENCES \"" ++ tableName ++ "\" (\"" ++ tableIdentifier ++ "\")",
+			columnTypeName = "BIGINT REFERENCES " ++ show (tableName tableProxy) ++
+			                 " (" ++ show (tableIDName tableProxy) ++ ")",
 			columnTypeNull = False
 		}
 		where
-			coerceProxy :: Proxy (Reference a) -> Proxy a
-			coerceProxy _ = Proxy
+			transformProxy :: Proxy (Reference a) -> Proxy a
+			transformProxy _ = Proxy
 
-			TableDescription {..} =
-				describeTable (coerceProxy proxy)
+			tableProxy = transformProxy proxy
 
-class (DescribableTable a) => Table a where
+instance QueryResult (Reference a) where
+	queryResultProcessor =
+		Reference <$> unpackColumn
+
+class Table a where
 	-- | Insert a row into the table and return a 'Reference' to the inserted row.
 	insert :: a -> Errand (Reference a)
 
@@ -80,104 +90,87 @@ class (DescribableTable a) => Table a where
 	-- Use @mkCreateQuery@ for convenience.
 	createQuery :: Proxy a -> Query
 
-	-- | Extract rows from a result set.
-	tableResultProcessor :: ResultProcessor [Row a]
+	-- | Extract the fields belonging to the table in order to construct the type.
+	tableResultProcessor :: ResultProcessor a
 
-	-- | Extract only a 'Reference' to each row.
-	tableRefResultProcessor :: ResultProcessor [Reference a]
-
-instance (Table a) => Result (Row a) where
-	resultProcessor = tableResultProcessor
-
-instance (Table a) => Result (Reference a) where
-	resultProcessor = tableRefResultProcessor
-
--- | A value of that type contains an ID.
-class HasID a where
-	-- | Retrieve the underlying ID.
-	referenceID :: a b -> Int64
-
-instance HasID Row where
-	referenceID (Row rid _) = rid
-
-instance HasID Reference where
-	referenceID (Reference rid) = rid
-
--- | Unqualify a name.
-unqualifyName :: Name -> Name
-unqualifyName = mkName . nameBase
-
--- | Generate the insert query for a table.
-insertQueryE :: Name -> [Name] -> Q Exp
-insertQueryE name fields =
-	[e| fromString $(stringE query) |]
+-- | Generate the INSERT statement for a table.
+insertStatementE :: Name -> [Name] -> Q Exp
+insertStatementE table fields =
+	[e| fromString ("INSERT INTO " ++ $(tableNameE table) ++ " (" ++
+	                $(stringE columns) ++
+	                ") VALUES (" ++
+	                $(stringE values) ++
+	                ") RETURNING " ++ $(tableIDNameE table)) |]
 	where
-		query =
-			"INSERT INTO " ++ sanitizeName' name ++ " (" ++
-				intercalate ", " columns ++
-			") VALUES (" ++
-				intercalate ", " values ++
-			") RETURNING " ++ identField' name
-
 		columns =
-			map (\ nm -> "\"" ++ sanitizeName nm ++ "\"") fields
+			intercalate ", " (map (show . nameBase) fields)
 
 		values =
-			map (\ idx -> "$" ++ show idx) [1 .. length fields]
+			intercalate ", " (map (\ idx -> "$" ++ show idx) [1 .. length fields])
 
--- | Generate the select query for a table row.
-findQueryE :: Name -> Q Exp
-findQueryE name =
-	[e| fromString $(stringE query) |]
+-- | Generate insert query for a table.
+insertQueryE :: Name -> Name -> [Name] -> Q Exp
+insertQueryE row table fields =
+	[e| Query $(insertStatementE table fields) $(packParamsE row fields) |]
+
+-- | Generate the find query for a table.
+findStatementE :: Name -> Q Exp
+findStatementE table =
+	[e| fromString ("SELECT " ++ $(makeTableSelectorsE table) ++
+	                " FROM " ++ $(tableNameE table) ++
+	                " WHERE " ++ $(tableIDNameE table) ++ " = $1 LIMIT 1") |]
+
+-- | Generate the find query for a table.
+findQueryE :: Name -> Name -> Q Exp
+findQueryE ref table =
+	[e| Query $(findStatementE table) [pack (referenceID $(varE ref))] |]
+
+-- | Generate the update statement for a table.
+updateStatementE :: Name -> [Name] -> Q Exp
+updateStatementE table fields =
+	[e| fromString ("UPDATE " ++ $(tableNameE table) ++
+	                " SET " ++ $(stringE statements) ++
+	                " WHERE " ++ $(tableIDNameE table) ++ " = $1") |]
 	where
-		query =
-			"SELECT * FROM " ++ sanitizeName' name ++
-			" WHERE " ++ identField' name ++ " = $1 LIMIT 1"
+		makeStatement nm idx =
+			show (nameBase nm) ++ " = $" ++ show idx
+
+		statements =
+			intercalate "," (zipWith makeStatement fields [2 .. length fields + 1])
 
 -- | Generate the update query for a table.
-updateQueryE :: Name -> [Name] -> Q Exp
-updateQueryE name fields =
-	[e| fromString $(stringE query) |]
-	where
-		query =
-			"UPDATE " ++ sanitizeName' name ++
-			" SET " ++ intercalate ", " values ++
-			" WHERE " ++ identField' name ++ " = $1"
+updateQueryE :: Name -> Name -> Name -> [Name] -> Q Exp
+updateQueryE ref row table fields =
+	[e| Query $(updateStatementE table fields)
+	          (pack (referenceID $(varE ref)) : $(packParamsE row fields)) |]
 
-		values =
-			map (\ (nm, idx) -> sanitizeName' nm ++ " = $" ++ show idx)
-			    (zip fields [2 .. length fields + 1])
+-- | Generate the delete statement for a table.
+deleteStatementE :: Name -> Q Exp
+deleteStatementE table =
+	[e| fromString ("DELETE FROM " ++ $(tableNameE table) ++
+	                " WHERE " ++ $(tableIDNameE table) ++ " = $1") |]
 
 -- | Generate the delete query for a table.
-deleteQueryE :: Name -> Q Exp
-deleteQueryE name =
-	[e| fromString $(stringE query) |]
-	where
-		query =
-			"DELETE FROM " ++ sanitizeName' name ++
-			" WHERE " ++ identField' name ++ " = $1"
+deleteQueryE :: Name -> Name -> Q Exp
+deleteQueryE ref table =
+	[e| Query $(deleteStatementE table) [pack (referenceID $(varE ref))] |]
 
--- | Generate the create query for a table.
-createQueryE :: Name -> [(Name, Type)] -> [TableConstraint] -> Q Exp
-createQueryE name fields constraints =
-	[e| fromString ($(stringE queryBegin) ++
-	                intercalate ", " ($(stringE anchorDescription) :
-	                                  $fieldList ++
-	                                  $constraintList) ++
-	                $(stringE queryEnd)) |]
+-- | Generate the create statement for a table.
+createStatementE :: Name -> [(Name, Type)] -> [TableConstraint] -> Q Exp
+createStatementE table fields constraints =
+	[e| fromString ("CREATE TABLE IF NOT EXISTS " ++ $(tableNameE table) ++ " (" ++
+	                intercalate ", " ($idField : $fieldList ++ $constraintList) ++
+	                ")") |]
 	where
-		queryBegin = "CREATE TABLE IF NOT EXISTS " ++ sanitizeName' name ++ " ("
-		queryEnd = ")"
-
-		anchorDescription =
-			identField' name ++ " BIGSERIAL NOT NULL PRIMARY KEY"
+		idField =
+			[e| $(tableIDNameE table) ++ " BIGSERIAL NOT NULL PRIMARY KEY" |]
 
 		fieldList =
 			ListE <$> mapM describeField fields
 
-		describeField (fname, ftype) =
-			[e| $(stringE (sanitizeName' fname)) ++ " " ++
-			    makeColumnDescription (describeColumn (Proxy :: Proxy $(pure ftype))) |]
+		describeField (name, typ) =
+			[e| $(stringE (show (nameBase name))) ++ " " ++
+			    makeColumnDescription (describeColumn (Proxy :: Proxy $(pure typ))) |]
 
 		constraintList =
 			ListE <$> mapM describeConstraint constraints
@@ -185,10 +178,15 @@ createQueryE name fields constraints =
 		describeConstraint cont =
 			case cont of
 				Unique names ->
-					stringE ("UNIQUE (" ++ intercalate ", " (map sanitizeName' names) ++ ")")
+					stringE ("UNIQUE (" ++ intercalate ", " (map (show . nameBase) names) ++ ")")
 
 				Check statement ->
 					stringE ("CHECK (" ++ statement ++ ")")
+
+-- | Generate the create query for a table.
+createQueryE :: Name -> [(Name, Type)] -> [TableConstraint] -> Q Exp
+createQueryE table fields constraints =
+	[e| Query $(createStatementE table fields constraints) [] |]
 
 -- | Generate an expression which gathers all records from a type and packs them into a list.
 -- `packParamsE 'row ['field1, 'field2]` generates `[pack (field1 row), pack (field2 row)]`
@@ -199,122 +197,73 @@ packParamsE row fields =
 		extract name =
 			[e| pack ($(varE name) $(varE row)) |]
 
--- | Generate an expression which gathers information about a column.
-columnInfoE :: Name -> Q Exp
-columnInfoE name =
-	[e| columnInfo (fromString $(stringE (sanitizeName' name))) |]
-
--- | Generate a query which binds information about a column to the column's info name.
-bindColumnInfoS :: Name -> Q Stmt
-bindColumnInfoS name =
-	BindS (VarP (columnInfoName name)) <$> columnInfoE name
-
--- | Generate a name which is reserved for information about a column.
-columnInfoName :: Name -> Name
-columnInfoName name =
-	mkName (nameBase name ++ "_info")
-
--- | Generate an expression which unpacks a column at a given row.
-unpackColumnE :: Name -> Name -> Q Exp
-unpackColumnE row name =
-	[e| unpackCellValue $(varE row) $(varE (columnInfoName name)) |]
-
--- | Generate a query which binds the unpacked data for a column at a given row to the column's name.
-bindColumnS :: Name -> Name -> Q Stmt
-bindColumnS row name =
-	BindS (VarP (unqualifyName name)) <$> unpackColumnE row name
-
--- | Generate an expression which uses a record constructor with variables that correspond to its fields.
-constructRecordE :: Name -> [Name] -> Q Exp
-constructRecordE ctor fields =
-	[e| lift (pure $(pure construction)) |]
+-- | Generate the list of selectors.
+tableSelectorsE :: [Name] -> Q Exp
+tableSelectorsE fieldNames =
+	ListE <$> mapM makeSelector fieldNames
 	where
-		construction = RecConE ctor (map (\ n -> (n, VarE (unqualifyName n))) fields)
+		makeSelector name =
+			[e| SelectorField $(stringE (nameBase name)) |]
 
--- | Generate an expression which unpacks a table instance from a given row.
-unpackRowE :: Name -> Name -> [Name] -> Q Exp
-unpackRowE ctor row fields = do
-	boundFields <- mapM (bindColumnS row) fields
-	unboundConstruction <- constructRecordE ctor fields
-	pure (DoE (boundFields ++ [NoBindS unboundConstruction]))
+-- | Generate the result processor for a table.
+tableResultProcessorE :: Name -> [Name] -> Q Exp
+tableResultProcessorE tableCtor fieldNames = do
+	bindingNames <- mapM (newName . nameBase) fieldNames
+	pure (DoE (map makeBinding bindingNames ++
+	           [lastStatement (makeConstruction bindingNames)]))
+	where
+		makeBinding nm =
+			BindS (VarP nm) (VarE 'unpackColumn)
 
--- | Generate an expression which traverses all rows in order to unpack table instances from them.
-unpackRowsE :: Name -> Name -> [Name] -> Q Exp
-unpackRowsE table ctor fields =
-	[e| do idNfo <- columnInfo (fromString $(stringE (identField' table)))
-	       foreachRow $ \ row ->
-	           Row <$> unpackCellValue row idNfo
-	               <*> $(unpackRowE ctor 'row fields) |]
+		lastStatement expr =
+			NoBindS (AppE (VarE 'pure) expr)
 
--- | Generate an expression which retrieves a table instance from each row.
-tableResultProcessorE :: Name -> Name -> [Name] -> Q Exp
-tableResultProcessorE table ctor fields = do
-	infoBinds <- mapM bindColumnInfoS fields
-	rowTraversal <- unpackRowsE table ctor fields
-	pure (DoE (infoBinds ++ [NoBindS rowTraversal]))
+		makeConstruction names =
+			RecConE tableCtor (zip fieldNames (map VarE names))
 
--- | Generate an expression which retrieves a reference to each row.
-tableRefResultProcessorE :: Name -> Q Exp
-tableRefResultProcessorE table =
-	[e| do idNfo <- columnInfo (fromString $(stringE (identField' table)))
-	       foreachRow (\ row -> Reference <$> unpackCellValue row idNfo) |]
-
--- | Implement an instance 'Table' for the given type.
+-- | Implement relevant instances for the given table type.
 implementTableD :: Name -> Name -> [(Name, Type)] -> [TableConstraint] -> Q [Dec]
-implementTableD table ctor fields constraints =
-	[d| instance DescribableTable $(conT table) where
-	        describeTableName _ =
-	            $(stringE (sanitizeName table))
+implementTableD table ctor fieldDecls constraints =
+	[d|
+		instance QueryTable $(conT table) where
+			tableName _      = $(stringE (show table))
+			tableIDName _    = "$id"
+			tableSelectors _ = $(tableSelectorsE fields)
 
-	        describeTableIdentifier _ =
-	            $(stringE (identField table))
+		instance QueryResult $(conT table) where
+			queryResultProcessor = do
+				skipColumn
+				tableResultProcessor
 
-	    instance Table $(conT table) where
-	        insert row = do
-	            rs <- query Query {
-	                queryStatement = $(insertQueryE table fieldNames),
-	                queryParams    = $(packParamsE 'row fieldNames)
-	            }
+		instance Table $(conT table) where
+			insert row = do
+				rs <- query $(insertQueryE 'row table fields)
 
-	            case rs of
-	                (ref : _) -> pure ref
-	                _         -> raiseErrandError UnexpectedEmptyResult
+				case rs of
+					(ref : _) -> pure ref
+					_         -> raiseErrandError UnexpectedEmptyResult
 
-	        find ref = do
-	            rs <- query Query {
-	                queryStatement = $(findQueryE table),
-	                queryParams    = [pack (referenceID ref)]
-	            }
+			find ref = do
+				rs <- query $(findQueryE 'ref table)
 
-	            case rs of
-	                (row : _) -> pure row
-	                _         -> raiseErrandError UnexpectedEmptyResult
+				case rs of
+					(row : _) -> pure row
+					_         -> raiseErrandError UnexpectedEmptyResult
 
-	        update ref row =
-	            query_ Query {
-	                queryStatement = $(updateQueryE table fieldNames),
-	                queryParams    = pack (referenceID ref) : $(packParamsE 'row fieldNames)
-	            }
+			update ref row =
+				query_ $(updateQueryE 'ref 'row table fields)
 
-	        delete ref =
-	            query_ Query {
-	                queryStatement = $(deleteQueryE table),
-	                queryParams    = [pack (referenceID ref)]
-	            }
+			delete ref =
+				query_ $(deleteQueryE 'ref table)
 
-	        createQuery _ =
-	            Query {
-	                queryStatement = $(createQueryE table fields constraints),
-	                queryParams    = []
-	            }
+			createQuery _ =
+				$(createQueryE table fieldDecls constraints)
 
-	        tableResultProcessor =
-	            $(tableResultProcessorE table ctor fieldNames)
-
-	        tableRefResultProcessor =
-	            $(tableRefResultProcessorE table) |]
+			tableResultProcessor =
+				$(tableResultProcessorE ctor fields)
+	|]
 	where
-		fieldNames = map fst fields
+		fields = map fst fieldDecls
 
 -- | Check that all field types have an instance of Column.
 validateFields :: [(Name, Type)] -> Q ()

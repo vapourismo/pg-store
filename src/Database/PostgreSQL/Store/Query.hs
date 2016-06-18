@@ -12,7 +12,12 @@ module Database.PostgreSQL.Store.Query (
 	QueryTable (..),
 
 	pgsq,
-	pgss
+	pgss,
+
+	tableNameE,
+	tableIDNameE,
+	tableAbsoluteIDNameE,
+	makeTableSelectorsE,
 ) where
 
 import           Language.Haskell.TH
