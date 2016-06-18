@@ -10,11 +10,8 @@ module Database.PostgreSQL.Store.Columns (
 	Value (..),
 
 	-- *
-	ColumnDescription (..),
-	makeColumnDescription,
-
-	-- *
 	Column (..),
+	makeColumnDescription
 ) where
 
 import           Data.Int
@@ -50,20 +47,6 @@ data Value
 	| NullValue
 	deriving (Show, Eq, Ord)
 
--- | Description of a column
-data ColumnDescription = ColumnDescription {
-	-- | Type name (e.g. bool, integer)
-	columnTypeName :: String,
-
-	-- | Can the column be null?
-	columnTypeNull :: Bool
-} deriving (Show, Eq, Ord)
-
--- | Generate column description in SQL. Think @CREATE TABLE@.
-makeColumnDescription :: ColumnDescription -> String
-makeColumnDescription ColumnDescription {..} =
-	columnTypeName ++ (if columnTypeNull then "" else " NOT NULL")
-
 -- | Column type
 class Column a where
 	-- | Pack column value.
@@ -72,8 +55,16 @@ class Column a where
 	-- | Unpack column value.
 	unpack :: Value -> Maybe a
 
-	-- | Describe the column type.
-	describeColumn :: Proxy a -> ColumnDescription
+	-- | Name of the underlying type.
+	columnTypeName :: Proxy a -> String
+
+	-- | May the type be NULL?
+	columnAllowNull :: Proxy a -> Bool
+
+-- | Generate column description in SQL. Think @CREATE TABLE@.
+makeColumnDescription :: (Column a) => Proxy a -> String
+makeColumnDescription proxy =
+	columnTypeName proxy ++ (if columnAllowNull proxy then "" else " NOT NULL")
 
 instance (Column a) => Column (Maybe a) where
 	pack = maybe NullValue pack
@@ -81,11 +72,8 @@ instance (Column a) => Column (Maybe a) where
 	unpack NullValue = Just Nothing
 	unpack val       = fmap Just (unpack val)
 
-	describeColumn proxy =
-		(describeColumn (transformProxy proxy)) {columnTypeNull = True}
-		where
-			transformProxy :: Proxy (Maybe a) -> Proxy a
-			transformProxy _ = Proxy
+	columnTypeName proxy = columnTypeName ((const Proxy :: Proxy (Maybe b) -> Proxy b) proxy)
+	columnAllowNull _    = True
 
 instance Column Bool where
 	pack v =
@@ -105,11 +93,8 @@ instance Column Bool where
 	unpack (Value (P.Oid 16) _      P.Text) = Just False
 	unpack _                                = Nothing
 
-	describeColumn _ =
-		ColumnDescription {
-			columnTypeName = "bool",
-			columnTypeNull = False
-		}
+	columnTypeName  _ = "bool"
+	columnAllowNull _ = False
 
 instance Column Int where
 	pack n =
@@ -123,11 +108,8 @@ instance Column Int where
 	unpack (Value (P.Oid 23) dat P.Text) = parseMaybe (signed decimal) dat
 	unpack _                             = Nothing
 
-	describeColumn _ =
-		ColumnDescription {
-			columnTypeName = "int4",
-			columnTypeNull = False
-		}
+	columnTypeName _  = "int4"
+	columnAllowNull _ = False
 
 instance Column Int8 where
 	pack n =
@@ -140,11 +122,8 @@ instance Column Int8 where
 	unpack (Value (P.Oid 21) dat P.Text) = parseMaybe (signed decimal) dat
 	unpack _                             = Nothing
 
-	describeColumn _ =
-		ColumnDescription {
-			columnTypeName = "int2",
-			columnTypeNull = False
-		}
+	columnTypeName _  = "int2"
+	columnAllowNull _ = False
 
 instance Column Int16 where
 	pack n =
@@ -157,11 +136,8 @@ instance Column Int16 where
 	unpack (Value (P.Oid 21) dat P.Text) = parseMaybe (signed decimal) dat
 	unpack _                             = Nothing
 
-	describeColumn _ =
-		ColumnDescription {
-			columnTypeName = "int2",
-			columnTypeNull = False
-		}
+	columnTypeName _  = "int2"
+	columnAllowNull _ = False
 
 instance Column Int32 where
 	pack n =
@@ -176,11 +152,8 @@ instance Column Int32 where
 	unpack _                             = Nothing
 
 
-	describeColumn _ =
-		ColumnDescription {
-			columnTypeName = "int4",
-			columnTypeNull = False
-		}
+	columnTypeName _  = "int4"
+	columnAllowNull _ = False
 
 instance Column Int64 where
 	pack n =
@@ -195,11 +168,8 @@ instance Column Int64 where
 	unpack (Value (P.Oid 23) dat P.Text) = parseMaybe (signed decimal) dat
 	unpack _                             = Nothing
 
-	describeColumn _ =
-		ColumnDescription {
-			columnTypeName = "int8",
-			columnTypeNull = False
-		}
+	columnTypeName _  = "int8"
+	columnAllowNull _ = False
 
 instance Column [Char] where
 	pack str =
@@ -208,8 +178,8 @@ instance Column [Char] where
 	unpack val =
 		T.unpack . T.decodeUtf8 <$> unpack val
 
-	describeColumn _ =
-		describeColumn (Proxy :: Proxy B.ByteString)
+	columnTypeName _  = columnTypeName (Proxy :: Proxy B.ByteString)
+	columnAllowNull _ = columnAllowNull (Proxy :: Proxy B.ByteString)
 
 instance Column T.Text where
 	pack txt =
@@ -218,8 +188,8 @@ instance Column T.Text where
 	unpack val =
 		T.decodeUtf8 <$> unpack val
 
-	describeColumn _ =
-		describeColumn (Proxy :: Proxy B.ByteString)
+	columnTypeName _  = columnTypeName (Proxy :: Proxy B.ByteString)
+	columnAllowNull _ = columnAllowNull (Proxy :: Proxy B.ByteString)
 
 instance Column TL.Text where
 	pack txt =
@@ -228,8 +198,8 @@ instance Column TL.Text where
 	unpack val =
 		TL.decodeUtf8 <$> unpack val
 
-	describeColumn _ =
-		describeColumn (Proxy :: Proxy BL.ByteString)
+	columnTypeName _  = columnTypeName (Proxy :: Proxy B.ByteString)
+	columnAllowNull _ = columnAllowNull (Proxy :: Proxy B.ByteString)
 
 instance Column B.ByteString where
 	pack bs =
@@ -243,11 +213,8 @@ instance Column B.ByteString where
 	unpack (Value (P.Oid 17) dat P.Text)   = fromTextByteArray dat
 	unpack _                               = Nothing
 
-	describeColumn _ =
-		ColumnDescription {
-			columnTypeName = "BYTEA",
-			columnTypeNull = False
-		}
+	columnTypeName _  = "bytea"
+	columnAllowNull _ = False
 
 instance Column BL.ByteString where
 	pack bs =
@@ -256,8 +223,8 @@ instance Column BL.ByteString where
 	unpack val =
 		BL.fromStrict <$> unpack val
 
-	describeColumn _ =
-		describeColumn (Proxy :: Proxy B.ByteString)
+	columnTypeName _  = columnTypeName (Proxy :: Proxy B.ByteString)
+	columnAllowNull _ = columnAllowNull (Proxy :: Proxy B.ByteString)
 
 -- | Produce the two-digit hexadecimal representation of a 8-bit word.
 word8ToHex :: Word8 -> B.ByteString

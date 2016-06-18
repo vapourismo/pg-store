@@ -43,17 +43,13 @@ instance (QueryTable a) => Column (Reference a) where
 	unpack val =
 		Reference <$> unpack val
 
-	describeColumn proxy =
-		ColumnDescription {
-			columnTypeName = "BIGINT REFERENCES " ++ show (tableName tableProxy) ++
-			                 " (" ++ show (tableIDName tableProxy) ++ ")",
-			columnTypeNull = False
-		}
+	columnTypeName proxy =
+		"BIGINT REFERENCES " ++ show (tableName tableProxy) ++
+		" (" ++ show (tableIDName tableProxy) ++ ")"
 		where
-			transformProxy :: Proxy (Reference a) -> Proxy a
-			transformProxy _ = Proxy
+			tableProxy = (const Proxy :: Proxy (Reference a) -> Proxy a) proxy
 
-			tableProxy = transformProxy proxy
+	columnAllowNull _ = False
 
 instance QueryResult (Reference a) where
 	queryResultProcessor =
@@ -153,7 +149,7 @@ createStatementE table fields constraints =
 
 		describeField (name, typ) =
 			[e| $(stringE (show (nameBase name))) ++ " " ++
-			    makeColumnDescription (describeColumn (Proxy :: Proxy $(pure typ))) |]
+			    makeColumnDescription (Proxy :: Proxy $(pure typ)) |]
 
 		constraintList =
 			ListE <$> mapM describeConstraint constraints

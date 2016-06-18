@@ -32,7 +32,7 @@ import           Database.PostgreSQL.Store.Columns
 data ResultError
 	= TooFewColumnsError P.Column
 	  -- ^ Occurs when you're trying to access a column that does not exist.
-	| UnpackError P.Row P.Column P.Oid P.Format ColumnDescription
+	| UnpackError P.Row P.Column P.Oid P.Format
 	  -- ^ The value at a given row and column could not be unpacked.
 	deriving (Show, Eq)
 
@@ -84,7 +84,7 @@ unpackColumn = do
 			ret <$ setColumn (col + 1)
 
 		nothing ->
-			raiseResultError (UnpackError row col typ fmt (describeColumn (makeProxy nothing)))
+			raiseResultError (UnpackError row col typ fmt)
 	where
 		makeProxy :: Maybe a -> Proxy a
 		makeProxy _ = Proxy
