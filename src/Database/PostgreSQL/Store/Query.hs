@@ -18,6 +18,7 @@ module Database.PostgreSQL.Store.Query (
 import           Language.Haskell.TH
 import           Language.Haskell.TH.Quote
 
+import           Control.Applicative
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.State
 
@@ -27,7 +28,8 @@ import qualified Data.Text          as T
 import qualified Data.Text.Encoding as T
 import qualified Data.ByteString    as B
 
-import           Text.Parsec
+import           Data.Char
+import           Data.Attoparsec.Text
 
 import           Database.PostgreSQL.Store.Columns
 
@@ -82,7 +84,7 @@ makeTableSelectors proxy =
 -- | Generate the selector list expression.
 makeTableSelectorsE :: Name -> Q Exp
 makeTableSelectorsE typName =
-	[e| makeSelectorList (Proxy :: Proxy $(conT typName)) |]
+	[e| makeTableSelectors (Proxy :: Proxy $(conT typName)) |]
 
 -- | Query segment
 data Segment
@@ -93,17 +95,15 @@ data Segment
 	| SQuote Char String
 	| SOther Char
 
-type Parser = Parsec String ()
-
 -- | Name
 name :: Parser String
 name =
-	(:) <$> (letter <|> char '_') <*> many (alphaNum <|> char '_')
+	(:) <$> (letter <|> char '_') <*> many (satisfy isAlphaNum <|> char '_')
 
 -- | Type name
 typeName :: Parser String
 typeName =
-	(:) <$> upper <*> many (alphaNum <|> char '_')
+	(:) <$> satisfy isUpper <*> many (satisfy isAlphaNum <|> char '_')
 
 -- | Quote
 quote :: Char -> Parser Segment
@@ -113,8 +113,8 @@ quote delim = do
 	char delim
 	pure (SQuote delim cnt)
 	where
-		escapedDelim = string ['\\', delim]
-		notDelim = (: []) <$> noneOf [delim]
+		escapedDelim = (\ a b -> [a, b]) <$> char '\\' <*> char delim
+		notDelim = (: []) <$> notChar delim
 
 -- | Segments
 segments :: Parser [Segment]
@@ -175,9 +175,9 @@ reduceSegment seg =
 -- | Parse quasi-quoted query.
 parseStoreQueryE :: String -> Q Exp
 parseStoreQueryE code = do
-	case parse (segments <* eof) "quasi-quoted query" code of
+	case parseOnly (segments <* endOfInput) (T.pack code) of
 		Left msg ->
-			fail (show msg)
+			fail msg
 
 		Right xs -> do
 			(parts, (_, params)) <- runStateT (mapM reduceSegment xs) (0, [])
@@ -200,7 +200,7 @@ pgsq =
 -- | Parse quasi-quoted query but return only statement.
 parseStoreStatementE :: String -> Q Exp
 parseStoreStatementE code = do
-	case parse (segments <* eof) "quasi-quoted query" code of
+	case parseOnly (segments <* endOfInput) (T.pack code) of
 		Left msg ->
 			fail (show msg)
 

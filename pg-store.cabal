@@ -22,7 +22,7 @@ library
   default-language: Haskell2010
   build-depends:    base >= 4.9 && < 5,
                     template-haskell >= 2.11 && < 3,
-                    bytestring, text, postgresql-libpq, transformers, attoparsec, parsec
+                    bytestring, text, postgresql-libpq, transformers, attoparsec
   hs-source-dirs:   src
   exposed-modules:  Database.PostgreSQL.Store.Result,
                     Database.PostgreSQL.Store.Columns,
