@@ -79,10 +79,8 @@ tableAbsoluteIDNameE typName =
 -- | Generate the list of expression used as selector.
 makeTableSelectors :: (QueryTable a) => Proxy a -> String
 makeTableSelectors proxy =
-	intercalate ", " (idField : map makeElement (tableSelectors proxy))
+	intercalate ", " (map makeElement (tableSelectors proxy))
 	where
-		idField = show (tableName proxy) ++ "." ++ show (tableIDName proxy)
-
 		makeElement (SelectorField name)   = show (tableName proxy) ++ "." ++ show name
 		makeElement (SelectorSpecial expr) = expr
 
@@ -192,7 +190,6 @@ parseStoreQueryE code = do
 			    } |]
 
 -- |
--- TODO: Document me!
 pgsq :: QuasiQuoter
 pgsq =
 	QuasiQuoter {
@@ -213,8 +210,8 @@ parseStoreStatementE code = do
 			parts <- evalStateT (mapM reduceSegment xs) (0, [])
 			[e| concat $(pure (ListE parts)) |]
 
--- |
--- TODO: Document me!
+-- | Just like "pgsq" but only produces the statement associated with the query. Referenced
+--   variables are not inlined, they are simply dismissed.
 pgss :: QuasiQuoter
 pgss =
 	QuasiQuoter {

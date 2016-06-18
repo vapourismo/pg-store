@@ -6,9 +6,6 @@
 -- License:    BSD3
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Table (
-	HasID (..),
-
-	Row (..),
 	Reference (..),
 
 	Table (..),
@@ -32,34 +29,12 @@ import Database.PostgreSQL.Store.Columns
 import Database.PostgreSQL.Store.Result
 import Database.PostgreSQL.Store.Errand
 
--- | A value of that type contains an ID.
-class HasID a where
-	-- | Retrieve the underlying ID.
-	referenceID :: a b -> Int64
-
--- | Resolved row
-data Row a = Row {
-	-- | Identifier
-	rowID :: !Int64,
-
-	-- | Value
-	rowValue :: !a
-} deriving (Show, Eq, Ord)
-
-instance HasID Row where
-	referenceID (Row rid _) = rid
-
-instance (Table a) => QueryResult (Row a) where
-	queryResultProcessor =
-		Row <$> unpackColumn
-		    <*> tableResultProcessor
-
 -- | Reference to a row
-newtype Reference a = Reference Int64
-	deriving (Show, Eq, Ord)
+newtype Reference a = Reference { referenceID :: Int64 }
+	deriving (Eq, Ord)
 
-instance HasID Reference where
-	referenceID (Reference rid) = rid
+instance Show (Reference a) where
+	show (Reference n) = show n
 
 instance (QueryTable a) => Column (Reference a) where
 	pack ref =
@@ -89,20 +64,17 @@ class Table a where
 	insert :: a -> Errand (Reference a)
 
 	-- | Find the row identified by the given reference.
-	find :: (HasID i) => i a -> Errand (Row a)
+	find :: Reference a -> Errand a
 
 	-- | Update an existing row.
-	update :: (HasID i) => i a -> a -> Errand ()
+	update :: Reference a -> a -> Errand ()
 
 	-- | Delete a row from the table.
-	delete :: (HasID i) => i a -> Errand ()
+	delete :: Reference a -> Errand ()
 
 	-- | Generate the query which creates this table inside the database.
 	-- Use @mkCreateQuery@ for convenience.
-	createQuery :: Proxy a -> Query
-
-	-- | Extract the fields belonging to the table in order to construct the type.
-	tableResultProcessor :: ResultProcessor a
+	createTableQuery :: Proxy a -> Query
 
 -- | Generate the INSERT statement for a table.
 insertStatementE :: Name -> [Name] -> Q Exp
@@ -242,9 +214,7 @@ implementTableD table ctor fieldDecls constraints =
 			tableSelectors _ = $(tableSelectorsE fields)
 
 		instance QueryResult $(conT table) where
-			queryResultProcessor = do
-				skipColumn
-				tableResultProcessor
+			queryResultProcessor = $(tableResultProcessorE ctor fields)
 
 		instance Table $(conT table) where
 			insert row = do
@@ -267,11 +237,8 @@ implementTableD table ctor fieldDecls constraints =
 			delete ref =
 				query_ $(deleteQueryE 'ref table)
 
-			createQuery _ =
+			createTableQuery _ =
 				$(createQueryE table fieldDecls constraints)
-
-			tableResultProcessor =
-				$(tableResultProcessorE ctor fields)
 	|]
 	where
 		fields = map fst fieldDecls
@@ -394,4 +361,4 @@ mkCreateQuery name = do
 	unless it (fail "Given name does not refer to a type.")
 
 	-- Actual splice
-	[e| createQuery (Proxy :: Proxy $(pure (ConT name))) |]
+	[e| createTableQuery (Proxy :: Proxy $(pure (ConT name))) |]
