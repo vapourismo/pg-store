@@ -10,7 +10,6 @@ module Database.PostgreSQL.Store.Query (
 
 	SelectorElement (..),
 	QueryTable (..),
-	--makeTableSelectors,
 
 	pgsq,
 	pgss
@@ -70,28 +69,20 @@ tableAbsoluteIDNameE :: Name -> Q Exp
 tableAbsoluteIDNameE typName =
 	[e| $(tableNameE typName) ++ "." ++ $(tableIDNameE typName) |]
 
----- | Generate the list of expression used as selector.
---makeTableSelectors :: (QueryTable a) => Proxy a -> String
---makeTableSelectors proxy =
---	intercalate ", " (idField : map makeElement (tableSelectors proxy))
---	where
---		idField = show (tableName proxy) ++ "." ++ show (tableIDName proxy)
+-- | Generate the list of expression used as selector.
+makeTableSelectors :: (QueryTable a) => Proxy a -> String
+makeTableSelectors proxy =
+	intercalate ", " (idField : map makeElement (tableSelectors proxy))
+	where
+		idField = show (tableName proxy) ++ "." ++ show (tableIDName proxy)
 
---		makeElement (SelectorField name)   = show (tableName proxy) ++ "." ++ show name
---		makeElement (SelectorSpecial expr) = expr
+		makeElement (SelectorField name)   = show (tableName proxy) ++ "." ++ show name
+		makeElement (SelectorSpecial expr) = expr
 
 -- | Generate the selector list expression.
 makeTableSelectorsE :: Name -> Q Exp
 makeTableSelectorsE typName =
-	[e| let
-	        proxy = Proxy :: Proxy $(conT typName)
-
-	        idField = show (tableName proxy) ++ "." ++ show (tableIDName proxy)
-
-	        makeElement (SelectorField name)   = show (tableName proxy) ++ "." ++ show name
-	        makeElement (SelectorSpecial expr) = expr
-	    in
-	        intercalate ", " (idField : map makeElement (tableSelectors proxy)) |]
+	[e| makeSelectorList (Proxy :: Proxy $(conT typName)) |]
 
 -- | Query segment
 data Segment
