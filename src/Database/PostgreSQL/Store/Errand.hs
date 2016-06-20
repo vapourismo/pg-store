@@ -14,7 +14,7 @@ module Database.PostgreSQL.Store.Errand (
 	raiseErrandError,
 	executeQuery,
 
-	QueryResult (..),
+	Result (..),
 	query,
 	query_,
 
@@ -127,35 +127,35 @@ executeQuery (Query statement params) = do
 		transformedParams = map transformParam params
 
 -- | Allows you to implement a custom result parser for queries.
-class QueryResult a where
+class Result a where
 	queryResultProcessor :: ResultProcessor a
 
-instance (QueryResult a, QueryResult b) => QueryResult (a, b) where
+instance (Result a, Result b) => Result (a, b) where
 	queryResultProcessor =
 		(,) <$> queryResultProcessor <*> queryResultProcessor
 
-instance (QueryResult a, QueryResult b, QueryResult c) => QueryResult (a, b, c) where
+instance (Result a, Result b, Result c) => Result (a, b, c) where
 	queryResultProcessor =
 		(,,) <$> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor
 
-instance (QueryResult a, QueryResult b, QueryResult c, QueryResult d) => QueryResult (a, b, c, d) where
+instance (Result a, Result b, Result c, Result d) => Result (a, b, c, d) where
 	queryResultProcessor =
 		(,,,) <$> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor
 
-instance (QueryResult a, QueryResult b, QueryResult c, QueryResult d, QueryResult e) => QueryResult (a, b, c, d, e) where
+instance (Result a, Result b, Result c, Result d, Result e) => Result (a, b, c, d, e) where
 	queryResultProcessor =
 		(,,,,) <$> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor
 
-instance (QueryResult a, QueryResult b, QueryResult c, QueryResult d, QueryResult e, QueryResult f) => QueryResult (a, b, c, d, e, f) where
+instance (Result a, Result b, Result c, Result d, Result e, Result f) => Result (a, b, c, d, e, f) where
 	queryResultProcessor =
 		(,,,,,) <$> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor
 
-instance (QueryResult a, QueryResult b, QueryResult c, QueryResult d, QueryResult e, QueryResult f, QueryResult g) => QueryResult (a, b, c, d, e, f, g) where
+instance (Result a, Result b, Result c, Result d, Result e, Result f, Result g) => Result (a, b, c, d, e, f, g) where
 	queryResultProcessor =
 		(,,,,,,) <$> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor
 
 -- | Execute a query and process its result set.
-query :: (QueryResult a) => Query -> Errand [a]
+query :: (Result a) => Query -> Errand [a]
 query qry = do
 	result <- executeQuery qry
 	lift (withExceptT ResultError (processResult result queryResultProcessor))
@@ -172,5 +172,5 @@ newtype Single a = Single { fromSingle :: a }
 instance (Show a) => Show (Single a) where
 	show = show . fromSingle
 
-instance (Column a) => QueryResult (Single a) where
+instance (Column a) => Result (Single a) where
 	queryResultProcessor = Single <$> unpackColumn

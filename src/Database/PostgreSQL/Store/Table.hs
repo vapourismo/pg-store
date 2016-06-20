@@ -54,7 +54,7 @@ instance (QueryTable a) => Column (Reference a) where
 
 	columnAllowNull _ = False
 
-instance QueryResult (Reference a) where
+instance Result (Reference a) where
 	queryResultProcessor =
 		Reference <$> unpackColumn
 
@@ -223,7 +223,7 @@ implementTableD table ctor fieldDecls constraints =
 			tableIDName _    = "$id"
 			tableSelectors _ = $(tableSelectorsE fields)
 
-		instance QueryResult $(conT table) where
+		instance Result $(conT table) where
 			queryResultProcessor = $(tableResultProcessorE ctor fields)
 
 		instance Table $(conT table) where
