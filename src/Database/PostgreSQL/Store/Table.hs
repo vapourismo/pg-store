@@ -233,14 +233,14 @@ implementTableD table ctor fieldDecls constraints =
 
 				case rs of
 					(ref : _) -> pure ref
-					_         -> throwError UnexpectedEmptyResult
+					_         -> throwError EmptyResult
 
 			find ref = do
 				rs <- query $(findQueryE 'ref table)
 
 				case rs of
 					(row : _) -> pure row
-					_         -> throwError UnexpectedEmptyResult
+					_         -> throwError EmptyResult
 
 			update ref row =
 				query_ $(updateQueryE 'ref 'row table fields)

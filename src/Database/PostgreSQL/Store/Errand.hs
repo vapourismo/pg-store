@@ -34,9 +34,10 @@ import           Database.PostgreSQL.Store.Columns
 -- | Error during errand
 data ErrandError
 	= NoResult
+	| EmptyResult
+	| UserError String
 	| ExecError P.ExecStatus (Maybe B.ByteString)
 	| ResultError ResultError
-	| UserError String
 	| IntegrityViolation B.ByteString B.ByteString
 	| RestrictViolation B.ByteString B.ByteString
 	| NotNullViolation B.ByteString B.ByteString
