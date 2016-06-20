@@ -24,8 +24,8 @@ import           Language.Haskell.TH
 import           Language.Haskell.TH.Quote
 
 import           Control.Applicative
-import           Control.Monad.Trans.Class
-import           Control.Monad.Trans.State
+import           Control.Monad.Trans
+import           Control.Monad.State
 
 import           Data.List
 import           Data.Proxy

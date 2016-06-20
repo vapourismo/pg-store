@@ -7,23 +7,21 @@
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Errand (
 	ErrandError (..),
-
 	Errand,
 	runErrand,
 
-	raiseErrandError,
-	executeQuery,
-
-	Result (..),
+	execute,
 	query,
 	query_,
+
+	Result (..),
 
 	Single (..)
 ) where
 
-import           Control.Monad.Trans.Class
-import           Control.Monad.Trans.Except
-import           Control.Monad.Trans.Reader
+import           Control.Monad.Trans
+import           Control.Monad.Except
+import           Control.Monad.Reader
 
 import           Data.Maybe
 import qualified Data.ByteString           as B
@@ -57,14 +55,9 @@ runErrand :: P.Connection -> Errand a -> IO (Either ErrandError a)
 runErrand con errand =
 	runExceptT (runReaderT errand con)
 
--- | Raise an error.
-raiseErrandError :: ErrandError -> Errand a
-raiseErrandError err =
-	lift (ExceptT (pure (Left err)))
-
 -- | Execute a query and return its result.
-executeQuery :: Query -> Errand P.Result
-executeQuery (Query statement params) = do
+execute :: Query -> Errand P.Result
+execute (Query statement params) = do
 	con <- ask
 	lift $ do
 		res <- ExceptT (transformResult <$> P.execParams con statement transformedParams P.Text)
@@ -87,39 +80,39 @@ executeQuery (Query statement params) = do
 
 				case info of
 					(Just "23000", msg, detail, _, _, _, _, _) ->
-						throwE (IntegrityViolation (fromMaybe B.empty msg)
-						                           (fromMaybe B.empty detail))
+						throwError (IntegrityViolation (fromMaybe B.empty msg)
+						                               (fromMaybe B.empty detail))
 
 					(Just "23001", msg, detail, _, _, _, _, _) ->
-						throwE (RestrictViolation (fromMaybe B.empty msg)
-						                          (fromMaybe B.empty detail))
+						throwError (RestrictViolation (fromMaybe B.empty msg)
+						                              (fromMaybe B.empty detail))
 
 					(Just "23502", msg, detail, _, _, _, _, _) ->
-						throwE (NotNullViolation (fromMaybe B.empty msg)
-						                         (fromMaybe B.empty detail))
+						throwError (NotNullViolation (fromMaybe B.empty msg)
+						                             (fromMaybe B.empty detail))
 
 					(Just "23503", msg, detail, _, _, _, _, _) ->
-						throwE (ForeignKeyViolation (fromMaybe B.empty msg)
-						                            (fromMaybe B.empty detail))
+						throwError (ForeignKeyViolation (fromMaybe B.empty msg)
+						                                (fromMaybe B.empty detail))
 
 					(Just "23505", msg, detail, _, _, _, _, _) ->
-						throwE (UniqueViolation (fromMaybe B.empty msg)
-						                        (fromMaybe B.empty detail))
+						throwError (UniqueViolation (fromMaybe B.empty msg)
+						                            (fromMaybe B.empty detail))
 
 					(Just "23514", msg, detail, _, _, _, _, _) ->
-						throwE (CheckViolation (fromMaybe B.empty msg)
-						                       (fromMaybe B.empty detail))
+						throwError (CheckViolation (fromMaybe B.empty msg)
+						                           (fromMaybe B.empty detail))
 
 					(Just "23P01", msg, detail, _, _, _, _, _) ->
-						throwE (ExclusionViolation (fromMaybe B.empty msg)
-						                           (fromMaybe B.empty detail))
+						throwError (ExclusionViolation (fromMaybe B.empty msg)
+						                               (fromMaybe B.empty detail))
 
 					_ -> do
 						msg <- lift (P.resultErrorMessage res)
-						throwE (ExecError other msg)
+						throwError (ExecError other msg)
 
 	where
-		transformResult = maybe (Left NoResult) pure
+		transformResult = maybe (throwError NoResult) pure
 
 		transformParam (Value typ dat fmt) = Just (typ, dat, fmt)
 		transformParam NullValue           = Nothing
@@ -157,13 +150,13 @@ instance (Result a, Result b, Result c, Result d, Result e, Result f, Result g) 
 -- | Execute a query and process its result set.
 query :: (Result a) => Query -> Errand [a]
 query qry = do
-	result <- executeQuery qry
+	result <- execute qry
 	lift (withExceptT ResultError (processResult result queryResultProcessor))
 
 -- | Execute a query.
 query_ :: Query -> Errand ()
 query_ qry =
-	() <$ executeQuery qry
+	() <$ execute qry
 
 -- | Helper type to capture an unassociated column.
 newtype Single a = Single { fromSingle :: a }

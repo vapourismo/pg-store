@@ -7,7 +7,6 @@
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Result (
 	ResultError (..),
-
 	ResultProcessor,
 	processResult,
 	processOneResult,
@@ -17,13 +16,10 @@ module Database.PostgreSQL.Store.Result (
 ) where
 
 import           Control.Monad
-import           Control.Monad.Trans.Class
-import           Control.Monad.IO.Class
-import           Control.Monad.Trans.Reader
-import           Control.Monad.Trans.State.Strict
-import           Control.Monad.Trans.Except
-
-import           Data.Proxy
+import           Control.Monad.Trans
+import           Control.Monad.Reader
+import           Control.Monad.State.Strict
+import           Control.Monad.Except
 
 import qualified Database.PostgreSQL.LibPQ as P
 import           Database.PostgreSQL.Store.Columns
@@ -39,23 +35,7 @@ data ResultError
 -- | Result processor
 newtype ResultProcessor a =
 	ResultProcessor (StateT P.Column (ReaderT (P.Result, P.Row, P.Column) (ExceptT ResultError IO)) a)
-	deriving (Functor, Applicative, Monad, MonadIO)
-
--- | Throw a nerror.
-raiseResultError :: ResultError -> ResultProcessor a
-raiseResultError err = ResultProcessor (lift (lift (throwE err)))
-
--- | Read information packed into the "ReaderT".
-readInfo :: ResultProcessor (P.Result, P.Row, P.Column)
-readInfo = ResultProcessor (lift ask)
-
--- | Get the current column.
-getColumn :: ResultProcessor P.Column
-getColumn = ResultProcessor get
-
--- | Set the new column.
-setColumn :: P.Column -> ResultProcessor ()
-setColumn col = ResultProcessor (put col)
+	deriving (Functor, Applicative, Monad, MonadIO, MonadError ResultError)
 
 -- | Skip the current column.
 skipColumn :: ResultProcessor ()
@@ -66,28 +46,22 @@ skipColumn =
 unpackColumn :: (Column a) => ResultProcessor a
 unpackColumn = do
 	-- Gather information
-	col <- getColumn
-	(res, row, numCol) <- readInfo
+	col <- ResultProcessor get
+	(res, row, numCol) <- ResultProcessor ask
 
 	-- Make sure we're not trying to unpack a non-existing column
-	when (col >= numCol) (raiseResultError (TooFewColumnsError numCol))
+	when (col >= numCol) (throwError (TooFewColumnsError numCol))
 
 	-- Retrieve column-specific information
-	(typ, fmt, mbData) <- ResultProcessor . liftIO $
+	(typ, fmt, mbData) <- liftIO $
 		(,,) <$> P.ftype res col
 		     <*> P.fformat res col
 		     <*> P.getvalue' res row col
 
 	-- Try to unpack the value
 	case unpack (maybe NullValue (\ dat -> Value typ dat fmt) mbData) of
-		Just ret ->
-			ret <$ setColumn (col + 1)
-
-		nothing ->
-			raiseResultError (UnpackError row col typ fmt)
-	where
-		makeProxy :: Maybe a -> Proxy a
-		makeProxy _ = Proxy
+		Just ret -> ret <$ ResultProcessor (put (col + 1))
+		Nothing  -> throwError (UnpackError row col typ fmt)
 
 -- | Process the entire result set.
 processResult :: P.Result -> ResultProcessor a -> ExceptT ResultError IO [a]

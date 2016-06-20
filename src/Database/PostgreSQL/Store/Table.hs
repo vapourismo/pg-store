@@ -19,6 +19,7 @@ module Database.PostgreSQL.Store.Table (
 ) where
 
 import Control.Monad
+import Control.Monad.Except
 
 import Data.Int
 import Data.List
@@ -232,14 +233,14 @@ implementTableD table ctor fieldDecls constraints =
 
 				case rs of
 					(ref : _) -> pure ref
-					_         -> raiseErrandError UnexpectedEmptyResult
+					_         -> throwError UnexpectedEmptyResult
 
 			find ref = do
 				rs <- query $(findQueryE 'ref table)
 
 				case rs of
 					(row : _) -> pure row
-					_         -> raiseErrandError UnexpectedEmptyResult
+					_         -> throwError UnexpectedEmptyResult
 
 			update ref row =
 				query_ $(updateQueryE 'ref 'row table fields)
