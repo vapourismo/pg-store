@@ -6,6 +6,7 @@
 -- License:    BSD3
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Errand (
+	-- * Errand
 	ErrandError (..),
 	Errand,
 	runErrand,
@@ -14,8 +15,8 @@ module Database.PostgreSQL.Store.Errand (
 	query,
 	query_,
 
+	-- * Result parser
 	Result (..),
-
 	Single (..)
 ) where
 
@@ -56,10 +57,13 @@ runErrand :: P.Connection -> Errand a -> IO (Either ErrandError a)
 runErrand con (Errand errand) =
 	runExceptT (runReaderT errand con)
 
--- | Execute a query and return its result.
+-- | Execute a query and return the internal raw result.
 execute :: Query -> Errand P.Result
 execute (Query statement params) = Errand . ReaderT $ \ con -> do
-	res <- ExceptT (transformResult <$> P.execParams con statement transformedParams P.Text)
+	res <- ExceptT (transformResult <$> P.execParams con
+	                                                 statement
+	                                                 (map transformParam params)
+	                                                 P.Text)
 	status <- lift (P.resultStatus res)
 
 	case status of
@@ -111,17 +115,18 @@ execute (Query statement params) = Errand . ReaderT $ \ con -> do
 					throwError (ExecError other msg)
 
 	where
+		-- Turn 'Maybe P.Result' into 'Either ErrandError P.Result'
 		transformResult = maybe (throwError NoResult) pure
 
+		-- Turn 'Value' into 'Maybe (P.Oid, B.ByteString, P.Format)'
 		transformParam (Value typ dat fmt) = Just (typ, dat, fmt)
 		transformParam NullValue           = Nothing
 
-		transformedParams = map transformParam params
-
--- | Allows you to implement a custom result parser for queries.
+-- | Allows you to implement a custom result parser for your type.
 class Result a where
 	queryResultProcessor :: ResultProcessor a
 
+-- | Combine result parsers sequencially.
 instance (Result a, Result b) => Result (a, b) where
 	queryResultProcessor =
 		(,) <$> queryResultProcessor <*> queryResultProcessor
@@ -152,12 +157,12 @@ query qry = do
 	result <- execute qry
 	Errand (lift (withExceptT ResultError (processResult result queryResultProcessor)))
 
--- | Execute a query.
+-- | Execute a query and dismiss its result.
 query_ :: Query -> Errand ()
 query_ qry =
 	() <$ execute qry
 
--- | Helper type to capture an unassociated column.
+-- | Helper type to capture an single column.
 newtype Single a = Single { fromSingle :: a }
 	deriving (Eq, Ord)
 
