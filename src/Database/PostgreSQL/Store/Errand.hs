@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, GeneralizedNewtypeDeriving #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Errand
@@ -48,68 +48,67 @@ data ErrandError
 	deriving (Show, Eq)
 
 -- | An interaction with the database
-type Errand = ReaderT P.Connection (ExceptT ErrandError IO)
+newtype Errand a = Errand (ReaderT P.Connection (ExceptT ErrandError IO) a)
+	deriving (Functor, Applicative, Monad, MonadIO, MonadError ErrandError)
 
 -- | Run an errand.
 runErrand :: P.Connection -> Errand a -> IO (Either ErrandError a)
-runErrand con errand =
+runErrand con (Errand errand) =
 	runExceptT (runReaderT errand con)
 
 -- | Execute a query and return its result.
 execute :: Query -> Errand P.Result
-execute (Query statement params) = do
-	con <- ask
-	lift $ do
-		res <- ExceptT (transformResult <$> P.execParams con statement transformedParams P.Text)
-		status <- lift (P.resultStatus res)
+execute (Query statement params) = Errand . ReaderT $ \ con -> do
+	res <- ExceptT (transformResult <$> P.execParams con statement transformedParams P.Text)
+	status <- lift (P.resultStatus res)
 
-		case status of
-			P.CommandOk -> pure res
-			P.TuplesOk  -> pure res
+	case status of
+		P.CommandOk -> pure res
+		P.TuplesOk  -> pure res
 
-			other -> do
-				info <- lift $
-					(,,,,,,,) <$> P.resultErrorField res P.DiagSqlstate
-					          <*> P.resultErrorField res P.DiagMessagePrimary
-					          <*> P.resultErrorField res P.DiagMessageDetail
-					          <*> P.resultErrorField res P.DiagMessageHint
-					          <*> P.resultErrorField res P.DiagStatementPosition
-					          <*> P.resultErrorField res P.DiagInternalPosition
-					          <*> P.resultErrorField res P.DiagInternalQuery
-					          <*> P.resultErrorField res P.DiagContext
+		other -> do
+			info <- lift $
+				(,,,,,,,) <$> P.resultErrorField res P.DiagSqlstate
+				          <*> P.resultErrorField res P.DiagMessagePrimary
+				          <*> P.resultErrorField res P.DiagMessageDetail
+				          <*> P.resultErrorField res P.DiagMessageHint
+				          <*> P.resultErrorField res P.DiagStatementPosition
+				          <*> P.resultErrorField res P.DiagInternalPosition
+				          <*> P.resultErrorField res P.DiagInternalQuery
+				          <*> P.resultErrorField res P.DiagContext
 
-				case info of
-					(Just "23000", msg, detail, _, _, _, _, _) ->
-						throwError (IntegrityViolation (fromMaybe B.empty msg)
-						                               (fromMaybe B.empty detail))
+			case info of
+				(Just "23000", msg, detail, _, _, _, _, _) ->
+					throwError (IntegrityViolation (fromMaybe B.empty msg)
+					                               (fromMaybe B.empty detail))
 
-					(Just "23001", msg, detail, _, _, _, _, _) ->
-						throwError (RestrictViolation (fromMaybe B.empty msg)
-						                              (fromMaybe B.empty detail))
+				(Just "23001", msg, detail, _, _, _, _, _) ->
+					throwError (RestrictViolation (fromMaybe B.empty msg)
+					                              (fromMaybe B.empty detail))
 
-					(Just "23502", msg, detail, _, _, _, _, _) ->
-						throwError (NotNullViolation (fromMaybe B.empty msg)
-						                             (fromMaybe B.empty detail))
+				(Just "23502", msg, detail, _, _, _, _, _) ->
+					throwError (NotNullViolation (fromMaybe B.empty msg)
+					                             (fromMaybe B.empty detail))
 
-					(Just "23503", msg, detail, _, _, _, _, _) ->
-						throwError (ForeignKeyViolation (fromMaybe B.empty msg)
-						                                (fromMaybe B.empty detail))
+				(Just "23503", msg, detail, _, _, _, _, _) ->
+					throwError (ForeignKeyViolation (fromMaybe B.empty msg)
+					                                (fromMaybe B.empty detail))
 
-					(Just "23505", msg, detail, _, _, _, _, _) ->
-						throwError (UniqueViolation (fromMaybe B.empty msg)
-						                            (fromMaybe B.empty detail))
+				(Just "23505", msg, detail, _, _, _, _, _) ->
+					throwError (UniqueViolation (fromMaybe B.empty msg)
+					                            (fromMaybe B.empty detail))
 
-					(Just "23514", msg, detail, _, _, _, _, _) ->
-						throwError (CheckViolation (fromMaybe B.empty msg)
-						                           (fromMaybe B.empty detail))
+				(Just "23514", msg, detail, _, _, _, _, _) ->
+					throwError (CheckViolation (fromMaybe B.empty msg)
+					                           (fromMaybe B.empty detail))
 
-					(Just "23P01", msg, detail, _, _, _, _, _) ->
-						throwError (ExclusionViolation (fromMaybe B.empty msg)
-						                               (fromMaybe B.empty detail))
+				(Just "23P01", msg, detail, _, _, _, _, _) ->
+					throwError (ExclusionViolation (fromMaybe B.empty msg)
+					                               (fromMaybe B.empty detail))
 
-					_ -> do
-						msg <- lift (P.resultErrorMessage res)
-						throwError (ExecError other msg)
+				_ -> do
+					msg <- lift (P.resultErrorMessage res)
+					throwError (ExecError other msg)
 
 	where
 		transformResult = maybe (throwError NoResult) pure
@@ -151,7 +150,7 @@ instance (Result a, Result b, Result c, Result d, Result e, Result f, Result g) 
 query :: (Result a) => Query -> Errand [a]
 query qry = do
 	result <- execute qry
-	lift (withExceptT ResultError (processResult result queryResultProcessor))
+	Errand (lift (withExceptT ResultError (processResult result queryResultProcessor)))
 
 -- | Execute a query.
 query_ :: Query -> Errand ()
