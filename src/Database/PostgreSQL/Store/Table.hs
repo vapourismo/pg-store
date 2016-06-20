@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, RecordWildCards, BangPatterns #-}
+{-# LANGUAGE TemplateHaskell, BangPatterns #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Table
@@ -6,12 +6,15 @@
 -- License:    BSD3
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Table (
+	-- * Auxiliary data types
 	Reference (..),
 
+	-- * Table types
 	Table (..),
 	mkCreateQuery,
 
-	TableConstraint,
+	-- * Table generation
+	TableConstraint (..),
 	mkTable
 ) where
 
@@ -29,7 +32,7 @@ import Database.PostgreSQL.Store.Columns
 import Database.PostgreSQL.Store.Result
 import Database.PostgreSQL.Store.Errand
 
--- | Reference to a row
+-- | Reference a row of type @a@.
 newtype Reference a = Reference { referenceID :: Int64 }
 	deriving (Eq, Ord)
 
@@ -55,6 +58,7 @@ instance QueryResult (Reference a) where
 	queryResultProcessor =
 		Reference <$> unpackColumn
 
+-- | Qualify @a@ as a table type. 'mkTable' can implement this class for you.
 class Table a where
 	-- | Insert a row into the table and return a 'Reference' to the inserted row.
 	insert :: a -> Errand (Reference a)
@@ -69,10 +73,10 @@ class Table a where
 	delete :: Reference a -> Errand ()
 
 	-- | Generate the query which creates this table inside the database.
-	-- Use @mkCreateQuery@ for convenience.
+	-- Use 'mkCreateQuery' for convenience.
 	createTableQuery :: Proxy a -> Query
 
--- | Generate the INSERT statement for a table.
+-- | Generate the insert statement for a table.
 insertStatementE :: Name -> [Name] -> Q Exp
 insertStatementE table fields =
 	[e| fromString ("INSERT INTO " ++ $(tableNameE table) ++ " (" ++
@@ -81,9 +85,11 @@ insertStatementE table fields =
 	                $(stringE values) ++
 	                ") RETURNING " ++ $(tableIDNameE table)) |]
 	where
+		-- Column names
 		columns =
 			intercalate ", " (map (show . nameBase) fields)
 
+		-- Value placeholders
 		values =
 			intercalate ", " (map (\ idx -> "$" ++ show idx) [1 .. length fields])
 
@@ -111,9 +117,11 @@ updateStatementE table fields =
 	                " SET " ++ $(stringE statements) ++
 	                " WHERE " ++ $(tableIDNameE table) ++ " = $1") |]
 	where
-		makeStatement nm idx =
-			show (nameBase nm) ++ " = $" ++ show idx
+		-- Produce a SET statement in form of 'name = $idx'
+		makeStatement name idx =
+			show (nameBase name) ++ " = $" ++ show idx
 
+		-- Combined SET statements
 		statements =
 			intercalate "," (zipWith makeStatement fields [2 .. length fields + 1])
 
@@ -141,19 +149,24 @@ createStatementE table fields constraints =
 	                intercalate ", " ($idField : $fieldList ++ $constraintList) ++
 	                ")") |]
 	where
+		-- ID column description
 		idField =
 			[e| $(tableIDNameE table) ++ " BIGSERIAL NOT NULL PRIMARY KEY" |]
 
+		-- List of all column descriptions
 		fieldList =
 			ListE <$> mapM describeField fields
 
+		-- Fetch column description for a field and its associated type
 		describeField (name, typ) =
 			[e| $(stringE (show (nameBase name))) ++ " " ++
 			    makeColumnDescription (Proxy :: Proxy $(pure typ)) |]
 
+		-- List of constraints
 		constraintList =
 			ListE <$> mapM describeConstraint constraints
 
+		-- Generate the SQL described in the given constraint
 		describeConstraint cont =
 			case cont of
 				Unique names ->
@@ -189,16 +202,17 @@ tableResultProcessorE :: Name -> [Name] -> Q Exp
 tableResultProcessorE tableCtor fieldNames = do
 	bindingNames <- mapM (newName . nameBase) fieldNames
 	pure (DoE (map makeBinding bindingNames ++
-	           [lastStatement (makeConstruction bindingNames)]))
+	           [makeConstruction bindingNames]))
 	where
-		makeBinding nm =
-			BindS (VarP nm) (VarE 'unpackColumn)
+		-- Bind expression 'name <- unpackColumn'
+		makeBinding name =
+			BindS (VarP name) (VarE 'unpackColumn)
 
-		lastStatement expr =
-			NoBindS (AppE (VarE 'pure) expr)
-
+		-- Last expression 'pure (tableCtor boundNames...)'
 		makeConstruction names =
-			RecConE tableCtor (zip fieldNames (map VarE names))
+			NoBindS (AppE (VarE 'pure)
+			              (RecConE tableCtor
+			                       (zip fieldNames (map VarE names))))
 
 -- | Implement relevant instances for the given table type.
 implementTableD :: Name -> Name -> [(Name, Type)] -> [TableConstraint] -> Q [Dec]
@@ -251,13 +265,15 @@ validateFields fields =
 data TableConstraint
 	= Unique [Name]
 	  -- ^ A combination of fields must be unique.
-	  --   @Unique ['name1, 'name2, ...]@ works analogous to the following table constraint:
-	  --   @UNIQUE (name1, name2, ...)@
+	  --   @Unique ['name1, 'name2, ...]@ works analogous to the table constraint
+	  --   @UNIQUE (name1, name2, ...)@ in SQL.
 	| Check String
-	  -- ^ The given statement must evaluate to true.
+	  -- ^ The given statement must evaluate to true. Just like @CHECK (statement)@ in SQL.
 	deriving (Show, Eq, Ord)
 
--- | Implement 'Table' for a data type. The given type must fulfill these requirements:
+-- | Implement the relevant type classes for a data type to become a table type.
+--
+-- The given type must fulfill these requirements:
 --
 --   * Data type
 --   * No type context
@@ -339,7 +355,7 @@ isType name = do
 		TyConI _ -> True
 		_        -> False
 
--- | Generate a 'Query' which will create the table described my the given type.
+-- | Generate a 'Query' expression which will create the table described by the given type.
 --
 -- Example:
 --
