@@ -6,6 +6,7 @@
 -- License:    BSD3
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Result (
+	-- * Result processor
 	ResultError (..),
 	ResultProcessor,
 	processResult,
@@ -37,12 +38,12 @@ newtype ResultProcessor a =
 	ResultProcessor (StateT P.Column (ReaderT (P.Result, P.Row, P.Column) (ExceptT ResultError IO)) a)
 	deriving (Functor, Applicative, Monad, MonadIO, MonadError ResultError)
 
--- | Skip the current column.
+-- | Move cursor to the next column.
 skipColumn :: ResultProcessor ()
 skipColumn =
 	ResultProcessor (modify (+ 1))
 
--- | Unpack a column.
+-- | Unpack the current column and move the cursor to the next column.
 unpackColumn :: (Column a) => ResultProcessor a
 unpackColumn = do
 	-- Gather information
