@@ -36,7 +36,6 @@ data ErrandError
 	= NoResult
 	| ExecError P.ExecStatus (Maybe B.ByteString)
 	| ResultError ResultError
-	| UnexpectedEmptyResult
 	| UserError String
 	| IntegrityViolation B.ByteString B.ByteString
 	| RestrictViolation B.ByteString B.ByteString
