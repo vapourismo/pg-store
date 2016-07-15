@@ -110,7 +110,7 @@ instance Column Bool where
 instance Column Int where
 	pack n =
 		Value {
-			valueType   = $integerOID,
+			valueType   = $bigintOID,
 			valueData   = buildByteString intDec n,
 			valueFormat = P.Text
 		}
@@ -120,7 +120,7 @@ instance Column Int where
 	unpack (Value $integerOID  dat P.Text) = parseMaybe (signed decimal) dat
 	unpack _                               = Nothing
 
-	columnTypeName _  = "integer"
+	columnTypeName _  = "bigint"
 	columnAllowNull _ = False
 
 instance Column Int8 where
@@ -186,6 +186,22 @@ instance Column Int64 where
 	unpack _                               = Nothing
 
 	columnTypeName _  = "bigint"
+	columnAllowNull _ = False
+
+instance Column Int where
+	pack n =
+		Value {
+			valueType   = $integerOID,
+			valueData   = buildByteString intDec n,
+			valueFormat = P.Text
+		}
+
+	unpack (Value $bigintOID   dat P.Text) = parseMaybe (signed decimal) dat
+	unpack (Value $smallintOID dat P.Text) = parseMaybe (signed decimal) dat
+	unpack (Value $integerOID  dat P.Text) = parseMaybe (signed decimal) dat
+	unpack _                               = Nothing
+
+	columnTypeName _  = "integer"
 	columnAllowNull _ = False
 
 instance Column [Char] where
