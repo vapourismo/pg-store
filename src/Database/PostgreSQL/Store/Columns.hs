@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, RecordWildCards, FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings, RecordWildCards, FlexibleInstances, TemplateHaskell #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Columns
@@ -30,6 +30,7 @@ import           Data.Attoparsec.ByteString
 import           Data.Attoparsec.ByteString.Char8 (signed, decimal)
 
 import qualified Database.PostgreSQL.LibPQ as P
+import           Database.PostgreSQL.Store.OIDs
 
 -- | Query parameter or value of a column - see 'pack' on how to generate 'Value's manually but
 --   conveniently.
@@ -78,20 +79,22 @@ instance (Column a) => Column (Maybe a) where
 instance Column Bool where
 	pack v =
 		Value {
-			valueType   = P.Oid 16,
+			valueType   = $boolOID,
 			valueData   = if v then "true" else "false",
 			valueFormat = P.Text
 		}
 
-	unpack (Value (P.Oid 16) "true" P.Text) = Just True
-	unpack (Value (P.Oid 16) "TRUE" P.Text) = Just True
-	unpack (Value (P.Oid 16) "t"    P.Text) = Just True
-	unpack (Value (P.Oid 16) "y"    P.Text) = Just True
-	unpack (Value (P.Oid 16) "yes"  P.Text) = Just True
-	unpack (Value (P.Oid 16) "on"   P.Text) = Just True
-	unpack (Value (P.Oid 16) "1"    P.Text) = Just True
-	unpack (Value (P.Oid 16) _      P.Text) = Just False
-	unpack _                                = Nothing
+	unpack (Value $boolOID "true" P.Text) = Just True
+	unpack (Value $boolOID "TRUE" P.Text) = Just True
+	unpack (Value $boolOID "t"    P.Text) = Just True
+	unpack (Value $boolOID "y"    P.Text) = Just True
+	unpack (Value $boolOID "yes"  P.Text) = Just True
+	unpack (Value $boolOID "YES"  P.Text) = Just True
+	unpack (Value $boolOID "on"   P.Text) = Just True
+	unpack (Value $boolOID "ON"   P.Text) = Just True
+	unpack (Value $boolOID "1"    P.Text) = Just True
+	unpack (Value $boolOID _      P.Text) = Just False
+	unpack _                              = Nothing
 
 	columnTypeName  _ = "bool"
 	columnAllowNull _ = False
@@ -99,82 +102,82 @@ instance Column Bool where
 instance Column Int where
 	pack n =
 		Value {
-			valueType   = P.Oid 23,
+			valueType   = $integerOID,
 			valueData   = buildByteString intDec n,
 			valueFormat = P.Text
 		}
 
-	unpack (Value (P.Oid 20) dat P.Text) = parseMaybe (signed decimal) dat
-	unpack (Value (P.Oid 21) dat P.Text) = parseMaybe (signed decimal) dat
-	unpack (Value (P.Oid 23) dat P.Text) = parseMaybe (signed decimal) dat
-	unpack _                             = Nothing
+	unpack (Value $bigintOID   dat P.Text) = parseMaybe (signed decimal) dat
+	unpack (Value $smallintOID dat P.Text) = parseMaybe (signed decimal) dat
+	unpack (Value $integerOID  dat P.Text) = parseMaybe (signed decimal) dat
+	unpack _                               = Nothing
 
-	columnTypeName _  = "int4"
+	columnTypeName _  = "integer"
 	columnAllowNull _ = False
 
 instance Column Int8 where
 	pack n =
 		Value {
-			valueType   = P.Oid 21,
+			valueType   = $smallintOID,
 			valueData   = buildByteString int8Dec n,
 			valueFormat = P.Text
 		}
 
-	unpack (Value (P.Oid 20) dat P.Text) = parseMaybe (signed decimal) dat
-	unpack (Value (P.Oid 21) dat P.Text) = parseMaybe (signed decimal) dat
-	unpack (Value (P.Oid 23) dat P.Text) = parseMaybe (signed decimal) dat
-	unpack _                             = Nothing
+	unpack (Value $bigintOID   dat P.Text) = parseMaybe (signed decimal) dat
+	unpack (Value $smallintOID dat P.Text) = parseMaybe (signed decimal) dat
+	unpack (Value $integerOID  dat P.Text) = parseMaybe (signed decimal) dat
+	unpack _                               = Nothing
 
-	columnTypeName _  = "int2"
+	columnTypeName _  = "smallint"
 	columnAllowNull _ = False
 
 instance Column Int16 where
 	pack n =
 		Value {
-			valueType   = P.Oid 21,
+			valueType   = $smallintOID,
 			valueData   = buildByteString int16Dec n,
 			valueFormat = P.Text
 		}
 
-	unpack (Value (P.Oid 20) dat P.Text) = parseMaybe (signed decimal) dat
-	unpack (Value (P.Oid 21) dat P.Text) = parseMaybe (signed decimal) dat
-	unpack (Value (P.Oid 23) dat P.Text) = parseMaybe (signed decimal) dat
-	unpack _                             = Nothing
+	unpack (Value $bigintOID   dat P.Text) = parseMaybe (signed decimal) dat
+	unpack (Value $smallintOID dat P.Text) = parseMaybe (signed decimal) dat
+	unpack (Value $integerOID  dat P.Text) = parseMaybe (signed decimal) dat
+	unpack _                               = Nothing
 
-	columnTypeName _  = "int2"
+	columnTypeName _  = "smallint"
 	columnAllowNull _ = False
 
 instance Column Int32 where
 	pack n =
 		Value {
-			valueType   = P.Oid 23,
+			valueType   = $integerOID,
 			valueData   = buildByteString int32Dec n,
 			valueFormat = P.Text
 		}
 
-	unpack (Value (P.Oid 20) dat P.Text) = parseMaybe (signed decimal) dat
-	unpack (Value (P.Oid 21) dat P.Text) = parseMaybe (signed decimal) dat
-	unpack (Value (P.Oid 23) dat P.Text) = parseMaybe (signed decimal) dat
-	unpack _                             = Nothing
+	unpack (Value $bigintOID   dat P.Text) = parseMaybe (signed decimal) dat
+	unpack (Value $smallintOID dat P.Text) = parseMaybe (signed decimal) dat
+	unpack (Value $integerOID  dat P.Text) = parseMaybe (signed decimal) dat
+	unpack _                               = Nothing
 
 
-	columnTypeName _  = "int4"
+	columnTypeName _  = "integer"
 	columnAllowNull _ = False
 
 instance Column Int64 where
 	pack n =
 		Value {
-			valueType   = P.Oid 20,
+			valueType   = $bigintOID,
 			valueData   = buildByteString int64Dec n,
 			valueFormat = P.Text
 		}
 
-	unpack (Value (P.Oid 20) dat P.Text) = parseMaybe (signed decimal) dat
-	unpack (Value (P.Oid 21) dat P.Text) = parseMaybe (signed decimal) dat
-	unpack (Value (P.Oid 23) dat P.Text) = parseMaybe (signed decimal) dat
-	unpack _                             = Nothing
+	unpack (Value $bigintOID   dat P.Text) = parseMaybe (signed decimal) dat
+	unpack (Value $smallintOID dat P.Text) = parseMaybe (signed decimal) dat
+	unpack (Value $integerOID  dat P.Text) = parseMaybe (signed decimal) dat
+	unpack _                               = Nothing
 
-	columnTypeName _  = "int8"
+	columnTypeName _  = "bigint"
 	columnAllowNull _ = False
 
 instance Column [Char] where
@@ -210,14 +213,14 @@ instance Column TL.Text where
 instance Column B.ByteString where
 	pack bs =
 		Value {
-			valueType   = P.Oid 17,
+			valueType   = $byteaOID,
 			valueData   = toTextByteArray bs,
 			valueFormat = P.Text
 		}
 
-	unpack (Value (P.Oid 17) dat P.Binary) = pure dat
-	unpack (Value (P.Oid 17) dat P.Text)   = fromTextByteArray dat
-	unpack _                               = Nothing
+	unpack (Value $byteaOID dat P.Binary) = pure dat
+	unpack (Value $byteaOID dat P.Text)   = fromTextByteArray dat
+	unpack _                              = Nothing
 
 	columnTypeName _  = "bytea"
 	columnAllowNull _ = False
