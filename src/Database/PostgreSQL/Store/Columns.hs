@@ -182,33 +182,45 @@ instance Column Int64 where
 
 instance Column [Char] where
 	pack str =
-		pack (buildByteString stringUtf8 str)
+		Value {
+			valueType   = $textOID,
+			valueData   = buildByteString stringUtf8 str,
+			valueFormat = P.Text
+		}
 
-	unpack val =
-		T.unpack . T.decodeUtf8 <$> unpack val
+	unpack (Value $varcharOID dat P.Text) = pure (T.unpack (T.decodeUtf8 dat))
+	unpack (Value $charOID    dat P.Text) = pure (T.unpack (T.decodeUtf8 dat))
+	unpack (Value $textOID    dat P.Text) = pure (T.unpack (T.decodeUtf8 dat))
+	unpack _                              = Nothing
 
-	columnTypeName _  = columnTypeName (Proxy :: Proxy B.ByteString)
-	columnAllowNull _ = columnAllowNull (Proxy :: Proxy B.ByteString)
+	columnTypeName _  = "text"
+	columnAllowNull _ = False
 
 instance Column T.Text where
 	pack txt =
-		pack (T.encodeUtf8 txt)
+		Value {
+			valueType   = $textOID,
+			valueData   = T.encodeUtf8 txt,
+			valueFormat = P.Text
+		}
 
-	unpack val =
-		T.decodeUtf8 <$> unpack val
+	unpack (Value $varcharOID dat P.Text) = pure (T.decodeUtf8 dat)
+	unpack (Value $charOID    dat P.Text) = pure (T.decodeUtf8 dat)
+	unpack (Value $textOID    dat P.Text) = pure (T.decodeUtf8 dat)
+	unpack _                              = Nothing
 
-	columnTypeName _  = columnTypeName (Proxy :: Proxy B.ByteString)
-	columnAllowNull _ = columnAllowNull (Proxy :: Proxy B.ByteString)
+	columnTypeName _  = "text"
+	columnAllowNull _ = False
 
 instance Column TL.Text where
 	pack txt =
-		pack (TL.encodeUtf8 txt)
+		pack (TL.toStrict txt)
 
 	unpack val =
-		TL.decodeUtf8 <$> unpack val
+		TL.fromStrict <$> unpack val
 
-	columnTypeName _  = columnTypeName (Proxy :: Proxy B.ByteString)
-	columnAllowNull _ = columnAllowNull (Proxy :: Proxy B.ByteString)
+	columnTypeName _  = columnTypeName (Proxy :: Proxy T.Text)
+	columnAllowNull _ = columnAllowNull (Proxy :: Proxy T.Text)
 
 instance Column B.ByteString where
 	pack bs =
@@ -218,8 +230,10 @@ instance Column B.ByteString where
 			valueFormat = P.Text
 		}
 
-	unpack (Value $byteaOID dat P.Binary) = pure dat
-	unpack (Value $byteaOID dat P.Text)   = fromTextByteArray dat
+	unpack (Value $varcharOID dat P.Text) = pure dat
+	unpack (Value $charOID    dat P.Text) = pure dat
+	unpack (Value $textOID    dat P.Text) = pure dat
+	unpack (Value $byteaOID   dat P.Text) = fromTextByteArray dat
 	unpack _                              = Nothing
 
 	columnTypeName _  = "bytea"
