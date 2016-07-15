@@ -104,6 +104,7 @@ instance Column Int where
 			valueFormat = P.Text
 		}
 
+	unpack (Value (P.Oid 20) dat P.Text) = parseMaybe (signed decimal) dat
 	unpack (Value (P.Oid 21) dat P.Text) = parseMaybe (signed decimal) dat
 	unpack (Value (P.Oid 23) dat P.Text) = parseMaybe (signed decimal) dat
 	unpack _                             = Nothing
@@ -119,7 +120,9 @@ instance Column Int8 where
 			valueFormat = P.Text
 		}
 
+	unpack (Value (P.Oid 20) dat P.Text) = parseMaybe (signed decimal) dat
 	unpack (Value (P.Oid 21) dat P.Text) = parseMaybe (signed decimal) dat
+	unpack (Value (P.Oid 23) dat P.Text) = parseMaybe (signed decimal) dat
 	unpack _                             = Nothing
 
 	columnTypeName _  = "int2"
@@ -133,7 +136,9 @@ instance Column Int16 where
 			valueFormat = P.Text
 		}
 
+	unpack (Value (P.Oid 20) dat P.Text) = parseMaybe (signed decimal) dat
 	unpack (Value (P.Oid 21) dat P.Text) = parseMaybe (signed decimal) dat
+	unpack (Value (P.Oid 23) dat P.Text) = parseMaybe (signed decimal) dat
 	unpack _                             = Nothing
 
 	columnTypeName _  = "int2"
@@ -147,6 +152,7 @@ instance Column Int32 where
 			valueFormat = P.Text
 		}
 
+	unpack (Value (P.Oid 20) dat P.Text) = parseMaybe (signed decimal) dat
 	unpack (Value (P.Oid 21) dat P.Text) = parseMaybe (signed decimal) dat
 	unpack (Value (P.Oid 23) dat P.Text) = parseMaybe (signed decimal) dat
 	unpack _                             = Nothing
