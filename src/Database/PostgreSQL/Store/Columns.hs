@@ -188,21 +188,90 @@ instance Column Int64 where
 	columnTypeName _  = "bigint"
 	columnAllowNull _ = False
 
-instance Column Int where
+instance Column Word where
 	pack n =
 		Value {
-			valueType   = $integerOID,
-			valueData   = buildByteString intDec n,
+			valueType   = $bigintOID,
+			valueData   = buildByteString wordDec n,
 			valueFormat = P.Text
 		}
 
-	unpack (Value $bigintOID   dat P.Text) = parseMaybe (signed decimal) dat
-	unpack (Value $smallintOID dat P.Text) = parseMaybe (signed decimal) dat
-	unpack (Value $integerOID  dat P.Text) = parseMaybe (signed decimal) dat
+	unpack (Value $bigintOID   dat P.Text) = parseMaybe decimal dat
+	unpack (Value $smallintOID dat P.Text) = parseMaybe decimal dat
+	unpack (Value $integerOID  dat P.Text) = parseMaybe decimal dat
+	unpack _                               = Nothing
+
+	columnTypeName _  = "bigint"
+	columnAllowNull _ = False
+	columnCheck _ nm  = Just (nm ++ " >= 0")
+
+instance Column Word8 where
+	pack n =
+		Value {
+			valueType   = $smallintOID,
+			valueData   = buildByteString word8Dec n,
+			valueFormat = P.Text
+		}
+
+	unpack (Value $bigintOID   dat P.Text) = parseMaybe decimal dat
+	unpack (Value $smallintOID dat P.Text) = parseMaybe decimal dat
+	unpack (Value $integerOID  dat P.Text) = parseMaybe decimal dat
+	unpack _                               = Nothing
+
+	columnTypeName _  = "smallint"
+	columnAllowNull _ = False
+	columnCheck _ nm  = Just (nm ++ " >= 0")
+
+instance Column Word16 where
+	pack n =
+		Value {
+			valueType   = $integerOID,
+			valueData   = buildByteString word16Dec n,
+			valueFormat = P.Text
+		}
+
+	unpack (Value $bigintOID   dat P.Text) = parseMaybe decimal dat
+	unpack (Value $smallintOID dat P.Text) = parseMaybe decimal dat
+	unpack (Value $integerOID  dat P.Text) = parseMaybe decimal dat
 	unpack _                               = Nothing
 
 	columnTypeName _  = "integer"
 	columnAllowNull _ = False
+	columnCheck _ nm  = Just (nm ++ " >= 0")
+
+instance Column Word32 where
+	pack n =
+		Value {
+			valueType   = $bigintOID,
+			valueData   = buildByteString word32Dec n,
+			valueFormat = P.Text
+		}
+
+	unpack (Value $bigintOID   dat P.Text) = parseMaybe decimal dat
+	unpack (Value $smallintOID dat P.Text) = parseMaybe decimal dat
+	unpack (Value $integerOID  dat P.Text) = parseMaybe decimal dat
+	unpack _                               = Nothing
+
+	columnTypeName _  = "bigint"
+	columnAllowNull _ = False
+	columnCheck _ nm  = Just (nm ++ " >= 0")
+
+instance Column Word64 where
+	pack n =
+		Value {
+			valueType   = $bigintOID,
+			valueData   = buildByteString word64Dec n,
+			valueFormat = P.Text
+		}
+
+	unpack (Value $bigintOID   dat P.Text) = parseMaybe decimal dat
+	unpack (Value $smallintOID dat P.Text) = parseMaybe decimal dat
+	unpack (Value $integerOID  dat P.Text) = parseMaybe decimal dat
+	unpack _                               = Nothing
+
+	columnTypeName _  = "bigint"
+	columnAllowNull _ = False
+	columnCheck _ nm  = Just (nm ++ " >= 0")
 
 instance Column [Char] where
 	pack str =
