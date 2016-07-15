@@ -10,8 +10,7 @@ module Database.PostgreSQL.Store.Columns (
 	Value (..),
 
 	-- *
-	Column (..),
-	makeColumnDescription
+	Column (..)
 ) where
 
 import           Data.Int
@@ -58,13 +57,23 @@ class Column a where
 	-- | Name of the underlying type.
 	columnTypeName :: Proxy a -> String
 
-	-- | May the type be NULL?
+	-- | May the column be NULL?
 	columnAllowNull :: Proxy a -> Bool
+	columnAllowNull _ = False
 
--- | Generate column description in SQL. Think @CREATE TABLE@.
-makeColumnDescription :: (Column a) => Proxy a -> String
-makeColumnDescription proxy =
-	columnTypeName proxy ++ (if columnAllowNull proxy then "" else " NOT NULL")
+	-- | A condition that must hold true for the column.
+	columnCheck :: Proxy a -> String -> Maybe String
+	columnCheck _ _ = Nothing
+
+	-- | Generate column description in SQL. Think @CREATE TABLE@.
+	columnDescription :: Proxy a -> String -> String
+	columnDescription proxy name =
+		name ++ " " ++
+		columnTypeName proxy ++
+		if columnAllowNull proxy then "" else " NOT NULL" ++
+		case columnCheck proxy name of
+			Just stmt -> " CHECK (" ++ stmt ++ ")"
+			Nothing   -> ""
 
 instance (Column a) => Column (Maybe a) where
 	pack = maybe NullValue pack

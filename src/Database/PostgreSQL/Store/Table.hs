@@ -160,8 +160,8 @@ createStatementE table fields constraints =
 
 		-- Fetch column description for a field and its associated type
 		describeField (name, typ) =
-			[e| $(stringE (show (nameBase name))) ++ " " ++
-			    makeColumnDescription (Proxy :: Proxy $(pure typ)) |]
+			[e| columnDescription (Proxy :: Proxy $(pure typ))
+			                      $(stringE (show (nameBase name))) |]
 
 		-- List of constraints
 		constraintList =
