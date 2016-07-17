@@ -83,6 +83,7 @@ instance (Column a) => Column (Maybe a) where
 
 	columnTypeName proxy = columnTypeName ((const Proxy :: Proxy (Maybe b) -> Proxy b) proxy)
 	columnAllowNull _    = True
+	columnCheck proxy    = columnCheck ((const Proxy :: Proxy (Maybe b) -> Proxy b) proxy)
 
 instance Column Bool where
 	pack v =
