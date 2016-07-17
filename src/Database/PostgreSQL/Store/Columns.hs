@@ -123,6 +123,11 @@ instance Column Int where
 	columnTypeName _  = "bigint"
 	columnAllowNull _ = False
 
+	columnCheck _ nm =
+		Just (nm ++ " >= " ++ show (minBound :: Int) ++
+		      " AND " ++
+		      nm ++ " <= " ++ show (maxBound :: Int))
+
 instance Column Int8 where
 	pack n =
 		Value {
@@ -188,10 +193,16 @@ instance Column Int64 where
 	columnTypeName _  = "bigint"
 	columnAllowNull _ = False
 
+-- | Does "Word" require to be stored in type "numeric"?
+wordRequiresNumeric :: Bool
+wordRequiresNumeric =
+	-- bigint upper bound is 2^63 - 1 (9223372036854775807)
+	(fromIntegral (maxBound :: Word) :: Integer) > 9223372036854775807
+
 instance Column Word where
 	pack n =
 		Value {
-			valueType   = $bigintOID,
+			valueType   = if wordRequiresNumeric then $numericOID else $bigintOID,
 			valueData   = buildByteString wordDec n,
 			valueFormat = P.Text
 		}
@@ -199,11 +210,14 @@ instance Column Word where
 	unpack (Value $bigintOID   dat P.Text) = parseMaybe decimal dat
 	unpack (Value $smallintOID dat P.Text) = parseMaybe decimal dat
 	unpack (Value $integerOID  dat P.Text) = parseMaybe decimal dat
+	unpack (Value $numericOID  dat P.Text) = parseMaybe decimal dat
 	unpack _                               = Nothing
 
-	columnTypeName _  = "bigint"
+	columnTypeName _  = if wordRequiresNumeric then "numeric(20, 0)" else "bigint"
 	columnAllowNull _ = False
-	columnCheck _ nm  = Just (nm ++ " >= 0")
+
+	columnCheck _ nm =
+		Just (nm ++ " >= 0 AND " ++ nm ++ " <= " ++ show (maxBound :: Word))
 
 instance Column Word8 where
 	pack n =
@@ -220,7 +234,9 @@ instance Column Word8 where
 
 	columnTypeName _  = "smallint"
 	columnAllowNull _ = False
-	columnCheck _ nm  = Just (nm ++ " >= 0")
+
+	columnCheck _ nm =
+		Just (nm ++ " >= 0 AND " ++ nm ++ " <= " ++ show (maxBound :: Word8))
 
 instance Column Word16 where
 	pack n =
@@ -237,7 +253,9 @@ instance Column Word16 where
 
 	columnTypeName _  = "integer"
 	columnAllowNull _ = False
-	columnCheck _ nm  = Just (nm ++ " >= 0")
+
+	columnCheck _ nm =
+		Just (nm ++ " >= 0 AND " ++ nm ++ " <= " ++ show (maxBound :: Word16))
 
 instance Column Word32 where
 	pack n =
@@ -254,12 +272,14 @@ instance Column Word32 where
 
 	columnTypeName _  = "bigint"
 	columnAllowNull _ = False
-	columnCheck _ nm  = Just (nm ++ " >= 0")
+
+	columnCheck _ nm =
+		Just (nm ++ " >= 0 AND " ++ nm ++ " <= " ++ show (maxBound :: Word32))
 
 instance Column Word64 where
 	pack n =
 		Value {
-			valueType   = $bigintOID,
+			valueType   = $numericOID,
 			valueData   = buildByteString word64Dec n,
 			valueFormat = P.Text
 		}
@@ -267,11 +287,14 @@ instance Column Word64 where
 	unpack (Value $bigintOID   dat P.Text) = parseMaybe decimal dat
 	unpack (Value $smallintOID dat P.Text) = parseMaybe decimal dat
 	unpack (Value $integerOID  dat P.Text) = parseMaybe decimal dat
+	unpack (Value $numericOID  dat P.Text) = parseMaybe decimal dat
 	unpack _                               = Nothing
 
-	columnTypeName _  = "bigint"
+	columnTypeName _  = "numeric(20, 0)"
 	columnAllowNull _ = False
-	columnCheck _ nm  = Just (nm ++ " >= 0")
+
+	columnCheck _ nm =
+		Just (nm ++ " >= 0 AND " ++ nm ++ " <= " ++ show (maxBound :: Word64))
 
 instance Column [Char] where
 	pack str =
