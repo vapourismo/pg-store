@@ -14,6 +14,7 @@ module Database.PostgreSQL.Store.Errand (
 	execute,
 	query,
 	query_,
+	queryWith,
 
 	-- * Result parser
 	Result (..),
@@ -151,14 +152,19 @@ instance (Result a, Result b, Result c, Result d, Result e, Result f, Result g) 
 
 -- | Execute a query and process its result set.
 query :: (Result a) => Query -> Errand [a]
-query qry = do
-	result <- execute qry
-	Errand (lift (withExceptT ResultError (processResult result queryResultProcessor)))
+query qry =
+	queryWith qry queryResultProcessor
 
 -- | Execute a query and dismiss its result.
 query_ :: Query -> Errand ()
 query_ qry =
 	() <$ execute qry
+
+-- | Execute a query and process its result set using the provided result processor.
+queryWith :: Query -> ResultProcessor a -> Errand [a]
+queryWith qry proc = do
+	result <- execute qry
+	Errand (lift (withExceptT ResultError (processResult result proc)))
 
 -- | Helper type to capture an single column.
 newtype Single a = Single { fromSingle :: a }
