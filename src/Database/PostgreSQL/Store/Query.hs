@@ -101,7 +101,7 @@ data Segment
 	| SVariable String
 	| SIdentifier String
 	| SQuote Char String
-	| SOther Char
+	| SOther String
 
 -- | Name
 name :: Parser String
@@ -133,14 +133,14 @@ segments =
 	              char '@' >> STable <$> typeName,
 	              char '&' >> SIdentifier <$> typeName,
 	              char '$' >> SVariable <$> name,
-	              SOther <$> anyChar])
+	              SOther <$> some (satisfy (notInClass "\"\\#@&$"))])
 
 -- | Reduce segments in order to resolve names and collect query parameters.
 reduceSegment :: Segment -> StateT (Int, [Exp]) Q Exp
 reduceSegment seg =
 	case seg of
-		SOther o ->
-			lift (stringE [o])
+		SOther str ->
+			lift (stringE str)
 
 		SQuote delim cnt ->
 			lift (stringE (delim : cnt ++ [delim]))
