@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell, QuasiQuotes, RankNTypes #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.OIDs
@@ -6,6 +6,8 @@
 -- License:    BSD3
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.OIDs (
+	OIDQ,
+
 	bool,
 	int2,
 	int4,
@@ -22,55 +24,58 @@ module Database.PostgreSQL.Store.OIDs (
 import           Language.Haskell.TH
 import qualified Database.PostgreSQL.LibPQ as P
 
-class IntegerToQOID a where
-	toQOID :: Integer -> Q a
+class GenOID a where
+	genOID :: Integer -> Q a
 
-instance IntegerToQOID Exp where
-	toQOID oid = [e| P.Oid $(litE (IntegerL oid)) |]
+instance GenOID Exp where
+	genOID oid = [e| P.Oid $(litE (IntegerL oid)) |]
 
-instance IntegerToQOID Pat where
-	toQOID oid = [p| P.Oid $(pure (LitP (IntegerL oid))) |]
+instance GenOID Pat where
+	genOID oid = [p| P.Oid $(pure (LitP (IntegerL oid))) |]
+
+-- | A type which can be coerced into @Q Exp@ or @Q Pat@.
+type OIDQ = forall a . GenOID a => Q a
 
 -- | Boolean
-bool :: (IntegerToQOID a) => Q a
-bool = toQOID 16
+bool :: OIDQ
+bool = genOID 16
 
 -- | 16-bit integer
-int2 :: (IntegerToQOID a) => Q a
-int2 = toQOID 21
+int2 :: OIDQ
+int2 = genOID 21
 
 -- | 32-bit integer
-int4 :: (IntegerToQOID a) => Q a
-int4 = toQOID 23
+int4 :: OIDQ
+int4 = genOID 23
 
 -- | 64-bit integer
-int8 :: (IntegerToQOID a) => Q a
-int8 = toQOID 20
+int8 :: OIDQ
+int8 = genOID 20
 
 -- | Single-precision floating-point number
-float4 :: (IntegerToQOID a) => Q a
-float4 = toQOID 700
+float4 :: OIDQ
+float4 = genOID 700
 
 -- | Double-precision floating-point number
-float8 :: (IntegerToQOID a) => Q a
-float8 = toQOID 701
+float8 :: OIDQ
+float8 = genOID 701
 
 -- | Arbitrary precision number
-numeric :: (IntegerToQOID a) => Q a
-numeric = toQOID 1700
+numeric :: OIDQ
+numeric = genOID 1700
 
 -- | Fixed-length string
-char :: (IntegerToQOID a) => Q a
-char    = toQOID 1042
+char :: OIDQ
+char    = genOID 1042
 
 -- | Variable-length string
-varchar :: (IntegerToQOID a) => Q a
-varchar = toQOID 1043
+varchar :: OIDQ
+varchar = genOID 1043
 
 -- | Unlimited variable-length string
-text :: (IntegerToQOID a) => Q a
-text = toQOID 25
+text :: OIDQ
+text = genOID 25
 
 -- | Byte array
-bytea :: (IntegerToQOID a) => Q a
-bytea = toQOID 17
+bytea :: OIDQ
+bytea = genOID 17
