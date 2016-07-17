@@ -5,7 +5,19 @@
 -- Copyright:  (c) Ole Krüger 2016
 -- License:    BSD3
 -- Maintainer: Ole Krüger <ole@vprsm.de>
-module Database.PostgreSQL.Store.OIDs where
+module Database.PostgreSQL.Store.OIDs (
+	bool,
+	int2,
+	int4,
+	int8,
+	float4,
+	float8,
+	numeric,
+	char,
+	varchar,
+	text,
+	bytea
+) where
 
 import           Language.Haskell.TH
 import qualified Database.PostgreSQL.LibPQ as P
