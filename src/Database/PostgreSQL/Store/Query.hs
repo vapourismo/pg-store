@@ -113,21 +113,10 @@ typeName :: Parser String
 typeName =
 	(:) <$> satisfy isUpper <*> many (satisfy isAlphaNum <|> char '_')
 
--- | Qualified name
-qualifiedName :: Parser String
-qualifiedName = do
-	ns <- many (typeName <* char '.')
-	base <- name
-
-	pure (intercalate "." (ns ++ [base]))
-
 -- | Qualified type name
 qualifiedTypeName :: Parser String
 qualifiedTypeName = do
-	ns <- many (typeName <* char '.')
-	base <- typeName
-
-	pure (intercalate "." (ns ++ [base]))
+	intercalate "." <$> sepBy1 typeName (char '.')
 
 -- | Quote
 quote :: Char -> Parser Segment
@@ -148,8 +137,8 @@ segments =
 	              char '#' >> SSelector <$> qualifiedTypeName,
 	              char '@' >> STable <$> qualifiedTypeName,
 	              char '&' >> SIdentifier <$> qualifiedTypeName,
-	              char '$' >> SVariable <$> qualifiedName,
-	              SOther <$> some (satisfy (notInClass "\"\\#@&$"))])
+	              char '$' >> SVariable <$> name,
+	              SOther <$> some (satisfy (notInClass "\"'#@&$"))])
 
 -- | Reduce segments in order to resolve names and collect query parameters.
 reduceSegment :: Segment -> StateT (Int, [Exp]) Q Exp
