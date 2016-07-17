@@ -19,16 +19,46 @@ instance IntegerToQOID Exp where
 instance IntegerToQOID Pat where
 	toQOID oid = [p| P.Oid $(pure (LitP (IntegerL oid))) |]
 
-boolOID, smallintOID, integerOID, bigintOID, numericOID, realOID, doublePrecisionOID, varcharOID, charOID, textOID, byteaOID :: (IntegerToQOID a) => Q a
+-- | Boolean
+bool :: (IntegerToQOID a) => Q a
+bool = toQOID 16
 
-boolOID            = toQOID 16
-smallintOID        = toQOID 21
-integerOID         = toQOID 23
-bigintOID          = toQOID 20
-numericOID         = toQOID 1700
-realOID            = toQOID 700
-doublePrecisionOID = toQOID 701
-varcharOID         = toQOID 1043
-charOID            = toQOID 1042
-textOID            = toQOID 25
-byteaOID           = toQOID 17
+-- | 16-bit integer
+int2 :: (IntegerToQOID a) => Q a
+int2 = toQOID 21
+
+-- | 32-bit integer
+int4 :: (IntegerToQOID a) => Q a
+int4 = toQOID 23
+
+-- | 64-bit integer
+int8 :: (IntegerToQOID a) => Q a
+int8 = toQOID 20
+
+-- | Single-precision floating-point number
+float4 :: (IntegerToQOID a) => Q a
+float4 = toQOID 700
+
+-- | Double-precision floating-point number
+float8 :: (IntegerToQOID a) => Q a
+float8 = toQOID 701
+
+-- | Arbitrary precision number
+numeric :: (IntegerToQOID a) => Q a
+numeric = toQOID 1700
+
+-- | Fixed-length string
+char :: (IntegerToQOID a) => Q a
+char    = toQOID 1042
+
+-- | Variable-length string
+varchar :: (IntegerToQOID a) => Q a
+varchar = toQOID 1043
+
+-- | Unlimited variable-length string
+text :: (IntegerToQOID a) => Q a
+text = toQOID 25
+
+-- | Byte array
+bytea :: (IntegerToQOID a) => Q a
+bytea = toQOID 17

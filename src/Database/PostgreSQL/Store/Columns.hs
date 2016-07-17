@@ -27,15 +27,15 @@ import           Data.ByteString.Builder
 import           Data.Attoparsec.ByteString
 import           Data.Attoparsec.ByteString.Char8 (signed, decimal)
 
-import qualified Database.PostgreSQL.LibPQ as P
-import           Database.PostgreSQL.Store.OIDs
+import           Database.PostgreSQL.LibPQ (Oid)
+import qualified Database.PostgreSQL.Store.OIDs as OID
 
 -- | Query parameter or value of a column - see 'pack' on how to generate 'Value's manually but
 --   conveniently.
 data Value
 	= Value {
 		-- | Type object identifier
-		valueType :: P.Oid,
+		valueType :: Oid,
 
 		-- | Data value
 		valueData :: B.ByteString
@@ -83,32 +83,32 @@ instance (Column a) => Column (Maybe a) where
 	columnCheck proxy    = columnCheck ((const Proxy :: Proxy (Maybe b) -> Proxy b) proxy)
 
 instance Column Bool where
-	pack True = Value $boolOID "true"
-	pack _    = Value $boolOID "false"
+	pack True = Value $(OID.bool) "true"
+	pack _    = Value $(OID.bool) "false"
 
-	unpack (Value $boolOID "true") = Just True
-	unpack (Value $boolOID "TRUE") = Just True
-	unpack (Value $boolOID "t"   ) = Just True
-	unpack (Value $boolOID "y"   ) = Just True
-	unpack (Value $boolOID "yes" ) = Just True
-	unpack (Value $boolOID "YES" ) = Just True
-	unpack (Value $boolOID "on"  ) = Just True
-	unpack (Value $boolOID "ON"  ) = Just True
-	unpack (Value $boolOID "1"   ) = Just True
-	unpack (Value $boolOID _     ) = Just False
-	unpack _                       = Nothing
+	unpack (Value $(OID.bool) "true") = Just True
+	unpack (Value $(OID.bool) "TRUE") = Just True
+	unpack (Value $(OID.bool) "t"   ) = Just True
+	unpack (Value $(OID.bool) "y"   ) = Just True
+	unpack (Value $(OID.bool) "yes" ) = Just True
+	unpack (Value $(OID.bool) "YES" ) = Just True
+	unpack (Value $(OID.bool) "on"  ) = Just True
+	unpack (Value $(OID.bool) "ON"  ) = Just True
+	unpack (Value $(OID.bool) "1"   ) = Just True
+	unpack (Value $(OID.bool) _     ) = Just False
+	unpack _                          = Nothing
 
 	columnTypeName _ = "bool"
 
 instance Column Int where
-	pack n = Value $bigintOID (buildByteString intDec n)
+	pack n = Value $(OID.int8) (buildByteString intDec n)
 
-	unpack (Value $bigintOID   dat) = parseMaybe (signed decimal) dat
-	unpack (Value $smallintOID dat) = parseMaybe (signed decimal) dat
-	unpack (Value $integerOID  dat) = parseMaybe (signed decimal) dat
-	unpack _                        = Nothing
+	unpack (Value $(OID.int2) dat) = parseMaybe (signed decimal) dat
+	unpack (Value $(OID.int4) dat) = parseMaybe (signed decimal) dat
+	unpack (Value $(OID.int8) dat) = parseMaybe (signed decimal) dat
+	unpack _                       = Nothing
 
-	columnTypeName _ = "bigint"
+	columnTypeName _ = "int8"
 
 	columnCheck _ nm =
 		Just (nm ++ " >= " ++ show (minBound :: Int) ++
@@ -116,100 +116,100 @@ instance Column Int where
 		      nm ++ " <= " ++ show (maxBound :: Int))
 
 instance Column Int8 where
-	pack n = Value $smallintOID (buildByteString int8Dec n)
+	pack n = Value $(OID.int2) (buildByteString int8Dec n)
 
-	unpack (Value $bigintOID   dat) = parseMaybe (signed decimal) dat
-	unpack (Value $smallintOID dat) = parseMaybe (signed decimal) dat
-	unpack (Value $integerOID  dat) = parseMaybe (signed decimal) dat
-	unpack _                        = Nothing
+	unpack (Value $(OID.int2) dat) = parseMaybe (signed decimal) dat
+	unpack (Value $(OID.int4) dat) = parseMaybe (signed decimal) dat
+	unpack (Value $(OID.int8) dat) = parseMaybe (signed decimal) dat
+	unpack _                       = Nothing
 
-	columnTypeName _ = "smallint"
+	columnTypeName _ = "int2"
 
 instance Column Int16 where
-	pack n = Value $smallintOID (buildByteString int16Dec n)
+	pack n = Value $(OID.int2) (buildByteString int16Dec n)
 
-	unpack (Value $bigintOID   dat) = parseMaybe (signed decimal) dat
-	unpack (Value $smallintOID dat) = parseMaybe (signed decimal) dat
-	unpack (Value $integerOID  dat) = parseMaybe (signed decimal) dat
+	unpack (Value $(OID.int2) dat) = parseMaybe (signed decimal) dat
+	unpack (Value $(OID.int4) dat) = parseMaybe (signed decimal) dat
+	unpack (Value $(OID.int8) dat) = parseMaybe (signed decimal) dat
 	unpack _                        = Nothing
 
-	columnTypeName _ = "smallint"
+	columnTypeName _ = "int2"
 
 instance Column Int32 where
-	pack n = Value $integerOID (buildByteString int32Dec n)
+	pack n = Value $(OID.int4) (buildByteString int32Dec n)
 
-	unpack (Value $bigintOID   dat) = parseMaybe (signed decimal) dat
-	unpack (Value $smallintOID dat) = parseMaybe (signed decimal) dat
-	unpack (Value $integerOID  dat) = parseMaybe (signed decimal) dat
-	unpack _                        = Nothing
+	unpack (Value $(OID.int2) dat) = parseMaybe (signed decimal) dat
+	unpack (Value $(OID.int4) dat) = parseMaybe (signed decimal) dat
+	unpack (Value $(OID.int8) dat) = parseMaybe (signed decimal) dat
+	unpack _                       = Nothing
 
 
-	columnTypeName _ = "integer"
+	columnTypeName _ = "int4"
 
 instance Column Int64 where
-	pack n = Value $bigintOID (buildByteString int64Dec n)
+	pack n = Value $(OID.int8) (buildByteString int64Dec n)
 
-	unpack (Value $bigintOID   dat) = parseMaybe (signed decimal) dat
-	unpack (Value $smallintOID dat) = parseMaybe (signed decimal) dat
-	unpack (Value $integerOID  dat) = parseMaybe (signed decimal) dat
-	unpack _                        = Nothing
+	unpack (Value $(OID.int2) dat) = parseMaybe (signed decimal) dat
+	unpack (Value $(OID.int4) dat) = parseMaybe (signed decimal) dat
+	unpack (Value $(OID.int8) dat) = parseMaybe (signed decimal) dat
+	unpack _                       = Nothing
 
-	columnTypeName _ = "bigint"
+	columnTypeName _ = "int8"
 
 -- | Does "Word" require to be stored in type "numeric"?
 wordRequiresNumeric :: Bool
 wordRequiresNumeric =
-	-- bigint upper bound is 2^63 - 1 (9223372036854775807)
+	-- int8 upper bound is 2^63 - 1 (9223372036854775807)
 	(fromIntegral (maxBound :: Word) :: Integer) > 9223372036854775807
 
 instance Column Word where
-	pack n | wordRequiresNumeric = Value $numericOID (buildByteString wordDec n)
-	       | otherwise           = Value $bigintOID  (buildByteString wordDec n)
+	pack n | wordRequiresNumeric = Value $(OID.numeric) (buildByteString wordDec n)
+	       | otherwise           = Value $(OID.int8)    (buildByteString wordDec n)
 
-	unpack (Value $bigintOID   dat) = parseMaybe decimal dat
-	unpack (Value $smallintOID dat) = parseMaybe decimal dat
-	unpack (Value $integerOID  dat) = parseMaybe decimal dat
-	unpack (Value $numericOID  dat) = parseMaybe decimal dat
-	unpack _                        = Nothing
+	unpack (Value $(OID.int2)    dat) = parseMaybe decimal dat
+	unpack (Value $(OID.int4)    dat) = parseMaybe decimal dat
+	unpack (Value $(OID.int8)    dat) = parseMaybe decimal dat
+	unpack (Value $(OID.numeric) dat) = parseMaybe decimal dat
+	unpack _                          = Nothing
 
-	columnTypeName _ = if wordRequiresNumeric then "numeric(20, 0)" else "bigint"
+	columnTypeName _ = if wordRequiresNumeric then "numeric(20, 0)" else "int8"
 
 	columnCheck _ nm =
 		Just (nm ++ " >= 0 AND " ++ nm ++ " <= " ++ show (maxBound :: Word))
 
 instance Column Word8 where
-	pack n = Value $smallintOID (buildByteString word8Dec n)
+	pack n = Value $(OID.int2) (buildByteString word8Dec n)
 
-	unpack (Value $bigintOID   dat) = parseMaybe decimal dat
-	unpack (Value $smallintOID dat) = parseMaybe decimal dat
-	unpack (Value $integerOID  dat) = parseMaybe decimal dat
-	unpack _                        = Nothing
+	unpack (Value $(OID.int2) dat) = parseMaybe decimal dat
+	unpack (Value $(OID.int4) dat) = parseMaybe decimal dat
+	unpack (Value $(OID.int8) dat) = parseMaybe decimal dat
+	unpack _                       = Nothing
 
-	columnTypeName _ = "smallint"
+	columnTypeName _ = "int2"
 
 	columnCheck _ nm =
 		Just (nm ++ " >= 0 AND " ++ nm ++ " <= " ++ show (maxBound :: Word8))
 
 instance Column Word16 where
-	pack n = Value $integerOID (buildByteString word16Dec n)
+	pack n = Value $(OID.int4) (buildByteString word16Dec n)
 
-	unpack (Value $bigintOID   dat) = parseMaybe decimal dat
-	unpack (Value $smallintOID dat) = parseMaybe decimal dat
-	unpack (Value $integerOID  dat) = parseMaybe decimal dat
-	unpack _                        = Nothing
+	unpack (Value $(OID.int2) dat) = parseMaybe decimal dat
+	unpack (Value $(OID.int4) dat) = parseMaybe decimal dat
+	unpack (Value $(OID.int8) dat) = parseMaybe decimal dat
+	unpack _                       = Nothing
 
-	columnTypeName _ = "integer"
+	columnTypeName _ = "int4"
 
 	columnCheck _ nm =
 		Just (nm ++ " >= 0 AND " ++ nm ++ " <= " ++ show (maxBound :: Word16))
 
 instance Column Word32 where
-	pack n = Value $bigintOID (buildByteString word32Dec n)
+	pack n = Value $(OID.int8) (buildByteString word32Dec n)
 
-	unpack (Value $bigintOID   dat) = parseMaybe decimal dat
-	unpack (Value $smallintOID dat) = parseMaybe decimal dat
-	unpack (Value $integerOID  dat) = parseMaybe decimal dat
-	unpack _                        = Nothing
+	unpack (Value $(OID.int2) dat) = parseMaybe decimal dat
+	unpack (Value $(OID.int4) dat) = parseMaybe decimal dat
+	unpack (Value $(OID.int8) dat) = parseMaybe decimal dat
+	unpack _                       = Nothing
 
 	columnTypeName _ = "bigint"
 
@@ -217,13 +217,13 @@ instance Column Word32 where
 		Just (nm ++ " >= 0 AND " ++ nm ++ " <= " ++ show (maxBound :: Word32))
 
 instance Column Word64 where
-	pack n = Value $numericOID (buildByteString word64Dec n)
+	pack n = Value $(OID.numeric) (buildByteString word64Dec n)
 
-	unpack (Value $bigintOID   dat) = parseMaybe decimal dat
-	unpack (Value $smallintOID dat) = parseMaybe decimal dat
-	unpack (Value $integerOID  dat) = parseMaybe decimal dat
-	unpack (Value $numericOID  dat) = parseMaybe decimal dat
-	unpack _                        = Nothing
+	unpack (Value $(OID.int2)    dat) = parseMaybe decimal dat
+	unpack (Value $(OID.int4)    dat) = parseMaybe decimal dat
+	unpack (Value $(OID.int8)    dat) = parseMaybe decimal dat
+	unpack (Value $(OID.numeric) dat) = parseMaybe decimal dat
+	unpack _                          = Nothing
 
 	columnTypeName _ = "numeric(20, 0)"
 
@@ -231,33 +231,33 @@ instance Column Word64 where
 		Just (nm ++ " >= 0 AND " ++ nm ++ " <= " ++ show (maxBound :: Word64))
 
 instance Column Integer where
-	pack n = Value $numericOID (buildByteString integerDec n)
+	pack n = Value $(OID.numeric) (buildByteString integerDec n)
 
-	unpack (Value $bigintOID   dat) = parseMaybe decimal dat
-	unpack (Value $smallintOID dat) = parseMaybe decimal dat
-	unpack (Value $integerOID  dat) = parseMaybe decimal dat
-	unpack (Value $numericOID  dat) = parseMaybe decimal dat
-	unpack _                        = Nothing
+	unpack (Value $(OID.int2)    dat) = parseMaybe decimal dat
+	unpack (Value $(OID.int4)    dat) = parseMaybe decimal dat
+	unpack (Value $(OID.int8)    dat) = parseMaybe decimal dat
+	unpack (Value $(OID.numeric) dat) = parseMaybe decimal dat
+	unpack _                          = Nothing
 
 	columnTypeName _ = "numeric"
 
 instance Column [Char] where
-	pack str = Value $textOID (buildByteString stringUtf8 str)
+	pack str = Value $(OID.text) (buildByteString stringUtf8 str)
 
-	unpack (Value $varcharOID dat) = pure (T.unpack (T.decodeUtf8 dat))
-	unpack (Value $charOID    dat) = pure (T.unpack (T.decodeUtf8 dat))
-	unpack (Value $textOID    dat) = pure (T.unpack (T.decodeUtf8 dat))
-	unpack _                       = Nothing
+	unpack (Value $(OID.varchar) dat) = pure (T.unpack (T.decodeUtf8 dat))
+	unpack (Value $(OID.char)    dat) = pure (T.unpack (T.decodeUtf8 dat))
+	unpack (Value $(OID.text)    dat) = pure (T.unpack (T.decodeUtf8 dat))
+	unpack _                          = Nothing
 
 	columnTypeName _ = "text"
 
 instance Column T.Text where
-	pack txt = Value $textOID (T.encodeUtf8 txt)
+	pack txt = Value $(OID.text) (T.encodeUtf8 txt)
 
-	unpack (Value $varcharOID dat) = pure (T.decodeUtf8 dat)
-	unpack (Value $charOID    dat) = pure (T.decodeUtf8 dat)
-	unpack (Value $textOID    dat) = pure (T.decodeUtf8 dat)
-	unpack _                       = Nothing
+	unpack (Value $(OID.varchar) dat) = pure (T.decodeUtf8 dat)
+	unpack (Value $(OID.char)    dat) = pure (T.decodeUtf8 dat)
+	unpack (Value $(OID.text)    dat) = pure (T.decodeUtf8 dat)
+	unpack _                          = Nothing
 
 	columnTypeName _ = "text"
 
@@ -271,13 +271,13 @@ instance Column TL.Text where
 	columnCheck _     = columnCheck (Proxy :: Proxy T.Text)
 
 instance Column B.ByteString where
-	pack bs = Value $byteaOID (encodeByteaHex bs)
+	pack bs = Value $(OID.bytea) (encodeByteaHex bs)
 
-	unpack (Value $varcharOID dat) = pure dat
-	unpack (Value $charOID    dat) = pure dat
-	unpack (Value $textOID    dat) = pure dat
-	unpack (Value $byteaOID   dat) = decodeByteaHex dat
-	unpack _                       = Nothing
+	unpack (Value $(OID.varchar) dat) = pure dat
+	unpack (Value $(OID.char)    dat) = pure dat
+	unpack (Value $(OID.text)    dat) = pure dat
+	unpack (Value $(OID.bytea)   dat) = decodeByteaHex dat
+	unpack _                          = Nothing
 
 	columnTypeName _ = "bytea"
 
