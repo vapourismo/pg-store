@@ -113,6 +113,22 @@ typeName :: Parser String
 typeName =
 	(:) <$> satisfy isUpper <*> many (satisfy isAlphaNum <|> char '_')
 
+-- | Qualified name
+qualifiedName :: Parser String
+qualifiedName = do
+	ns <- many (typeName <* char '.')
+	base <- name
+
+	pure (intercalate "." (ns ++ [base]))
+
+-- | Qualified type name
+qualifiedTypeName :: Parser String
+qualifiedTypeName = do
+	ns <- many (typeName <* char '.')
+	base <- typeName
+
+	pure (intercalate "." (ns ++ [base]))
+
 -- | Quote
 quote :: Char -> Parser Segment
 quote delim = do
@@ -129,10 +145,10 @@ segments :: Parser [Segment]
 segments =
 	many (choice [quote '"',
 	              quote '\'',
-	              char '#' >> SSelector <$> typeName,
-	              char '@' >> STable <$> typeName,
-	              char '&' >> SIdentifier <$> typeName,
-	              char '$' >> SVariable <$> name,
+	              char '#' >> SSelector <$> qualifiedTypeName,
+	              char '@' >> STable <$> qualifiedTypeName,
+	              char '&' >> SIdentifier <$> qualifiedTypeName,
+	              char '$' >> SVariable <$> qualifiedName,
 	              SOther <$> some (satisfy (notInClass "\"\\#@&$"))])
 
 -- | Reduce segments in order to resolve names and collect query parameters.
@@ -194,7 +210,7 @@ parseStoreQueryE code = do
 			        queryParams    = $(pure (ListE params))
 			    } |]
 
--- |
+-- | TODO: Document me.
 pgsq :: QuasiQuoter
 pgsq =
 	QuasiQuoter {
