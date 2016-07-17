@@ -46,7 +46,7 @@ data Value
 	| NullValue
 	deriving (Show, Eq, Ord)
 
--- | Column type
+-- | Types which implement this type class may be used as column types.
 class Column a where
 	-- | Pack column value.
 	pack :: a -> Value
@@ -54,16 +54,16 @@ class Column a where
 	-- | Unpack column value.
 	unpack :: Value -> Maybe a
 
-	-- | Name of the underlying type.
+	-- | Name of the underlying SQL type.
 	columnTypeName :: Proxy a -> String
 
 	-- | May the column be NULL?
 	columnAllowNull :: Proxy a -> Bool
-	columnAllowNull _ = False
+	columnAllowNull _proxy = False
 
 	-- | A condition that must hold true for the column.
 	columnCheck :: Proxy a -> String -> Maybe String
-	columnCheck _ _ = Nothing
+	columnCheck _proxy _name = Nothing
 
 	-- | Generate column description in SQL. Think @CREATE TABLE@.
 	columnDescription :: Proxy a -> String -> String
