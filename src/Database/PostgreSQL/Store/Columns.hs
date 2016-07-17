@@ -104,8 +104,7 @@ instance Column Bool where
 	unpack (Value $boolOID _      P.Text) = Just False
 	unpack _                              = Nothing
 
-	columnTypeName  _ = "bool"
-	columnAllowNull _ = False
+	columnTypeName _ = "bool"
 
 instance Column Int where
 	pack n =
@@ -120,8 +119,7 @@ instance Column Int where
 	unpack (Value $integerOID  dat P.Text) = parseMaybe (signed decimal) dat
 	unpack _                               = Nothing
 
-	columnTypeName _  = "bigint"
-	columnAllowNull _ = False
+	columnTypeName _ = "bigint"
 
 	columnCheck _ nm =
 		Just (nm ++ " >= " ++ show (minBound :: Int) ++
@@ -141,8 +139,7 @@ instance Column Int8 where
 	unpack (Value $integerOID  dat P.Text) = parseMaybe (signed decimal) dat
 	unpack _                               = Nothing
 
-	columnTypeName _  = "smallint"
-	columnAllowNull _ = False
+	columnTypeName _ = "smallint"
 
 instance Column Int16 where
 	pack n =
@@ -157,8 +154,7 @@ instance Column Int16 where
 	unpack (Value $integerOID  dat P.Text) = parseMaybe (signed decimal) dat
 	unpack _                               = Nothing
 
-	columnTypeName _  = "smallint"
-	columnAllowNull _ = False
+	columnTypeName _ = "smallint"
 
 instance Column Int32 where
 	pack n =
@@ -174,8 +170,7 @@ instance Column Int32 where
 	unpack _                               = Nothing
 
 
-	columnTypeName _  = "integer"
-	columnAllowNull _ = False
+	columnTypeName _ = "integer"
 
 instance Column Int64 where
 	pack n =
@@ -190,8 +185,7 @@ instance Column Int64 where
 	unpack (Value $integerOID  dat P.Text) = parseMaybe (signed decimal) dat
 	unpack _                               = Nothing
 
-	columnTypeName _  = "bigint"
-	columnAllowNull _ = False
+	columnTypeName _ = "bigint"
 
 -- | Does "Word" require to be stored in type "numeric"?
 wordRequiresNumeric :: Bool
@@ -213,8 +207,7 @@ instance Column Word where
 	unpack (Value $numericOID  dat P.Text) = parseMaybe decimal dat
 	unpack _                               = Nothing
 
-	columnTypeName _  = if wordRequiresNumeric then "numeric(20, 0)" else "bigint"
-	columnAllowNull _ = False
+	columnTypeName _ = if wordRequiresNumeric then "numeric(20, 0)" else "bigint"
 
 	columnCheck _ nm =
 		Just (nm ++ " >= 0 AND " ++ nm ++ " <= " ++ show (maxBound :: Word))
@@ -232,8 +225,7 @@ instance Column Word8 where
 	unpack (Value $integerOID  dat P.Text) = parseMaybe decimal dat
 	unpack _                               = Nothing
 
-	columnTypeName _  = "smallint"
-	columnAllowNull _ = False
+	columnTypeName _ = "smallint"
 
 	columnCheck _ nm =
 		Just (nm ++ " >= 0 AND " ++ nm ++ " <= " ++ show (maxBound :: Word8))
@@ -251,8 +243,7 @@ instance Column Word16 where
 	unpack (Value $integerOID  dat P.Text) = parseMaybe decimal dat
 	unpack _                               = Nothing
 
-	columnTypeName _  = "integer"
-	columnAllowNull _ = False
+	columnTypeName _ = "integer"
 
 	columnCheck _ nm =
 		Just (nm ++ " >= 0 AND " ++ nm ++ " <= " ++ show (maxBound :: Word16))
@@ -270,8 +261,7 @@ instance Column Word32 where
 	unpack (Value $integerOID  dat P.Text) = parseMaybe decimal dat
 	unpack _                               = Nothing
 
-	columnTypeName _  = "bigint"
-	columnAllowNull _ = False
+	columnTypeName _ = "bigint"
 
 	columnCheck _ nm =
 		Just (nm ++ " >= 0 AND " ++ nm ++ " <= " ++ show (maxBound :: Word32))
@@ -290,8 +280,7 @@ instance Column Word64 where
 	unpack (Value $numericOID  dat P.Text) = parseMaybe decimal dat
 	unpack _                               = Nothing
 
-	columnTypeName _  = "numeric(20, 0)"
-	columnAllowNull _ = False
+	columnTypeName _ = "numeric(20, 0)"
 
 	columnCheck _ nm =
 		Just (nm ++ " >= 0 AND " ++ nm ++ " <= " ++ show (maxBound :: Word64))
@@ -310,7 +299,7 @@ instance Column Integer where
 	unpack (Value $numericOID  dat P.Text) = parseMaybe decimal dat
 	unpack _                               = Nothing
 
-	columnTypeName _  = "numeric"
+	columnTypeName _ = "numeric"
 
 instance Column [Char] where
 	pack str =
@@ -325,8 +314,7 @@ instance Column [Char] where
 	unpack (Value $textOID    dat P.Text) = pure (T.unpack (T.decodeUtf8 dat))
 	unpack _                              = Nothing
 
-	columnTypeName _  = "text"
-	columnAllowNull _ = False
+	columnTypeName _ = "text"
 
 instance Column T.Text where
 	pack txt =
@@ -341,8 +329,7 @@ instance Column T.Text where
 	unpack (Value $textOID    dat P.Text) = pure (T.decodeUtf8 dat)
 	unpack _                              = Nothing
 
-	columnTypeName _  = "text"
-	columnAllowNull _ = False
+	columnTypeName _ = "text"
 
 instance Column TL.Text where
 	pack txt =
@@ -353,6 +340,7 @@ instance Column TL.Text where
 
 	columnTypeName _  = columnTypeName (Proxy :: Proxy T.Text)
 	columnAllowNull _ = columnAllowNull (Proxy :: Proxy T.Text)
+	columnCheck _     = columnCheck (Proxy :: Proxy T.Text)
 
 instance Column B.ByteString where
 	pack bs =
@@ -368,8 +356,7 @@ instance Column B.ByteString where
 	unpack (Value $byteaOID   dat P.Text) = fromTextByteArray dat
 	unpack _                              = Nothing
 
-	columnTypeName _  = "bytea"
-	columnAllowNull _ = False
+	columnTypeName _ = "bytea"
 
 instance Column BL.ByteString where
 	pack bs =
@@ -380,6 +367,7 @@ instance Column BL.ByteString where
 
 	columnTypeName _  = columnTypeName (Proxy :: Proxy B.ByteString)
 	columnAllowNull _ = columnAllowNull (Proxy :: Proxy B.ByteString)
+	columnCheck _     = columnCheck (Proxy :: Proxy B.ByteString)
 
 -- | Produce the two-digit hexadecimal representation of a 8-bit word.
 word8ToHex :: Word8 -> B.ByteString
