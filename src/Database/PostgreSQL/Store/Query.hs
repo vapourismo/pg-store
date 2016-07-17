@@ -54,6 +54,7 @@ data SelectorElement
 	  -- ^ Select a field.
 	| SelectorSpecial String
 	  -- ^ Select a special expression.
+	deriving (Show, Eq, Ord)
 
 -- | This type can be used as a table in a query.
 class QueryTable a where
@@ -138,6 +139,10 @@ segments =
 	              char '@' >> STable <$> qualifiedTypeName,
 	              char '&' >> SIdentifier <$> qualifiedTypeName,
 	              char '$' >> SVariable <$> name,
+	              SOther "#" <$ char '#',
+	              SOther "@" <$ char '@',
+	              SOther "&" <$ char '&',
+	              SOther "$" <$ char '$',
 	              SOther <$> some (satisfy (notInClass "\"'#@&$"))])
 
 -- | Reduce segments in order to resolve names and collect query parameters.
