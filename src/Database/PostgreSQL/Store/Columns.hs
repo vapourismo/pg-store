@@ -296,6 +296,22 @@ instance Column Word64 where
 	columnCheck _ nm =
 		Just (nm ++ " >= 0 AND " ++ nm ++ " <= " ++ show (maxBound :: Word64))
 
+instance Column Integer where
+	pack n =
+		Value {
+			valueType   = $numericOID,
+			valueData   = buildByteString integerDec n,
+			valueFormat = P.Text
+		}
+
+	unpack (Value $bigintOID   dat P.Text) = parseMaybe decimal dat
+	unpack (Value $smallintOID dat P.Text) = parseMaybe decimal dat
+	unpack (Value $integerOID  dat P.Text) = parseMaybe decimal dat
+	unpack (Value $numericOID  dat P.Text) = parseMaybe decimal dat
+	unpack _                               = Nothing
+
+	columnTypeName _  = "numeric"
+
 instance Column [Char] where
 	pack str =
 		Value {
