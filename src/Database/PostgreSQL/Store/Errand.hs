@@ -60,10 +60,8 @@ runErrand con (Errand errand) =
 -- | Execute a query and return the internal raw result.
 execute :: Query -> Errand P.Result
 execute (Query statement params) = Errand . ReaderT $ \ con -> do
-	res <- ExceptT (transformResult <$> P.execParams con
-	                                                 statement
-	                                                 (map transformParam params)
-	                                                 P.Text)
+	res <- ExceptT $
+		transformResult <$> P.execParams con statement (map transformParam params) P.Text
 	status <- lift (P.resultStatus res)
 
 	case status of
@@ -119,8 +117,8 @@ execute (Query statement params) = Errand . ReaderT $ \ con -> do
 		transformResult = maybe (throwError NoResult) pure
 
 		-- Turn 'Value' into 'Maybe (P.Oid, B.ByteString, P.Format)'
-		transformParam (Value typ dat fmt) = Just (typ, dat, fmt)
-		transformParam NullValue           = Nothing
+		transformParam (Value typ dat) = Just (typ, dat, P.Text)
+		transformParam NullValue       = Nothing
 
 -- | Allows you to implement a custom result parser for your type.
 class Result a where

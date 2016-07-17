@@ -54,21 +54,18 @@ unpackColumn = do
 	when (col >= numCol) (throwError (TooFewColumnsError numCol))
 
 	-- Retrieve column-specific information
-	(typ, fmt, mbData) <- liftIO $
-		(,,) <$> P.ftype res col
-		     <*> P.fformat res col
-		     <*> P.getvalue' res row col
+	(typ, mbData) <- liftIO $
+		(,) <$> P.ftype res col <*> P.getvalue' res row col
 
 	-- Try to unpack the value
-	case unpack (maybe NullValue (\ dat -> Value typ dat fmt) mbData) of
-		Just ret -> ret <$ ResultProcessor (put (col + 1))
-		Nothing  -> throwError (UnpackError row col typ fmt)
+	case unpack (maybe NullValue (Value typ) mbData) of
+		Just ret -> ResultProcessor (put (col + 1) >> pure ret)
+		Nothing  -> throwError (UnpackError row col typ P.Text)
 
 -- | Process the entire result set.
 processResult :: P.Result -> ResultProcessor a -> ExceptT ResultError IO [a]
 processResult res (ResultProcessor proc) = do
-	rows <- liftIO (P.ntuples res)
-	cols <- liftIO (P.nfields res)
+	(rows, cols) <- liftIO ((,) <$> P.ntuples res <*> P.nfields res)
 
 	-- Iterate over each row number and run the row processor
 	forM [0 .. rows - 1] $ \ row ->
@@ -77,8 +74,7 @@ processResult res (ResultProcessor proc) = do
 -- | Process one row of the result set.
 processOneResult :: P.Result -> ResultProcessor a -> ExceptT ResultError IO (Maybe a)
 processOneResult res (ResultProcessor proc) = do
-	rows <- liftIO (P.ntuples res)
-	cols <- liftIO (P.nfields res)
+	(rows, cols) <- liftIO ((,) <$> P.ntuples res <*> P.nfields res)
 
 	if rows > 0 then
 		Just <$> runReaderT (evalStateT proc 0) (res, 0, cols)
