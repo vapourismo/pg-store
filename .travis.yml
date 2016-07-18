@@ -3,6 +3,17 @@ sudo: false
 services:
   - postgresql
 
+matrix:
+  include:
+    - addons:
+        postgresql: "9.1"
+    - addons:
+        postgresql: "9.2"
+    - addons:
+        postgresql: "9.3"
+    - addons:
+        postgresql: "9.4"
+
 before_install:
   - mkdir -p ~/.local/bin
   - export PATH=$HOME/.local/bin:$PATH
