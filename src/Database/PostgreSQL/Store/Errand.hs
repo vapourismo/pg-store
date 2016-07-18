@@ -71,47 +71,42 @@ execute (Query statement params) = Errand . ReaderT $ \ con -> do
 
 		other -> do
 			info <- lift $
-				(,,,,,,,) <$> P.resultErrorField res P.DiagSqlstate
-				          <*> P.resultErrorField res P.DiagMessagePrimary
-				          <*> P.resultErrorField res P.DiagMessageDetail
-				          <*> P.resultErrorField res P.DiagMessageHint
-				          <*> P.resultErrorField res P.DiagStatementPosition
-				          <*> P.resultErrorField res P.DiagInternalPosition
-				          <*> P.resultErrorField res P.DiagInternalQuery
-				          <*> P.resultErrorField res P.DiagContext
+				(,,,) <$> P.resultErrorField res P.DiagSqlstate
+				      <*> P.resultErrorField res P.DiagMessagePrimary
+				      <*> P.resultErrorField res P.DiagMessageDetail
+				      <*> P.resultErrorField res P.DiagMessageHint
 
 			case info of
-				(Just "23000", msg, detail, _, _, _, _, _) ->
+				(Just "23000", msg, detail, _hint) ->
 					throwError (IntegrityViolation (fromMaybe B.empty msg)
 					                               (fromMaybe B.empty detail))
 
-				(Just "23001", msg, detail, _, _, _, _, _) ->
+				(Just "23001", msg, detail, _hint) ->
 					throwError (RestrictViolation (fromMaybe B.empty msg)
 					                              (fromMaybe B.empty detail))
 
-				(Just "23502", msg, detail, _, _, _, _, _) ->
+				(Just "23502", msg, detail, _hint) ->
 					throwError (NotNullViolation (fromMaybe B.empty msg)
 					                             (fromMaybe B.empty detail))
 
-				(Just "23503", msg, detail, _, _, _, _, _) ->
+				(Just "23503", msg, detail, _hint) ->
 					throwError (ForeignKeyViolation (fromMaybe B.empty msg)
 					                                (fromMaybe B.empty detail))
 
-				(Just "23505", msg, detail, _, _, _, _, _) ->
+				(Just "23505", msg, detail, _hint) ->
 					throwError (UniqueViolation (fromMaybe B.empty msg)
 					                            (fromMaybe B.empty detail))
 
-				(Just "23514", msg, detail, _, _, _, _, _) ->
+				(Just "23514", msg, detail, _hint) ->
 					throwError (CheckViolation (fromMaybe B.empty msg)
 					                           (fromMaybe B.empty detail))
 
-				(Just "23P01", msg, detail, _, _, _, _, _) ->
+				(Just "23P01", msg, detail, _hint) ->
 					throwError (ExclusionViolation (fromMaybe B.empty msg)
 					                               (fromMaybe B.empty detail))
 
 				_ -> do
-					msg <- lift (P.resultErrorMessage res)
-					throwError (ExecError other msg)
+					ExecError other <$> lift (P.resultErrorMessage res) >>= throwError
 
 	where
 		-- Turn 'Maybe P.Result' into 'Either ErrandError P.Result'
