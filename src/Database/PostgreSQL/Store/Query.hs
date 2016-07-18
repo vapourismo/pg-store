@@ -39,7 +39,7 @@ import           Data.Attoparsec.Text
 import           Database.PostgreSQL.Store.Columns
 
 -- | Query including statement and parameters.
---   Use the 'pgsq' quasi-quoter to conveniently create queries.
+-- Use the 'pgsq' quasi-quoter to conveniently create queries.
 data Query = Query {
 	-- | Statement
 	queryStatement :: !B.ByteString,
@@ -205,7 +205,87 @@ parseStoreQueryE code = do
 			        queryParams    = $(pure (ListE params))
 			    } |]
 
--- | TODO: Document me.
+-- | This quasi-quoter allows you to generate instances of 'Query'. It lets you write SQL with some
+-- small enhancements. 'pgsq' heavily relies on 'QueryTable' which can be implemented by 'mkTable'
+-- for a type of your choice.
+--
+-- = Embed values
+-- You can embed values whose types implement 'Column' with expressions in the form of @$valueName@.
+--
+-- > magicNumber :: Int
+-- > magicNumber = 1337
+-- >
+-- > myQuery :: Query
+-- > myQuery =
+-- >     [pgsq| SELECT * FROM table t WHERE t.column1 > $magicNumber AND t.column2 < $otherNumber |]
+-- >     where otherNumber = magicNumber * 2
+--
+-- @$magicNumber@ and @$otherNumber@ are references to values @magicNumber@ and @otherNumber@.
+--
+-- The quasi-quoter will generate a 'Query' expression similar to the following.
+--
+-- > Query "SELECT * FROM table t WHERE t.column1 > $1 AND t.column2 < $2"
+-- >       [pack magicNumber, pack otherNumber]
+--
+-- = Table names
+-- Types that implement 'QueryTable' associate a table name with themselves. Since the table name is
+-- not always known to the user, one can insert it dynamically using a @\@TypeName@ expression.
+--
+-- > instance QueryTable YourType where
+-- >     tableName _ = "YourTable"
+-- >
+-- > myQuery :: Query
+-- > myQuery =
+-- >     [pgsq| SELECT * FROM @Table WHERE @Table.column = 1337 |]
+--
+-- The table name will be inlined which results in the following.
+--
+-- > Query "SELECT * FROM \"YourTable\" WHERE \"YourTable\".column = 1337" []
+--
+-- Note, @\@@ is a reserved operator. The usage is only restricted when used in the form
+-- @\@CapitalIdentifier@. 'pgsq' will think that @CapitalIdentifier@ is a type name, whose table
+-- name you would like to have resolved. You can use @\@(CapitalIdentifier)@ or
+-- @\@\"CapitalIdentifier\"@ instead, to avoid the ambiguity.
+--
+-- = Identifier column names
+-- Each instance of 'QueryTable' also provides the name of the identifier column. Using this column
+-- name you can identify specific rows of a certain table.
+--
+-- > instance QueryTable YourType where
+-- >     tableName _   = "YourTable"
+-- >     tableIDName _ = "id"
+-- >
+-- > listIDs :: Query
+-- > listIDs =
+-- >     [pgsq| SELECT &YourType FROM @YourType |]
+--
+-- @listIDs@ is now a query which lists the IDs of each row. This is especially useful in
+-- combination with 'Reference'.
+--
+-- > fetchIDs :: Errand [Reference YourType]
+-- > fetchIDs =
+-- >     query [pgsq| SELECT &YourType FROM @YourType |]
+--
+-- = Selectors
+-- 'mkTable' will automatically implement 'Result' and 'QueryTable' for you. This allows you to make
+-- use of the selector expander.
+--
+-- > data Actor = Actor {
+-- >     actorName :: String,
+-- >     actorAge  :: Word
+-- > } deriving (Show, Eq, Ord)
+-- >
+-- > mkTable ''Actor []
+-- >
+-- > fetchOldActors :: Errand [Actor]
+-- > fetchOldActors =
+-- >     query [pgsq| SELECT #Actor FROM @Actor a WHERE a.actorAge >= $oldAge |]
+-- >     where oldAge = 70
+--
+-- @#Actor@ will expand to a list of columns that are necessary to construct an instance of @Actor@.
+-- In this case it is equivalent to
+--
+-- > @Actor.actorName, @Actor.actorAge
 pgsq :: QuasiQuoter
 pgsq =
 	QuasiQuoter {
@@ -227,7 +307,7 @@ parseStoreStatementE code = do
 			[e| concat $(pure (ListE parts)) |]
 
 -- | Just like 'pgsq' but only produces the statement associated with the query. Referenced
---   variables are not inlined, they are simply dismissed.
+-- values are not inlined, they are simply dismissed.
 pgss :: QuasiQuoter
 pgss =
 	QuasiQuoter {
