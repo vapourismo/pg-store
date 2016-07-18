@@ -63,8 +63,8 @@ allColumnsSpecs mbCon = do
 		describe "instance Column Int64" $
 			it "behaves isomorphic" (testPackUnpack (Proxy :: Proxy Int64))
 
-		describe "instance Column Int" $
-			it "behaves isomorphic" (testPackUnpack (Proxy :: Proxy Word8))
+		describe "instance Column Word" $
+			it "behaves isomorphic" (testPackUnpack (Proxy :: Proxy Word))
 
 		describe "instance Column Word8" $
 			it "behaves isomorphic" (testPackUnpack (Proxy :: Proxy Word8))
@@ -78,10 +78,10 @@ allColumnsSpecs mbCon = do
 		describe "instance Column Word64" $
 			it "behaves isomorphic" (testPackUnpack (Proxy :: Proxy Word64))
 
-	maybe (pure ()) connectionSpecs mbCon
+	maybe (pure ()) liveSpecs mbCon
 
-connectionSpecs :: P.Connection -> Spec
-connectionSpecs con =
+liveSpecs :: P.Connection -> Spec
+liveSpecs con =
 	describe "Database.PostgreSQL.Store.Columns (live)" $ do
 		describe "instance Column Bool" $
 			it "behaves isomorphic" (testLivePackUnpack (Proxy :: Proxy Bool) con)
@@ -101,8 +101,8 @@ connectionSpecs con =
 		describe "instance Column Int64" $
 			it "behaves isomorphic" (testLivePackUnpack (Proxy :: Proxy Int64) con)
 
-		describe "instance Column Int" $
-			it "behaves isomorphic" (testLivePackUnpack (Proxy :: Proxy Word8) con)
+		describe "instance Column Word" $
+			it "behaves isomorphic" (testLivePackUnpack (Proxy :: Proxy Word) con)
 
 		describe "instance Column Word8" $
 			it "behaves isomorphic" (testLivePackUnpack (Proxy :: Proxy Word8) con)
