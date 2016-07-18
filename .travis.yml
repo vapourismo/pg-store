@@ -1,5 +1,7 @@
 language: haskell
 sudo: false
+services:
+  - postgresql
 
 before_install:
   - mkdir -p ~/.local/bin
@@ -8,6 +10,10 @@ before_install:
 
 install:
   - stack setup --no-terminal
+
+before_script:
+  - psql -c 'create database pgstore_ci_tests;' -U postgres
+  - export PGINFO="postgres://postgres@localhost/pgstore_ci_tests"
 
 script:
   - stack build --no-terminal
