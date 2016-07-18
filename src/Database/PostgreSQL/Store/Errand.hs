@@ -117,6 +117,7 @@ execute (Query statement params) = Errand . ReaderT $ \ con -> do
 		transformParam NullValue       = Nothing
 
 -- | Allows you to implement a custom result parser for your type.
+--   'mkTable' can implement this for your type.
 class Result a where
 	queryResultProcessor :: ResultProcessor a
 

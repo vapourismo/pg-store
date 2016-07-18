@@ -4,32 +4,47 @@
 -- License:    BSD3
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store (
-	-- * Tables
-	TableConstraint (..),
-	mkTable,
-	Row (..),
-	Reference (..),
+	-- * Errands
+	Errand,
+	ErrandError (..),
+	runErrand,
+	execute,
+	query,
+	query_,
+	queryWith,
 
 	-- * Queries
 	Query (..),
 	pgsq,
 	pgss,
+
+	QueryTable (..),
+	SelectorElement (..),
+
+	-- * Values
+	Value (..),
+	Column (..),
+
+	-- * Results
+	Result (..),
+	ResultProcessor,
+	ResultError (..),
+	skipColumn,
+	unpackColumn,
+
+	Single (..),
+	Reference (..),
+
+	-- * Tables
+	Table (..),
 	mkCreateQuery,
 
-	-- * Errands
-	ResultError (..),
-	ErrandError (..),
-	Errand,
-	runErrand,
-	query,
-	query_,
-	insert,
-	find,
-	update,
-	delete
+	mkTable,
+	TableConstraint (..)
 ) where
 
-import Database.PostgreSQL.Store.Table
-import Database.PostgreSQL.Store.Query
+import Database.PostgreSQL.Store.Columns
 import Database.PostgreSQL.Store.Errand
+import Database.PostgreSQL.Store.Query
 import Database.PostgreSQL.Store.Result
+import Database.PostgreSQL.Store.Table

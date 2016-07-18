@@ -56,15 +56,16 @@ data SelectorElement
 	  -- ^ Select a special expression.
 	deriving (Show, Eq, Ord)
 
--- | This type can be used as a table in a query.
+-- | A type which implements this class can be used as a table in a quasi-quoted query.
+--   'mkTable' can implement this for you.
 class QueryTable a where
-	-- | Table name
+	-- | Unquoted name of the table
 	tableName :: Proxy a -> String
 
-	-- | Name of the ID field
+	-- | Unquoted name of the ID field
 	tableIDName :: Proxy a -> String
 
-	-- | Selectors needed to retrieve all fields necessary to construct the type
+	-- | Selectors needed to retrieve all fields necessary to construct the type - think @SELECT@.
 	tableSelectors :: Proxy a -> [SelectorElement]
 
 -- | Generate table name expression.
@@ -225,7 +226,7 @@ parseStoreStatementE code = do
 			parts <- evalStateT (mapM reduceSegment xs) (0, [])
 			[e| concat $(pure (ListE parts)) |]
 
--- | Just like "pgsq" but only produces the statement associated with the query. Referenced
+-- | Just like 'pgsq' but only produces the statement associated with the query. Referenced
 --   variables are not inlined, they are simply dismissed.
 pgss :: QuasiQuoter
 pgss =

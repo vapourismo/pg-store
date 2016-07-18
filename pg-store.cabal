@@ -29,8 +29,8 @@ library
                     Database.PostgreSQL.Store.Query,
                     Database.PostgreSQL.Store.Errand,
                     Database.PostgreSQL.Store.Table,
-                    Database.PostgreSQL.Store.OIDs
-                    -- Database.PostgreSQL.Store,
+                    Database.PostgreSQL.Store.OIDs,
+                    Database.PostgreSQL.Store
 
 test-suite tests
   type:             exitcode-stdio-1.0

@@ -272,7 +272,7 @@ data TableConstraint
 	  -- ^ The given statement must evaluate to true. Just like @CHECK (statement)@ in SQL.
 	deriving (Show, Eq, Ord)
 
--- | Implement the relevant type classes for a data type to become a table type.
+-- | Implement the type classes 'QueryTable', 'Table' and 'Result' for the given type.
 --
 -- The given type must fulfill these requirements:
 --
@@ -285,31 +285,31 @@ data TableConstraint
 -- Example:
 --
 -- @
--- {-\# LANGUAGE TemplateHaskell \#-}
+-- {-\# LANGUAGE TemplateHaskell, QuasiQuotes \#-}
 -- module Movies where
 --
 -- ...
 --
 -- data Movie = Movie {
---     movieTitle :: String,
---     movieYear  :: Int
--- } deriving Show
+--     movieTitle :: 'String',
+--     movieYear  :: 'Int'
+-- } deriving 'Show'
 --
 -- 'mkTable' ''Movie []
 --
 -- data Actor = Actor {
---     actorName :: String,
---     actorAge  :: Int
--- } deriving Show
+--     actorName :: 'String',
+--     actorAge  :: 'Int'
+-- } deriving 'Show'
 --
--- 'mkTable' ''Actor [Unique ['actorName]]
+-- 'mkTable' ''Actor ['Unique' ['actorName], 'Check' ['pgss'| actorAge >= 18 |]]
 --
 -- data MovieCast = MovieCast {
 --     movieCastMovie :: 'Reference' Movie,
 --     movieCastActor :: 'Reference' Actor
--- } deriving Show
+-- } deriving 'Show'
 --
--- 'mkTable' ''MovieCast [Unique ['movieCastMovie, 'movieCastActor]]
+-- 'mkTable' ''MovieCast ['Unique' ['movieCastMovie, 'movieCastActor]]
 -- @
 --
 -- In this example, 'Reference' takes care of adding the @FOREIGN KEY@ constraint, so we don't have
