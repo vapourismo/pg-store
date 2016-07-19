@@ -38,7 +38,8 @@ import           Data.Attoparsec.Text
 
 import           Database.PostgreSQL.Store.Columns
 
--- | Query including statement and parameters.
+-- | Query including statement and parameters
+--
 -- Use the 'pgsq' quasi-quoter to conveniently create queries.
 data Query = Query {
 	-- | Statement
@@ -48,12 +49,12 @@ data Query = Query {
 	queryParams :: ![Value]
 } deriving (Show, Eq, Ord)
 
--- | A selector element
+-- | @SELECT@ expression
 data SelectorElement
 	= SelectorField String
-	  -- ^ Select a field.
+	  -- ^ Select a field. The field nme will be quoted and properly escaped.
 	| SelectorSpecial String
-	  -- ^ Select a special expression.
+	  -- ^ Select a special expression. The expression will be inlined as is.
 	deriving (Show, Eq, Ord)
 
 -- | A type which implements this class can be used as a table in a quasi-quoted query.
@@ -209,8 +210,19 @@ parseStoreQueryE code = do
 -- small enhancements. 'pgsq' heavily relies on 'QueryTable' which can be implemented by 'mkTable'
 -- for a type of your choice.
 --
+-- Some syntax definitions that might be useful later on:
+--
+-- > TypeName          ::= UpperAlpha {AlphaNumeric | '_'}
+-- > Name              ::= (Alpha | '_') {AlphaNumeric | '_'}
+-- > QualifiedTypeName ::= {TypeName '.'} TypeName
+--
+-- @Alpha@ includes all alphabetical characters; @UpperAlpha@ includes all upper-case alphabetical
+-- characters; @AlphaNumeric@ includes all alpha-numeric characters.
+--
 -- = Embed values
--- You can embed values whose types implement 'Column' with expressions in the form of @$valueName@.
+-- You can embed values whose types implement 'Column'.
+--
+-- > ValueExp ::= '$' Name
 --
 -- > magicNumber :: Int
 -- > magicNumber = 1337
@@ -229,7 +241,13 @@ parseStoreQueryE code = do
 --
 -- = Table names
 -- Types that implement 'QueryTable' associate a table name with themselves. Since the table name is
--- not always known to the user, one can insert it dynamically using a @\@TypeName@ expression.
+-- not always known to the user, one can insert it dynamically.
+--
+-- > TableNameExp ::= '@' QualifiedTypeName
+--
+-- The @\@@-operators is also an alias for the function @ABS@. If you have an expression that
+-- triggers the quasi-quoter such as @\@A@, but you would like to use the @ABS@ functionality, then
+-- simply reformat your expression to @\@(A)@ or @\@\"A\"@ or @ABS(A)@.
 --
 -- > instance QueryTable YourType where
 -- >     tableName _ = "YourTable"
@@ -242,14 +260,14 @@ parseStoreQueryE code = do
 --
 -- > Query "SELECT * FROM \"YourTable\" WHERE \"YourTable\".column = 1337" []
 --
--- Note, @\@@ is a reserved operator. The usage is only restricted when used in the form
--- @\@CapitalIdentifier@. 'pgsq' will think that @CapitalIdentifier@ is a type name, whose table
--- name you would like to have resolved. You can use @\@(CapitalIdentifier)@ or
--- @\@\"CapitalIdentifier\"@ instead, to avoid the ambiguity.
---
 -- = Identifier column names
 -- Each instance of 'QueryTable' also provides the name of the identifier column. Using this column
 -- name you can identify specific rows of a certain table.
+--
+-- > TableIdentExp ::= '&' TypeName
+--
+-- @&@ is also the operator for bitwise-AND. To resolve the ambiguity for expressions like @A&B@,
+-- simply reformat it to @A & B@ or @A&(B)@ or @A&\"B\"@.
 --
 -- > instance QueryTable YourType where
 -- >     tableName _   = "YourTable"
@@ -266,9 +284,17 @@ parseStoreQueryE code = do
 -- > fetchIDs =
 -- >     query [pgsq| SELECT &YourType FROM @YourType |]
 --
+-- Note, just like @\@@, the operator @&@ is reserved. Although @A&B@ is a valid SQL expression, it
+-- will trigger the quasi-quoter. To avoid this, you reform your expression to @A & B@ or @A&(B)@.
+--
 -- = Selectors
 -- 'mkTable' will automatically implement 'Result' and 'QueryTable' for you. This allows you to make
 -- use of the selector expander.
+--
+-- > SelectorExp ::= '#' QualifiedTypeName
+--
+-- @#@ is also the operator for bitwise-XOR. To resolve the ambiguity for expressions like @A#B@,
+-- simply reformat it to @A # B@ or @A#(B)@ or @A#\"B\"@.
 --
 -- > data Actor = Actor {
 -- >     actorName :: String,
