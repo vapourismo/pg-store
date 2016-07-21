@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, TemplateHaskell, BangPatterns #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell, BangPatterns, GeneralizedNewtypeDeriving #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Query
@@ -6,18 +6,27 @@
 -- License:    BSD3
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Query (
+	-- * Query
 	Query (..),
-
 	SelectorElement (..),
 	QueryTable (..),
-
 	pgsq,
 	pgss,
 
+	-- * Helpers
 	quoteIdentifier,
-
 	makeTableIdentifier,
-	makeTableSelectors
+	makeTableSelectors,
+
+	-- * Query builder
+	QueryBuilder,
+	buildQuery,
+	buildStatement,
+	writeColumn,
+	writeValue,
+	writeCode,
+	writeIdentifier,
+	intercalateBuilder
 ) where
 
 import           Language.Haskell.TH
@@ -29,6 +38,7 @@ import           Control.Monad.State
 
 import           Data.List
 import           Data.Proxy
+import           Data.String
 import qualified Data.Text          as T
 import qualified Data.Text.Encoding as T
 import qualified Data.ByteString    as B
@@ -358,3 +368,52 @@ pgss =
 		quoteType = const (fail "Cannot use 'pgss' in type"),
 		quoteDec  = const (fail "Cannot use 'pgss' in declaration")
 	}
+
+-- | Internal state for 'QueryBuilder'
+data QueryBuilderState = QueryBuilderState [B.ByteString] Word [Value]
+
+-- | Query builder utility
+type QueryBuilder = State QueryBuilderState ()
+
+-- | Generate an instance of 'Query'.
+buildQuery :: QueryBuilder -> Query
+buildQuery builder =
+	Query (B.concat (reverse rSegments)) (reverse rValues)
+	where
+		QueryBuilderState rSegments _ rValues = execState builder (QueryBuilderState [] 1 [])
+
+-- | Build only the statement part of a query.
+buildStatement :: QueryBuilder -> B.ByteString
+buildStatement builder =
+	B.concat (reverse rSegments)
+	where
+		QueryBuilderState rSegments _ _ = execState builder (QueryBuilderState [] 1 [])
+
+-- | Embed the value of a column into the query.
+writeColumn :: (Column a) => a -> QueryBuilder
+writeColumn v =
+	writeValue (pack v)
+
+-- | Embed a value into the query.
+writeValue :: Value -> QueryBuilder
+writeValue v =
+	modify $ \ (QueryBuilderState segments index values) ->
+		QueryBuilderState (fromString ("$" ++ show index) : segments) (index + 1) (v : values)
+
+-- | Insert some code into the query.
+writeCode :: String -> QueryBuilder
+writeCode code =
+	modify $ \ (QueryBuilderState segments index values) ->
+		QueryBuilderState (fromString code : segments) index values
+
+-- | Insert an identifier into the query.
+writeIdentifier :: String -> QueryBuilder
+writeIdentifier name =
+	writeCode (quoteIdentifier name)
+
+-- | Do something between query builders.
+intercalateBuilder :: QueryBuilder -> [QueryBuilder] -> QueryBuilder
+intercalateBuilder _ []  = pure ()
+intercalateBuilder _ [x] = x
+intercalateBuilder s (x : xs)  =
+	x >> sequence_ (map (s >>) xs)
