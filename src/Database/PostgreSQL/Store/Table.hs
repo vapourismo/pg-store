@@ -148,30 +148,6 @@ packFields row (TableDec _ ctor fields) = do
 			-- [pack name0, pack name1, ... pack nameN]
 			ListE (map (\ n -> AppE (VarE 'pack) (VarE n)) names)
 
--- | Generate insert query for a table.
-makeInsertQuery :: Name -> TableDec -> Q Exp
-makeInsertQuery row dec =
-	[e| Query (fromString $(stringE (tableInsertStatement dec)))
-	          $(packFields row dec) |]
-
--- | Generate the find query for a table.
-makeFindQuery :: Name -> TableDec -> Q Exp
-makeFindQuery ref dec =
-	[e| Query (fromString $(stringE (tableFindStatement dec)))
-	          [pack (referenceID $(varE ref))] |]
-
--- | Generate the update query for a table.
-makeUpdateQuery :: Name -> Name -> TableDec -> Q Exp
-makeUpdateQuery ref row dec =
-	[e| Query (fromString $(stringE (tableUpdateStatement dec)))
-	          (pack (referenceID $(varE ref)) : $(packFields row dec)) |]
-
--- | Generate the delete query for a table.
-makeDeleteQuery :: Name -> Name -> Q Exp
-makeDeleteQuery ref table =
-	[e| Query (fromString $(stringE (tableDeleteStatement table)))
-	          [pack (referenceID $(varE ref))] |]
-
 -- | Generate the create statement for a table.
 makeCreateStatement :: TableDec -> [TableConstraint] -> Q Exp
 makeCreateStatement (TableDec table _ fields) constraints =
@@ -202,11 +178,6 @@ makeCreateStatement (TableDec table _ fields) constraints =
 
 				Check statement ->
 					"CHECK (" ++ statement ++ ")"
-
--- | Generate the create query for a table.
-makeCreateQuery :: TableDec -> [TableConstraint] -> Q Exp
-makeCreateQuery dec constraints =
-	[e| Query $(makeCreateStatement dec constraints) [] |]
 
 -- | Generate the list of selectors.
 makeQuerySelectors :: [TableField] -> Q Exp
@@ -247,25 +218,29 @@ implementClasses dec@(TableDec table _ fields) constraints =
 
 		instance Table $(conT table) where
 			insert row = do
-				rs <- query $(makeInsertQuery 'row dec)
+				rs <- query (Query (fromString $(stringE (tableInsertStatement dec)))
+				                   $(packFields 'row dec))
 				case rs of
 					(ref : _) -> pure ref
 					_         -> throwError EmptyResult
 
 			find ref = do
-				rs <- query $(makeFindQuery 'ref dec)
+				rs <- query (Query (fromString $(stringE (tableFindStatement dec)))
+				                   [pack (referenceID ref)])
 				case rs of
 					(row : _) -> pure row
 					_         -> throwError EmptyResult
 
 			update ref row =
-				query_ $(makeUpdateQuery 'ref 'row dec)
+				query_ (Query (fromString $(stringE (tableUpdateStatement dec)))
+				              (pack (referenceID ref) : $(packFields 'row dec)))
 
 			delete ref =
-				query_ $(makeDeleteQuery 'ref table)
+				query_ (Query (fromString $(stringE (tableDeleteStatement table)))
+				              [pack (referenceID ref)])
 
 			createTableQuery _ =
-				$(makeCreateQuery dec constraints)
+				Query $(makeCreateStatement dec constraints) []
 	|]
 
 -- | Check that each field's type has an implementation of 'Column'.
