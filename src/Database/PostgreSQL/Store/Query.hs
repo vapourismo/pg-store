@@ -14,10 +14,7 @@ module Database.PostgreSQL.Store.Query (
 	pgsq,
 	pgss,
 
-	tableNameE,
-	tableIDNameE,
-	tableAbsoluteIDNameE,
-	makeTableSelectorsE,
+	quoteIdentifier
 ) where
 
 import           Language.Haskell.TH
@@ -37,6 +34,15 @@ import           Data.Char
 import           Data.Attoparsec.Text
 
 import           Database.PostgreSQL.Store.Columns
+
+-- | Properly quote an identifier.
+quoteIdentifier :: String -> String
+quoteIdentifier name =
+	'"' : stripQuotes name ++ "\""
+	where
+		stripQuotes []         = []
+		stripQuotes ('"' : xs) = '"' : '"' : stripQuotes xs
+		stripQuotes (x : xs)   = x : stripQuotes xs
 
 -- | Query including statement and parameters
 --
@@ -72,12 +78,12 @@ class QueryTable a where
 -- | Generate table name expression.
 tableNameE :: Name -> Q Exp
 tableNameE typName =
-	[e| show (tableName (Proxy :: Proxy $(conT typName))) |]
+	[e| quoteIdentifier (tableName (Proxy :: Proxy $(conT typName))) |]
 
 -- | Generate table ID name expression
 tableIDNameE :: Name -> Q Exp
 tableIDNameE typName =
-	[e| show (tableIDName (Proxy :: Proxy $(conT typName))) |]
+	[e| quoteIdentifier (tableIDName (Proxy :: Proxy $(conT typName))) |]
 
 -- | Generate absolute table ID name expression.
 tableAbsoluteIDNameE :: Name -> Q Exp
@@ -89,8 +95,10 @@ makeTableSelectors :: (QueryTable a) => Proxy a -> String
 makeTableSelectors proxy =
 	intercalate ", " (map makeElement (tableSelectors proxy))
 	where
-		makeElement (SelectorField name)   = show (tableName proxy) ++ "." ++ show name
-		makeElement (SelectorSpecial expr) = expr
+		makeElement (SelectorField name) =
+			quoteIdentifier (tableName proxy) ++ "." ++ quoteIdentifier name
+		makeElement (SelectorSpecial expr) =
+			expr
 
 -- | Generate the selector list expression.
 makeTableSelectorsE :: Name -> Q Exp

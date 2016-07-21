@@ -60,15 +60,15 @@ class Column a where
 
 	-- | A condition that must hold true for the column.
 	columnCheck :: Proxy a -> String -> Maybe String
-	columnCheck _proxy _name = Nothing
+	columnCheck _proxy _identifier = Nothing
 
 	-- | Generate column description in SQL. Think @CREATE TABLE@.
 	columnDescription :: Proxy a -> String -> String
-	columnDescription proxy name =
-		name ++ " " ++
+	columnDescription proxy identifier =
+		identifier ++ " " ++
 		columnTypeName proxy ++
 		if columnAllowNull proxy then "" else " NOT NULL" ++
-		case columnCheck proxy name of
+		case columnCheck proxy identifier of
 			Just stmt -> " CHECK (" ++ stmt ++ ")"
 			Nothing   -> ""
 

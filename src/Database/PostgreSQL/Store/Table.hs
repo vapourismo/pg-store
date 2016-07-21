@@ -27,6 +27,7 @@ import Data.String
 import Data.Typeable
 
 import Language.Haskell.TH
+import Language.Haskell.TH.Syntax
 
 import Database.PostgreSQL.Store.Query
 import Database.PostgreSQL.Store.Columns
@@ -77,131 +78,149 @@ class Table a where
 	-- Use 'mkCreateQuery' for convenience.
 	createTableQuery :: Proxy a -> Query
 
+-- | Table field declaration
+data TableField = TableField String Type
+
+-- | Table type declaration
+data TableDec = TableDec Name Name [TableField]
+
+-- | Generate an identifier for a table type.
+tableIdentifier :: Name -> String
+tableIdentifier name =
+	quoteIdentifier (show name)
+
+-- | Make a comma-seperated list of identifiers which correspond to given fields.
+tableFieldIdentifiers :: [TableField] -> String
+tableFieldIdentifiers fields =
+	intercalate ", " (map (\ (TableField name _) -> quoteIdentifier name) fields)
+
 -- | Generate the insert statement for a table.
-insertStatementE :: Name -> [Name] -> Q Exp
-insertStatementE table fields =
-	[e| fromString ("INSERT INTO " ++ $(tableNameE table) ++ " (" ++
-	                $(stringE columns) ++
-	                ") VALUES (" ++
-	                $(stringE values) ++
-	                ") RETURNING " ++ $(tableIDNameE table)) |]
-	where
-		-- Column names
-		columns =
-			intercalate ", " (map (show . nameBase) fields)
-
-		-- Value placeholders
-		values =
-			intercalate ", " (map (\ idx -> "$" ++ show idx) [1 .. length fields])
-
--- | Generate insert query for a table.
-insertQueryE :: Name -> Name -> [Name] -> Q Exp
-insertQueryE row table fields =
-	[e| Query $(insertStatementE table fields) $(packParamsE row fields) |]
-
--- | Generate the find query for a table.
-findStatementE :: Name -> Q Exp
-findStatementE table =
-	[e| fromString ("SELECT " ++ $(makeTableSelectorsE table) ++
-	                " FROM " ++ $(tableNameE table) ++
-	                " WHERE " ++ $(tableIDNameE table) ++ " = $1 LIMIT 1") |]
-
--- | Generate the find query for a table.
-findQueryE :: Name -> Name -> Q Exp
-findQueryE ref table =
-	[e| Query $(findStatementE table) [pack (referenceID $(varE ref))] |]
+tableInsertStatement :: TableDec -> String
+tableInsertStatement (TableDec table _ fields) =
+	"INSERT INTO " ++
+	tableIdentifier table ++
+	" (" ++
+	tableFieldIdentifiers fields ++
+	") VALUES (" ++
+	intercalate ", " (map (\ idx -> "$" ++ show idx) [1 .. length fields]) ++
+	") RETURNING \"$id\""
 
 -- | Generate the update statement for a table.
-updateStatementE :: Name -> [Name] -> Q Exp
-updateStatementE table fields =
-	[e| fromString ("UPDATE " ++ $(tableNameE table) ++
-	                " SET " ++ $(stringE statements) ++
-	                " WHERE " ++ $(tableIDNameE table) ++ " = $1") |]
+tableUpdateStatement :: TableDec -> String
+tableUpdateStatement (TableDec table _ fields) =
+	"UPDATE " ++
+	tableIdentifier table ++
+	" SET " ++
+	intercalate ", " (zipWith makeStatement fields [2 .. length fields + 1]) ++
+	" WHERE \"$id\" = $1"
 	where
 		-- Produce a SET statement in form of 'name = $idx'
-		makeStatement name idx =
-			show (nameBase name) ++ " = $" ++ show idx
+		makeStatement (TableField name _) idx =
+			quoteIdentifier name ++ " = $" ++ show idx
 
-		-- Combined SET statements
-		statements =
-			intercalate "," (zipWith makeStatement fields [2 .. length fields + 1])
-
--- | Generate the update query for a table.
-updateQueryE :: Name -> Name -> Name -> [Name] -> Q Exp
-updateQueryE ref row table fields =
-	[e| Query $(updateStatementE table fields)
-	          (pack (referenceID $(varE ref)) : $(packParamsE row fields)) |]
+-- | Generate the find query for a table.
+tableFindStatement :: TableDec -> String
+tableFindStatement (TableDec table _ fields) =
+	"SELECT " ++
+	tableFieldIdentifiers fields ++
+	" FROM " ++
+	tableIdentifier table ++
+	" WHERE \"$id\" = $1 LIMIT 1"
 
 -- | Generate the delete statement for a table.
-deleteStatementE :: Name -> Q Exp
-deleteStatementE table =
-	[e| fromString ("DELETE FROM " ++ $(tableNameE table) ++
-	                " WHERE " ++ $(tableIDNameE table) ++ " = $1") |]
+tableDeleteStatement :: Name -> String
+tableDeleteStatement table =
+	"DELETE FROM " ++ tableIdentifier table ++ " WHERE \"$id\" = $1"
+
+-- | Pack fields of a table type instance.
+packFields :: Name -> TableDec -> Q Exp
+packFields row (TableDec _ ctor fields) = do
+	generate <$> mapM (\ (TableField name _) -> newName name) fields
+	where
+		generate names =
+			-- let Ctor name0 name1 .. nameN = [pack name0, pack name1, ... pack nameN]
+			LetE [destructureCtor names] (packValues names)
+
+		destructureCtor names =
+			-- Ctor name0 name1 ... nameN
+			ValD (ConP ctor (map VarP names)) (NormalB (VarE row)) []
+
+		packValues names =
+			-- [pack name0, pack name1, ... pack nameN]
+			ListE (map (\ n -> AppE (VarE 'pack) (VarE n)) names)
+
+-- | Generate insert query for a table.
+makeInsertQuery :: Name -> TableDec -> Q Exp
+makeInsertQuery row dec =
+	[e| Query (fromString $(stringE (tableInsertStatement dec)))
+	          $(packFields row dec) |]
+
+-- | Generate the find query for a table.
+makeFindQuery :: Name -> TableDec -> Q Exp
+makeFindQuery ref dec =
+	[e| Query (fromString $(stringE (tableFindStatement dec)))
+	          [pack (referenceID $(varE ref))] |]
+
+-- | Generate the update query for a table.
+makeUpdateQuery :: Name -> Name -> TableDec -> Q Exp
+makeUpdateQuery ref row dec =
+	[e| Query (fromString $(stringE (tableUpdateStatement dec)))
+	          (pack (referenceID $(varE ref)) : $(packFields row dec)) |]
 
 -- | Generate the delete query for a table.
-deleteQueryE :: Name -> Name -> Q Exp
-deleteQueryE ref table =
-	[e| Query $(deleteStatementE table) [pack (referenceID $(varE ref))] |]
+makeDeleteQuery :: Name -> Name -> Q Exp
+makeDeleteQuery ref table =
+	[e| Query (fromString $(stringE (tableDeleteStatement table)))
+	          [pack (referenceID $(varE ref))] |]
 
 -- | Generate the create statement for a table.
-createStatementE :: Name -> [(Name, Type)] -> [TableConstraint] -> Q Exp
-createStatementE table fields constraints =
-	[e| fromString ("CREATE TABLE IF NOT EXISTS " ++ $(tableNameE table) ++ " (" ++
-	                intercalate ", " ($idField : $fieldList ++ $constraintList) ++
-	                ")") |]
+makeCreateStatement :: TableDec -> [TableConstraint] -> Q Exp
+makeCreateStatement (TableDec table _ fields) constraints =
+	[e| fromString ($(stringE createTablePart) ++ intercalate ", " $descriptions ++ ")") |]
 	where
-		-- ID column description
-		idField =
-			[e| $(tableIDNameE table) ++ " BIGSERIAL NOT NULL PRIMARY KEY" |]
+		createTablePart =
+			"CREATE TABLE IF NOT EXISTS " ++ tableIdentifier table ++ " ("
 
-		-- List of all column descriptions
-		fieldList =
-			ListE <$> mapM describeField fields
+		descriptions = do
+			fs <- mapM describeField fields
+			cs <- mapM describeConstraint constraints
+			pure (ListE (identField : fs ++ cs))
+
+		identField =
+			LitE (StringL "\"$id\" BIGSERIAL NOT NULL PRIMARY KEY")
 
 		-- Fetch column description for a field and its associated type
-		describeField (name, typ) =
-			[e| columnDescription (Proxy :: Proxy $(pure typ))
-			                      $(stringE (show (nameBase name))) |]
-
-		-- List of constraints
-		constraintList =
-			ListE <$> mapM describeConstraint constraints
+		describeField (TableField name typ) =
+			[e| columnDescription (Proxy :: Proxy $(pure typ)) $(stringE (quoteIdentifier name)) |]
 
 		-- Generate the SQL described in the given constraint
 		describeConstraint cont =
-			case cont of
+			stringE $ case cont of
 				Unique names ->
-					stringE ("UNIQUE (" ++ intercalate ", " (map (show . nameBase) names) ++ ")")
+					"UNIQUE (" ++ intercalate ", " (map (quoteIdentifier . nameBase) names) ++ ")"
 
 				Check statement ->
-					stringE ("CHECK (" ++ statement ++ ")")
+					"CHECK (" ++ statement ++ ")"
 
 -- | Generate the create query for a table.
-createQueryE :: Name -> [(Name, Type)] -> [TableConstraint] -> Q Exp
-createQueryE table fields constraints =
-	[e| Query $(createStatementE table fields constraints) [] |]
-
--- | Generate an expression which gathers all records from a type and packs them into a list.
--- `packParamsE 'row ['field1, 'field2]` generates `[pack (field1 row), pack (field2 row)]`
-packParamsE :: Name -> [Name] -> Q Exp
-packParamsE row fields =
-	ListE <$> mapM extract fields
-	where
-		extract name =
-			[e| pack ($(varE name) $(varE row)) |]
+makeCreateQuery :: TableDec -> [TableConstraint] -> Q Exp
+makeCreateQuery dec constraints =
+	[e| Query $(makeCreateStatement dec constraints) [] |]
 
 -- | Generate the list of selectors.
-tableSelectorsE :: [Name] -> Q Exp
-tableSelectorsE fieldNames =
-	ListE <$> mapM makeSelector fieldNames
-	where
-		makeSelector name =
-			[e| SelectorField $(stringE (nameBase name)) |]
+makeQuerySelectors :: [TableField] -> Q Exp
+makeQuerySelectors fields =
+	ListE <$> mapM (\ (TableField field _) -> [e| SelectorField $(stringE field) |]) fields
+
+-- | Call a constructor with some variables.
+callConstructor :: Name -> [Name] -> Exp
+callConstructor ctor params =
+	foldl AppE (ConE ctor) (map VarE params)
 
 -- | Generate the result processor for a table.
-tableResultProcessorE :: Name -> [Name] -> Q Exp
-tableResultProcessorE tableCtor fieldNames = do
-	bindingNames <- mapM (newName . nameBase) fieldNames
+makeResultProcessor :: TableDec -> Q Exp
+makeResultProcessor (TableDec _ ctor fields) = do
+	bindingNames <- mapM (\ (TableField name _) -> newName name) fields
 	pure (DoE (map makeBinding bindingNames ++
 	           [makeConstruction bindingNames]))
 	where
@@ -209,58 +228,105 @@ tableResultProcessorE tableCtor fieldNames = do
 		makeBinding name =
 			BindS (VarP name) (VarE 'unpackColumn)
 
-		-- Last expression 'pure (tableCtor boundNames...)'
+		-- Last expression 'pure (ctor boundNames...)'
 		makeConstruction names =
-			NoBindS (AppE (VarE 'pure)
-			              (RecConE tableCtor
-			                       (zip fieldNames (map VarE names))))
+			NoBindS (AppE (VarE 'pure) (callConstructor ctor names))
 
 -- | Implement relevant instances for the given table type.
-implementTableD :: Name -> Name -> [(Name, Type)] -> [TableConstraint] -> Q [Dec]
-implementTableD table ctor fieldDecls constraints =
+implementClasses :: TableDec -> [TableConstraint] -> Q [Dec]
+implementClasses dec@(TableDec table _ fields) constraints =
 	[d|
 		instance QueryTable $(conT table) where
 			tableName _      = $(stringE (show table))
 			tableIDName _    = "$id"
-			tableSelectors _ = $(tableSelectorsE fields)
+			tableSelectors _ = $(makeQuerySelectors fields)
 
 		instance Result $(conT table) where
-			queryResultProcessor = $(tableResultProcessorE ctor fields)
+			queryResultProcessor = $(makeResultProcessor dec)
 
 		instance Table $(conT table) where
 			insert row = do
-				rs <- query $(insertQueryE 'row table fields)
-
+				rs <- query $(makeInsertQuery 'row dec)
 				case rs of
 					(ref : _) -> pure ref
 					_         -> throwError EmptyResult
 
 			find ref = do
-				rs <- query $(findQueryE 'ref table)
-
+				rs <- query $(makeFindQuery 'ref dec)
 				case rs of
 					(row : _) -> pure row
 					_         -> throwError EmptyResult
 
 			update ref row =
-				query_ $(updateQueryE 'ref 'row table fields)
+				query_ $(makeUpdateQuery 'ref 'row dec)
 
 			delete ref =
-				query_ $(deleteQueryE 'ref table)
+				query_ $(makeDeleteQuery 'ref table)
 
 			createTableQuery _ =
-				$(createQueryE table fieldDecls constraints)
+				$(makeCreateQuery dec constraints)
 	|]
-	where
-		fields = map fst fieldDecls
 
--- | Check that all field types have an instance of Column.
-validateFields :: [(Name, Type)] -> Q ()
-validateFields fields =
-	forM_ fields $ \ (name, typ) -> do
+-- | Check that each field's type has an implementation of 'Column'.
+checkRecordFields :: [VarBangType] -> Q [TableField]
+checkRecordFields fields =
+	forM fields $ \ (name, _, typ) -> do
 		ii <- isInstance ''Column [typ]
 		unless ii $
-			fail ("\ESC[35m" ++ show name ++ "\ESC[0m's type does not have an instance of \ESC[34mColumn\ESC[0m")
+			fail ("Type of field '" ++ show name ++ "' ('" ++ show typ ++
+			      "') type does not implement '" ++ show ''Column ++ "'")
+
+		pure (TableField (nameBase name) typ)
+
+-- | Check that each constructor parameter type implements 'Column'.
+checkNormalFields :: [BangType] -> Q [TableField]
+checkNormalFields fields = do
+	forM (fields `zip` [1 .. length fields]) $ \ ((_, typ), idx) -> do
+		ii <- isInstance ''Column [typ]
+		unless ii $
+			fail ("Type of constructor parameter #" ++ show idx ++ " ('" ++ show typ ++
+			      "') type does not implement '" ++ show ''Column ++ "'")
+
+		pure (TableField ("column" ++ show idx) typ)
+
+-- | Verify that the given constructor is viable and construct a 'TableDec'.
+checkTableCtor :: Name -> Con -> Q TableDec
+checkTableCtor tableName (RecC ctorName ctorFields) = do
+	when (length ctorFields < 1)
+	     (fail ("'" ++ show ctorName ++ "' must have at least one field"))
+
+	TableDec tableName ctorName <$> checkRecordFields ctorFields
+
+checkTableCtor tableName (NormalC ctorName ctorFields) = do
+	when (length ctorFields < 1)
+	     (fail ("'" ++ show ctorName ++ "' must have at least one field"))
+
+	TableDec tableName ctorName <$> checkNormalFields ctorFields
+
+checkTableCtor tableName _ =
+	fail ("'" ++ show tableName ++ "' must have a normal or record constructor")
+
+-- | Make sure the given declaration can be used, then construct a 'TableDec'.
+checkTableDec :: Name -> Dec -> Q TableDec
+checkTableDec _ (DataD ctx tableName typeVars kind ctorNames _) = do
+	when (length ctx > 0)
+	     (fail ("'" ++ show tableName ++ "' must not have a context"))
+
+	when (length typeVars > 0)
+	     (fail ("'" ++ show tableName ++ "' must not use type variables"))
+
+	when (length ctorNames /= 1)
+	     (fail ("'" ++ show tableName ++ "' must have 1 constructor"))
+
+	when (kind /= Nothing && kind /= Just StarT)
+	     (fail ("'" ++ show tableName ++ "' must have kind *"))
+
+	let [ctorName] = ctorNames
+
+	checkTableCtor tableName ctorName
+
+checkTableDec tableName _ =
+	fail ("'" ++ show tableName ++ "' must declare a data type")
 
 -- | Options to 'mkTable'.
 data TableConstraint
@@ -319,34 +385,11 @@ mkTable :: Name -> [TableConstraint] -> Q [Dec]
 mkTable name constraints = do
 	info <- reify name
 	case info of
-		TyConI dec ->
-			case dec of
-				DataD [] _ [] _ [RecC ctor records@(_ : _)] _ -> do
-					let fields = map (\ (fn, _, ft) -> (fn, ft)) records
-					validateFields fields
-					implementTableD name ctor fields constraints
+		TyConI dec -> do
+			tableDec <- checkTableDec name dec
+			implementClasses tableDec constraints
 
-				DataD (_ : _) _ _ _ _ _ ->
-					fail ("\ESC[34m" ++ show name ++ "\ESC[0m has a context")
-
-				DataD _ _ (_ : _) _ _ _ ->
-					fail ("\ESC[34m" ++ show name ++ "\ESC[0m has one or more type variables")
-
-				DataD _ _ _ _ [] _ ->
-					fail ("\ESC[34m" ++ show name ++ "\ESC[0m does not have a constructor")
-
-				DataD _ _ _ _ (_ : _ : _) _ ->
-					fail ("\ESC[34m" ++ show name ++ "\ESC[0m has more than one constructor")
-
-				DataD _ _ _ _ [RecC _ []] _ ->
-					fail ("\ESC[34m" ++ show name ++ "\ESC[0m has an empty record constructor")
-
-				DataD _ _ _ _ [_] _ ->
-					fail ("\ESC[34m" ++ show name ++ "\ESC[0m does not have a record constructor")
-
-				_ -> fail ("\ESC[34m" ++ show name ++ "\ESC[0m is not an eligible data type")
-
-		_ -> fail ("\ESC[34m" ++ show name ++ "\ESC[0m is not a type constructor")
+		_ -> fail ("'" ++ show name ++ "' is not a type constructor")
 
 -- | Check if the given name refers to a type.
 isType :: Name -> Q Bool
