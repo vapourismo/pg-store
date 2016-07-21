@@ -94,48 +94,28 @@ tableFieldIdentifiers :: [TableField] -> String
 tableFieldIdentifiers fields =
 	intercalate ", " (map (\ (TableField name _) -> quoteIdentifier name) fields)
 
--- | Generate the insert statement for a table.
-tableInsertStatement :: TableDec -> String
-tableInsertStatement (TableDec table _ fields) =
-	"INSERT INTO " ++
-	tableIdentifier table ++
-	" (" ++
-	tableFieldIdentifiers fields ++
-	") VALUES (" ++
-	intercalate ", " (map (\ idx -> "$" ++ show idx) [1 .. length fields]) ++
-	") RETURNING \"$id\""
-
--- | Beginning of a 'insertMany' statement.
-tableInsertManyStatementBegin :: TableDec -> String
-tableInsertManyStatementBegin (TableDec table _ fields) =
+-- | Beginning of a insert statement.
+tableInsertStatementBegin :: TableDec -> String
+tableInsertStatementBegin (TableDec table _ fields) =
 	"INSERT INTO " ++
 	tableIdentifier table ++
 	" (" ++
 	tableFieldIdentifiers fields ++
 	") VALUES "
 
--- | Tuples inside a 'insertMany' statement.
-tableInsertManyStatementTuples :: Int -> Int -> String
-tableInsertManyStatementTuples rows fields | rows > 0 && fields > 0 =
-	intercalate ", " (map makeTuple [0 .. rows - 1])
-	where
-		makeTuple row =
-			tableInsertManyStatementTuple (row * fields) fields
+-- | End of a insert statement.
+tableInsertStatementEnd :: String
+tableInsertStatementEnd =
+	" RETURNING \"$id\""
 
-tableInsertManyStatementTuples _ _ =
-	error "Negative number for rows or fields"
-
--- | Tuple inside a 'insertMany' statement.
-tableInsertManyStatementTuple :: Int -> Int -> String
-tableInsertManyStatementTuple offset fields =
-	"(" ++
-	intercalate ", " (map (\ idx -> "$" ++ show idx) [(1 + offset) .. (fields + offset)]) ++
-	")"
-
--- | ENd of a 'insertMany' statement.
-tableInsertManyStatementEnd :: String
-tableInsertManyStatementEnd =
-	"RETURNING \"$id\""
+-- | Generate the insert statement for a table.
+tableInsertStatement :: TableDec -> String
+tableInsertStatement dec@(TableDec _ _ fields) =
+	tableInsertStatementBegin dec ++
+	" (" ++
+	intercalate ", " (map (\ idx -> "$" ++ show idx) [1 .. length fields]) ++
+	" ) " ++
+	tableInsertStatementEnd
 
 -- | Generate the update statement for a table.
 tableUpdateStatement :: TableDec -> String
@@ -215,15 +195,22 @@ makeCreateStatement (TableDec table _ fields) constraints =
 				Check statement ->
 					"CHECK (" ++ statement ++ ")"
 
+-- | Builds a tuple in 'QueryBuilder' which contains all the fields of table type instance.
+makeTupleBuilder :: Name -> TableDec -> Q Exp
+makeTupleBuilder row dec =
+	[e| do writeCode "("
+	       intercalateBuilder (writeCode ",") (map writeValue $(packFields row dec))
+	       writeCode ")" |]
+
 -- | Generate the query which allows you to insert many rows at once.
 makeInsertManyQuery :: Name -> TableDec -> Q Exp
-makeInsertManyQuery rows dec@(TableDec _ _ fields) =
-	[e| Query (fromString ($(stringE (tableInsertManyStatementBegin dec)) ++
-	                       tableInsertManyStatementTuples
-	                           (length $(varE rows))
-	                           $(litE (IntegerL (fromIntegral (length fields)))) ++
-	                       $(stringE tableInsertManyStatementEnd)))
-	          (concat (map (\ row -> $(packFields 'row dec)) $(varE rows))) |]
+makeInsertManyQuery rows dec =
+	[e| buildQuery $ do
+	        writeCode $(stringE (tableInsertStatementBegin dec))
+	        intercalateBuilder (writeCode ",")
+	                           (map (\ row -> $(makeTupleBuilder 'row dec))
+	                                $(varE rows))
+	        writeCode $(stringE tableInsertStatementEnd) |]
 
 -- | Generate the list of selectors.
 makeQuerySelectors :: [TableField] -> Q Exp
@@ -271,7 +258,7 @@ implementClasses dec@(TableDec table _ fields) constraints =
 					_         -> throwError EmptyResult
 
 			insertMany [] = pure []
-			insertMany rows = do
+			insertMany rows =
 				query $(makeInsertManyQuery 'rows dec)
 
 			find ref = do
