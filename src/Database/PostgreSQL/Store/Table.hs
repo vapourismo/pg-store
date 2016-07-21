@@ -110,6 +110,7 @@ tableUpdateStatement (TableDec table _ fields) =
 	intercalate ", " (assignIndices fields 2) ++
 	" WHERE \"$id\" = $1"
 	where
+		assignIndices :: [TableField] -> Int -> [String]
 		assignIndices [] _ = []
 		assignIndices (TableField name _ : rest) idx =
 			(quoteIdentifier name ++ " = $" ++ show idx) : assignIndices rest (idx + 1)
