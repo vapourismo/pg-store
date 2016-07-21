@@ -131,7 +131,7 @@ instance Column Int16 where
 	unpack (Value $(OID.int2) dat) = parseMaybe (signed decimal) dat
 	unpack (Value $(OID.int4) dat) = parseMaybe (signed decimal) dat
 	unpack (Value $(OID.int8) dat) = parseMaybe (signed decimal) dat
-	unpack _                        = Nothing
+	unpack _                       = Nothing
 
 	columnTypeName _ = "int2"
 
