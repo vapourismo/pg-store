@@ -49,8 +49,8 @@ instance (QueryTable a) => Column (Reference a) where
 		Reference <$> unpack val
 
 	columnTypeName proxy =
-		"BIGINT REFERENCES " ++ show (tableName tableProxy) ++
-		" (" ++ show (tableIDName tableProxy) ++ ")"
+		"BIGINT REFERENCES " ++ quoteIdentifier (tableName tableProxy) ++
+		" (" ++ quoteIdentifier (tableIDName tableProxy) ++ ")"
 		where
 			tableProxy = (const Proxy :: Proxy (Reference a) -> Proxy a) proxy
 
