@@ -42,11 +42,9 @@ instance Show (Reference a) where
 	show (Reference n) = show n
 
 instance (QueryTable a) => Column (Reference a) where
-	pack ref =
-		pack (referenceID ref)
+	pack ref = pack (referenceID ref)
 
-	unpack val =
-		Reference <$> unpack val
+	unpack val = Reference <$> unpack val
 
 	columnTypeName proxy =
 		"BIGINT REFERENCES " ++ quoteIdentifier (tableName tableProxy) ++
@@ -57,8 +55,7 @@ instance (QueryTable a) => Column (Reference a) where
 	columnAllowNull _ = False
 
 instance Result (Reference a) where
-	queryResultProcessor =
-		Reference <$> unpackColumn
+	queryResultProcessor = Reference <$> unpackColumn
 
 -- | Qualify @a@ as a table type. 'mkTable' can implement this class for you.
 class Table a where
@@ -86,8 +83,7 @@ data TableDec = TableDec Name Name [TableField]
 
 -- | Generate an identifier for a table type.
 tableIdentifier :: Name -> String
-tableIdentifier name =
-	quoteIdentifier (show name)
+tableIdentifier name = quoteIdentifier (show name)
 
 -- | Make a comma-seperated list of identifiers which correspond to given fields.
 tableFieldIdentifiers :: [TableField] -> String
@@ -111,12 +107,12 @@ tableUpdateStatement (TableDec table _ fields) =
 	"UPDATE " ++
 	tableIdentifier table ++
 	" SET " ++
-	intercalate ", " (zipWith makeStatement fields [2 .. length fields + 1]) ++
+	intercalate ", " (assignIndices fields 2) ++
 	" WHERE \"$id\" = $1"
 	where
-		-- Produce a SET statement in form of 'name = $idx'
-		makeStatement (TableField name _) idx =
-			quoteIdentifier name ++ " = $" ++ show idx
+		assignIndices [] _ = []
+		assignIndices (TableField name _ : rest) idx =
+			(quoteIdentifier name ++ " = $" ++ show idx) : assignIndices rest (idx + 1)
 
 -- | Generate the find query for a table.
 tableFindStatement :: TableDec -> String
@@ -130,7 +126,9 @@ tableFindStatement (TableDec table _ fields) =
 -- | Generate the delete statement for a table.
 tableDeleteStatement :: Name -> String
 tableDeleteStatement table =
-	"DELETE FROM " ++ tableIdentifier table ++ " WHERE \"$id\" = $1"
+	"DELETE FROM " ++
+	tableIdentifier table ++
+	" WHERE \"$id\" = $1"
 
 -- | Pack fields of a table type instance.
 packFields :: Name -> TableDec -> Q Exp
@@ -179,7 +177,9 @@ makeCreateStatement (TableDec table _ fields) constraints =
 	[e| fromString ($(stringE createTablePart) ++ intercalate ", " $descriptions ++ ")") |]
 	where
 		createTablePart =
-			"CREATE TABLE IF NOT EXISTS " ++ tableIdentifier table ++ " ("
+			"CREATE TABLE IF NOT EXISTS " ++
+			tableIdentifier table ++
+			" ("
 
 		descriptions = do
 			fs <- mapM describeField fields
