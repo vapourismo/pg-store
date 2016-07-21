@@ -14,7 +14,10 @@ module Database.PostgreSQL.Store.Query (
 	pgsq,
 	pgss,
 
-	quoteIdentifier
+	quoteIdentifier,
+
+	makeTableIdentifier,
+	makeTableSelectors
 ) where
 
 import           Language.Haskell.TH
@@ -75,10 +78,15 @@ class QueryTable a where
 	-- | Selectors needed to retrieve all fields necessary to construct the type - think @SELECT@.
 	tableSelectors :: Proxy a -> [SelectorElement]
 
+-- | Generate the quoted identifier for a table.
+makeTableIdentifier :: (QueryTable a) => Proxy a -> String
+makeTableIdentifier proxy =
+	quoteIdentifier (tableName proxy)
+
 -- | Generate table name expression.
 tableNameE :: Name -> Q Exp
 tableNameE typName =
-	[e| quoteIdentifier (tableName (Proxy :: Proxy $(conT typName))) |]
+	[e| makeTableIdentifier (Proxy :: Proxy $(conT typName)) |]
 
 -- | Generate table ID name expression
 tableIDNameE :: Name -> Q Exp

@@ -22,7 +22,7 @@ import Control.Monad
 import Control.Monad.Except
 
 import Data.Int
-import Data.List
+import Data.List hiding (insert)
 import Data.String
 import Data.Typeable
 
@@ -62,6 +62,10 @@ class Table a where
 	-- | Insert a row into the table and return a 'Reference' to the inserted row.
 	insert :: a -> Errand (Reference a)
 
+	-- | Insert multiple rows into the table at once.
+	insertMany :: [a] -> Errand [Reference a]
+	insertMany = mapM insert
+
 	-- | Find the row identified by the given reference.
 	find :: Reference a -> Errand a
 
@@ -100,6 +104,38 @@ tableInsertStatement (TableDec table _ fields) =
 	") VALUES (" ++
 	intercalate ", " (map (\ idx -> "$" ++ show idx) [1 .. length fields]) ++
 	") RETURNING \"$id\""
+
+-- | Beginning of a 'insertMany' statement.
+tableInsertManyStatementBegin :: TableDec -> String
+tableInsertManyStatementBegin (TableDec table _ fields) =
+	"INSERT INTO " ++
+	tableIdentifier table ++
+	" (" ++
+	tableFieldIdentifiers fields ++
+	") VALUES "
+
+-- | Tuples inside a 'insertMany' statement.
+tableInsertManyStatementTuples :: Int -> Int -> String
+tableInsertManyStatementTuples rows fields | rows > 0 && fields > 0 =
+	intercalate ", " (map makeTuple [0 .. rows - 1])
+	where
+		makeTuple row =
+			tableInsertManyStatementTuple (row * fields) fields
+
+tableInsertManyStatementTuples _ _ =
+	error "Negative number for rows or fields"
+
+-- | Tuple inside a 'insertMany' statement.
+tableInsertManyStatementTuple :: Int -> Int -> String
+tableInsertManyStatementTuple offset fields =
+	"(" ++
+	intercalate ", " (map (\ idx -> "$" ++ show idx) [(1 + offset) .. (fields + offset)]) ++
+	")"
+
+-- | ENd of a 'insertMany' statement.
+tableInsertManyStatementEnd :: String
+tableInsertManyStatementEnd =
+	"RETURNING \"$id\""
 
 -- | Generate the update statement for a table.
 tableUpdateStatement :: TableDec -> String
@@ -179,6 +215,16 @@ makeCreateStatement (TableDec table _ fields) constraints =
 				Check statement ->
 					"CHECK (" ++ statement ++ ")"
 
+-- | Generate the query which allows you to insert many rows at once.
+makeInsertManyQuery :: Name -> TableDec -> Q Exp
+makeInsertManyQuery rows dec@(TableDec _ _ fields) =
+	[e| Query (fromString ($(stringE (tableInsertManyStatementBegin dec)) ++
+	                       tableInsertManyStatementTuples
+	                           (length $(varE rows))
+	                           $(litE (IntegerL (fromIntegral (length fields)))) ++
+	                       $(stringE tableInsertManyStatementEnd)))
+	          (concat (map (\ row -> $(packFields 'row dec)) $(varE rows))) |]
+
 -- | Generate the list of selectors.
 makeQuerySelectors :: [TableField] -> Q Exp
 makeQuerySelectors fields =
@@ -223,6 +269,10 @@ implementClasses dec@(TableDec table _ fields) constraints =
 				case rs of
 					(ref : _) -> pure ref
 					_         -> throwError EmptyResult
+
+			insertMany [] = pure []
+			insertMany rows = do
+				query $(makeInsertManyQuery 'rows dec)
 
 			find ref = do
 				rs <- query (Query (fromString $(stringE (tableFindStatement dec)))
