@@ -38,7 +38,7 @@ allQuerySpecs =
 				shouldBe [pgsq|#TestTable|] (Query "\"T\".\"b\", \"T\".\"c\"" [])
 				shouldBe [pgsq|#TestTable|] [pgsq|#Test.Database.PostgreSQL.Store.Query.TestTable|]
 
-			it "inlines variables" $ do
+			it "embeds variables" $ do
 				let i = testVariable
 				shouldBe [pgsq|$testVariable $i|] (Query "$1 $2" [pack testVariable, pack i])
 
