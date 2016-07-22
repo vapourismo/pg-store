@@ -35,14 +35,12 @@ import           Language.Haskell.TH
 import           Language.Haskell.TH.Quote
 
 import           Control.Applicative
-import           Control.Monad.Trans
 import           Control.Monad.State.Strict
 
 import           Data.List
 import           Data.Proxy
 import           Data.String
 import qualified Data.Text          as T
-import qualified Data.Text.Encoding as T
 import qualified Data.ByteString    as B
 
 import           Data.Char
@@ -176,49 +174,39 @@ segments =
 	              SOther <$> some (satisfy (notInClass "\"'#@&$"))])
 
 -- | Reduce segments in order to resolve names and collect query parameters.
-reduceSegment :: Segment -> StateT (Int, [Exp]) Q Exp
+reduceSegment :: Segment -> QueryBuilder [Q Exp] (Q Exp)
 reduceSegment seg =
 	case seg of
 		SOther str ->
-			lift (stringE str)
+			writeCode [stringE str]
 
 		SQuote delim cnt ->
-			lift (stringE (delim : cnt ++ [delim]))
+			writeCode [stringE (delim : cnt ++ [delim])]
 
-		SVariable varName -> do
-			mbName <- lift (lookupValueName varName)
-			case mbName of
-				Just name -> do
-					-- Generate the pack expression
-					lit <- lift [e| pack $(varE name) |]
+		SVariable varName ->
+			writeParam $ do
+				mbName <- lookupValueName varName
+				maybe (fail ("'" ++ varName ++ "' does not refer to anything"))
+				      (\ name -> [e| pack $(varE name) |])
+				      mbName
 
-					-- Register parameter
-					(numParams, params) <- get
-					put (numParams + 1, params ++ [lit])
+		STable tableName ->
+			writeCode [do mbName <- lookupTypeName tableName
+			              maybe (fail ("'" ++ tableName ++ "' does not refer to anything"))
+			                    tableNameE -- Replace with table name
+			                    mbName]
 
-					-- Leave only the placeholder
-					lift (stringE ("$" ++ show (numParams + 1)))
+		SSelector tableName ->
+			writeCode [do mbName <- lookupTypeName tableName
+			              maybe (fail ("'" ++ tableName ++ "' does not refer to anything"))
+			                    makeTableSelectorsE -- Replace with selector list
+			                    mbName]
 
-				Nothing ->
-					lift (fail ("\ESC[34m" ++ varName ++ "\ESC[0m does not refer to anything"))
-
-		STable tableName -> lift $ do
-			mbName <- lookupTypeName tableName
-			maybe (fail ("\ESC[34m" ++ tableName ++ "\ESC[0m does not refer to anything"))
-			      tableNameE -- Replace with table name
-			      mbName
-
-		SSelector tableName -> lift $ do
-			mbName <- lookupTypeName tableName
-			maybe (fail ("\ESC[34m" ++ tableName ++ "\ESC[0m does not refer to anything"))
-			      makeTableSelectorsE -- Replace with selector list
-			      mbName
-
-		SIdentifier tableName -> lift $ do
-			mbName <- lookupTypeName tableName
-			maybe (fail ("\ESC[34m" ++ tableName ++ "\ESC[0m does not refer to anything"))
-			      tableAbsoluteIDNameE -- Replace with absolute ID name
-			      mbName
+		SIdentifier tableName ->
+			writeCode [do mbName <- lookupTypeName tableName
+			              maybe (fail ("'" ++ tableName ++ "' does not refer to anything"))
+			                    tableAbsoluteIDNameE -- Replace with absolute ID name
+			                    mbName]
 
 -- | Parse quasi-quoted query.
 parseStoreQueryE :: String -> Q Exp
@@ -228,11 +216,7 @@ parseStoreQueryE code = do
 			fail msg
 
 		Right xs -> do
-			(parts, (_, params)) <- runStateT (mapM reduceSegment xs) (0, [])
-			[e| Query {
-			        queryStatement = T.encodeUtf8 (T.pack (concat $(pure (ListE parts)))),
-			        queryParams    = $(pure (ListE params))
-			    } |]
+			runQueryBuilder (mapM_ reduceSegment xs)
 
 -- | This quasi-quoter allows you to generate instances of 'Query'. It lets you write SQL with some
 -- small enhancements. 'pgsq' heavily relies on 'QueryTable' which can be implemented by 'mkTable'
@@ -357,8 +341,7 @@ parseStoreStatementE code = do
 			fail (show msg)
 
 		Right xs -> do
-			parts <- evalStateT (mapM reduceSegment xs) (0, [])
-			[e| concat $(pure (ListE parts)) |]
+			[e| fromString (concat $(listE (runQueryBuilder_ (mapM_ reduceSegment xs)))) |]
 
 -- | Just like 'pgsq' but only produces the statement associated with the query. Referenced
 -- values are not inlined, they are simply dismissed.
@@ -372,7 +355,7 @@ pgss =
 	}
 
 -- | Build 'r' using 's' and 'v'.
-class QueryBuild s v r | s v -> r where
+class (Monoid s) => QueryBuild s v r | s v -> r where
 	buildQuery :: s -> [v] -> r
 
 instance QueryBuild B.ByteString Value Query where
@@ -385,6 +368,22 @@ instance QueryBuild String (Q Exp) (Q Exp) where
 	buildQuery statement values =
 		[e| Query (fromString $(stringE statement)) $(listE values) |]
 
+instance QueryBuild [Q Exp] (Q Exp) (Q Exp) where
+	buildQuery statements values =
+		[e| Query (fromString (concat $(listE statements))) $(listE values) |]
+
+class QueryCode s where
+	makeCode :: String -> s
+
+instance QueryCode B.ByteString where
+	makeCode = fromString
+
+instance QueryCode String where
+	makeCode = id
+
+instance QueryCode [Q Exp] where
+	makeCode str = [stringE str]
+
 -- | Internal state for 'QueryBuilder'
 data QueryBuilderState s v = QueryBuilderState s Word [v]
 
@@ -392,11 +391,19 @@ data QueryBuilderState s v = QueryBuilderState s Word [v]
 type QueryBuilder s v = State (QueryBuilderState s v) ()
 
 -- | Execute the query builder.
-runQueryBuilder :: (Monoid s, QueryBuild s v r) => QueryBuilder s v -> r
+runQueryBuilder :: (QueryBuild s v r) => QueryBuilder s v -> r
 runQueryBuilder builder =
 	buildQuery statement values
 	where
 		QueryBuilderState statement _ values =
+			execState builder (QueryBuilderState mempty 1 [])
+
+-- | Execute query builder, but only retrieve the statement.
+runQueryBuilder_ :: (Monoid s) => QueryBuilder s v -> s
+runQueryBuilder_ builder =
+	statement
+	where
+		QueryBuilderState statement _ _ =
 			execState builder (QueryBuilderState mempty 1 [])
 
 -- | Write a piece of code.
@@ -406,28 +413,28 @@ writeCode code =
 		QueryBuilderState (mappend statement code) index values
 
 -- | Write a piece of code.
-writeStringCode :: (Monoid s, IsString s) => String -> QueryBuilder s v
+writeStringCode :: (QueryCode s, Monoid s) => String -> QueryBuilder s v
 writeStringCode code =
-	writeCode (fromString code)
+	writeCode (makeCode code)
 
 -- | Embed a value into the query.
-writeParam :: (Monoid s, IsString s) => v -> QueryBuilder s v
+writeParam :: (Monoid s, QueryCode s) => v -> QueryBuilder s v
 writeParam value = do
 	modify $ \ (QueryBuilderState statement index values) ->
-		QueryBuilderState (mappend statement (fromString ("$" ++ show index)))
+		QueryBuilderState (mappend statement (makeCode ("$" ++ show index)))
 		                  (index + 1)
 		                  (values ++ [value])
 
 -- | Insert an identifier into the query.
-writeIdentifier :: (Monoid s, IsString s) => String -> QueryBuilder s v
+writeIdentifier :: (Monoid s, QueryCode s) => String -> QueryBuilder s v
 writeIdentifier name =
 	writeStringCode (quoteIdentifier name)
 
 -- |  Insert an absolute identifier into the query.
-writeAbsIdentifier :: (Monoid s, IsString s) => String -> String -> QueryBuilder s v
+writeAbsIdentifier :: (Monoid s, QueryCode s) => String -> String -> QueryBuilder s v
 writeAbsIdentifier table field = do
 	writeIdentifier table
-	writeCode "."
+	writeStringCode "."
 	writeIdentifier field
 
 -- | Insert a query builder between other builders.
