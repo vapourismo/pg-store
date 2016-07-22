@@ -26,6 +26,8 @@ import Data.List hiding (insert)
 import Data.String
 import Data.Typeable
 
+import qualified Data.ByteString as B
+
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax
 
@@ -78,6 +80,9 @@ class Table a where
 	-- | Generate the query which creates this table inside the database.
 	-- Use 'mkCreateQuery' for convenience.
 	createTableQuery :: Proxy a -> Query
+
+	-- |
+	writeTuple :: a -> QueryBuilder B.ByteString Value
 
 -- | Table field declaration
 data TableField = TableField String Type
@@ -195,22 +200,20 @@ makeCreateStatement (TableDec table _ fields) constraints =
 				Check statement ->
 					"CHECK (" ++ statement ++ ")"
 
--- | Builds a tuple in 'QueryBuilder' which contains all the fields of table type instance.
-makeTupleBuilder :: Name -> TableDec -> Q Exp
-makeTupleBuilder row dec =
-	[e| do writeCode "("
-	       intercalateBuilder (writeCode ",") (map writeValue $(packFields row dec))
-	       writeCode ")" |]
+-- | Generate implementation for 'writeTuple'.
+makeWriteTuple :: Name -> TableDec -> Q Exp
+makeWriteTuple row dec =
+	[e| do writeStringCode "("
+	       intercalateBuilder (writeStringCode ",") (map writeValue $(packFields row dec))
+	       writeStringCode ")" |]
 
 -- | Generate the query which allows you to insert many rows at once.
 makeInsertManyQuery :: Name -> TableDec -> Q Exp
 makeInsertManyQuery rows dec =
-	[e| buildQuery $ do
-	        writeCode $(stringE (tableInsertStatementBegin dec))
-	        intercalateBuilder (writeCode ",")
-	                           (map (\ row -> $(makeTupleBuilder 'row dec))
-	                                $(varE rows))
-	        writeCode $(stringE tableInsertStatementEnd) |]
+	[e| runQueryBuilder $ do
+	        writeStringCode $(stringE (tableInsertStatementBegin dec))
+	        intercalateBuilder (writeStringCode ",") (map writeTuple $(varE rows))
+	        writeStringCode $(stringE tableInsertStatementEnd) |]
 
 -- | Generate the list of selectors.
 makeQuerySelectors :: [TableField] -> Q Exp
@@ -278,6 +281,9 @@ implementClasses dec@(TableDec table _ fields) constraints =
 
 			createTableQuery _ =
 				Query $(makeCreateStatement dec constraints) []
+
+			writeTuple row =
+				$(makeWriteTuple 'row dec)
 	|]
 
 -- | Check that each field's type has an implementation of 'Column'.
