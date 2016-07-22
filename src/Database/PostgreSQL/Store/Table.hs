@@ -85,10 +85,10 @@ class Table a where
 	writeTuple :: a -> QueryBuilder B.ByteString Value
 
 -- | Table field declaration
-data TableField = TableField String Type
+data TableField = TableField String Type Name
 
 -- | Table type declaration
-data TableDec = TableDec Name Name [TableField]
+data TableDec = TableDec Name Name [TableField] Pat
 
 -- | Generate an identifier for a table type.
 tableIdentifier :: Name -> String
@@ -97,11 +97,11 @@ tableIdentifier name = quoteIdentifier (show name)
 -- | Make a comma-seperated list of identifiers which correspond to given fields.
 tableFieldIdentifiers :: [TableField] -> String
 tableFieldIdentifiers fields =
-	intercalate ", " (map (\ (TableField name _) -> quoteIdentifier name) fields)
+	intercalate ", " (map (\ (TableField name _ _) -> quoteIdentifier name) fields)
 
 -- | Beginning of a insert statement.
 tableInsertStatementBegin :: TableDec -> String
-tableInsertStatementBegin (TableDec table _ fields) =
+tableInsertStatementBegin (TableDec table _ fields _) =
 	"INSERT INTO " ++
 	tableIdentifier table ++
 	" (" ++
@@ -113,49 +113,10 @@ tableInsertStatementEnd :: String
 tableInsertStatementEnd =
 	" RETURNING \"$id\""
 
--- | Generate the insert statement for a table.
-tableInsertStatement :: TableDec -> String
-tableInsertStatement dec@(TableDec _ _ fields) =
-	tableInsertStatementBegin dec ++
-	" (" ++
-	intercalate ", " (map (\ idx -> "$" ++ show idx) [1 .. length fields]) ++
-	" ) " ++
-	tableInsertStatementEnd
-
--- | Generate the update statement for a table.
-tableUpdateStatement :: TableDec -> String
-tableUpdateStatement (TableDec table _ fields) =
-	"UPDATE " ++
-	tableIdentifier table ++
-	" SET " ++
-	intercalate ", " (assignIndices fields 2) ++
-	" WHERE \"$id\" = $1"
-	where
-		assignIndices :: [TableField] -> Int -> [String]
-		assignIndices [] _ = []
-		assignIndices (TableField name _ : rest) idx =
-			(quoteIdentifier name ++ " = $" ++ show idx) : assignIndices rest (idx + 1)
-
--- | Generate the find query for a table.
-tableFindStatement :: TableDec -> String
-tableFindStatement (TableDec table _ fields) =
-	"SELECT " ++
-	tableFieldIdentifiers fields ++
-	" FROM " ++
-	tableIdentifier table ++
-	" WHERE \"$id\" = $1 LIMIT 1"
-
--- | Generate the delete statement for a table.
-tableDeleteStatement :: Name -> String
-tableDeleteStatement table =
-	"DELETE FROM " ++
-	tableIdentifier table ++
-	" WHERE \"$id\" = $1"
-
 -- | Bind fields of a table type instance.
 bindFields :: Name -> TableDec -> ([Name] -> Q Exp) -> Q Exp
-bindFields row (TableDec _ ctor fields) action =
-	mapM (\ (TableField name _) -> newName name) fields >>= generate
+bindFields row (TableDec _ ctor fields _) action =
+	mapM (\ (TableField name _ _) -> newName name) fields >>= generate
 	where
 		generate names =
 			-- let Ctor name0 name1 .. nameN = row in $(action ['name0, 'name1 ... 'nameN])
@@ -172,9 +133,14 @@ packFields row dec =
 		-- [pack name0, pack name1 ... pack nameN]
 		pure (ListE (map (\ n -> AppE (VarE 'pack) (VarE n)) names))
 
+-- | Call a constructor with some variables.
+callConstructor :: Name -> [Name] -> Exp
+callConstructor ctor params =
+	foldl AppE (ConE ctor) (map VarE params)
+
 -- | Generate the create statement for a table.
 makeCreateStatement :: TableDec -> [TableConstraint] -> Q Exp
-makeCreateStatement (TableDec table _ fields) constraints =
+makeCreateStatement (TableDec table _ fields _) constraints =
 	[e| fromString ($(stringE createTablePart) ++ intercalate ", " $descriptions ++ ")") |]
 	where
 		createTablePart =
@@ -191,7 +157,7 @@ makeCreateStatement (TableDec table _ fields) constraints =
 			LitE (StringL "\"$id\" BIGSERIAL NOT NULL PRIMARY KEY")
 
 		-- Fetch column description for a field and its associated type
-		describeField (TableField name typ) =
+		describeField (TableField name typ _) =
 			[e| columnDescription (Proxy :: Proxy $(pure typ)) $(stringE (quoteIdentifier name)) |]
 
 		-- Generate the SQL described in the given constraint
@@ -207,7 +173,7 @@ makeCreateStatement (TableDec table _ fields) constraints =
 makeWriteTuple :: Name -> TableDec -> Q Exp
 makeWriteTuple row dec =
 	[e| do writeStringCode "("
-	       intercalateBuilder (writeStringCode ",") (map writeValue $(packFields row dec))
+	       intercalateBuilder (writeStringCode ",") (map writeParam $(packFields row dec))
 	       writeStringCode ")" |]
 
 -- | Generate the query which allows you to insert many rows at once.
@@ -221,17 +187,12 @@ makeInsertManyQuery rows dec =
 -- | Generate the list of selectors.
 makeQuerySelectors :: [TableField] -> Q Exp
 makeQuerySelectors fields =
-	ListE <$> mapM (\ (TableField field _) -> [e| SelectorField $(stringE field) |]) fields
-
--- | Call a constructor with some variables.
-callConstructor :: Name -> [Name] -> Exp
-callConstructor ctor params =
-	foldl AppE (ConE ctor) (map VarE params)
+	ListE <$> mapM (\ (TableField field _ _) -> [e| SelectorField $(stringE field) |]) fields
 
 -- | Generate the result processor for a table.
 makeResultProcessor :: TableDec -> Q Exp
-makeResultProcessor (TableDec _ ctor fields) = do
-	bindingNames <- mapM (\ (TableField name _) -> newName name) fields
+makeResultProcessor (TableDec _ ctor fields _) = do
+	bindingNames <- mapM (\ (TableField name _ _) -> newName name) fields
 	pure (DoE (map makeBinding bindingNames ++
 	           [makeConstruction bindingNames]))
 	where
@@ -243,9 +204,66 @@ makeResultProcessor (TableDec _ ctor fields) = do
 		makeConstruction names =
 			NoBindS (AppE (VarE 'pure) (callConstructor ctor names))
 
+-- |
+makeInsertQuery :: TableDec -> Q Exp
+makeInsertQuery (TableDec table _ fields _) =
+	runQueryBuilder $ do
+		writeCode "INSERT INTO "
+		writeIdentifier (show table)
+		writeCode "("
+		intercalateBuilder (writeCode ", ") $
+			map (\ (TableField name _ _) -> writeIdentifier name) fields
+		writeCode ") VALUES ("
+		intercalateBuilder (writeCode ", ") $
+			map (\ (TableField _ _ boundName) -> writeParam [e| pack $(varE boundName) |]) fields
+		writeCode ") RETURNING "
+		writeIdentifier "$id"
+
+-- | Generate the query for finding a row.
+makeFindQuery :: Name -> TableDec -> Q Exp
+makeFindQuery ref (TableDec table _ fields _) =
+	runQueryBuilder $ do
+		writeCode "SELECT "
+		intercalateBuilder (writeCode ", ") $
+			map (\ (TableField name _ _) -> writeIdentifier name) fields
+		writeCode " FROM "
+		writeIdentifier (show table)
+		writeCode " WHERE "
+		writeIdentifier "$id"
+		writeCode " = "
+		writeParam [e| pack $(varE ref) |]
+
+-- | Generate the query for updating a row.
+makeUpdateQuery :: Name -> TableDec -> Q Exp
+makeUpdateQuery ref (TableDec table _ fields _) =
+	runQueryBuilder $ do
+		writeCode "UPDATE "
+		writeIdentifier (show table)
+		writeCode " SET "
+		intercalateBuilder (writeCode ", ") $
+			flip map fields $ \ (TableField name _ boundName) -> do
+				writeIdentifier name
+				writeCode " = "
+				writeParam [e| pack $(varE boundName) |]
+		writeCode " WHERE "
+		writeIdentifier "$id"
+		writeCode " = "
+		writeParam [e| pack $(varE ref) |]
+
+-- | Generate the query for deleting a row.
+makeDeleteQuery :: Name -> Name -> Q Exp
+makeDeleteQuery ref table =
+	runQueryBuilder $ do
+		writeCode "DELETE FROM "
+		writeIdentifier (show table)
+		writeCode " WHERE "
+		writeIdentifier "$id"
+		writeCode " = "
+		writeParam [e| pack $(varE ref) |]
+
 -- | Implement relevant instances for the given table type.
 implementClasses :: TableDec -> [TableConstraint] -> Q [Dec]
-implementClasses dec@(TableDec table _ fields) constraints =
+implementClasses dec@(TableDec table _ fields destructPat) constraints =
 	[d|
 		instance QueryTable $(conT table) where
 			tableName _      = $(stringE (show table))
@@ -256,9 +274,8 @@ implementClasses dec@(TableDec table _ fields) constraints =
 			queryResultProcessor = $(makeResultProcessor dec)
 
 		instance Table $(conT table) where
-			insert row = do
-				rs <- query (Query (fromString $(stringE (tableInsertStatement dec)))
-				                   $(packFields 'row dec))
+			insert $(pure destructPat) = do
+				rs <- query $(makeInsertQuery dec)
 				case rs of
 					(ref : _) -> pure ref
 					_         -> throwError EmptyResult
@@ -268,19 +285,16 @@ implementClasses dec@(TableDec table _ fields) constraints =
 				query $(makeInsertManyQuery 'rows dec)
 
 			find ref = do
-				rs <- query (Query (fromString $(stringE (tableFindStatement dec)))
-				                   [pack (referenceID ref)])
+				rs <- query $(makeFindQuery 'ref dec)
 				case rs of
 					(row : _) -> pure row
 					_         -> throwError EmptyResult
 
-			update ref row =
-				query_ (Query (fromString $(stringE (tableUpdateStatement dec)))
-				              (pack (referenceID ref) : $(packFields 'row dec)))
+			update ref $(pure destructPat) =
+				query_ $(makeUpdateQuery 'ref dec)
 
 			delete ref =
-				query_ (Query (fromString $(stringE (tableDeleteStatement table)))
-				              [pack (referenceID ref)])
+				query_ $(makeDeleteQuery 'ref table)
 
 			createTableQuery _ =
 				Query $(makeCreateStatement dec constraints) []
@@ -298,7 +312,7 @@ checkRecordFields fields =
 			fail ("Type of field '" ++ show name ++ "' ('" ++ show typ ++
 			      "') type does not implement '" ++ show ''Column ++ "'")
 
-		pure (TableField (nameBase name) typ)
+		TableField (nameBase name) typ <$> newName (nameBase name)
 
 -- | Check that each constructor parameter type implements 'Column'.
 checkNormalFields :: [BangType] -> Q [TableField]
@@ -309,24 +323,31 @@ checkNormalFields fields = do
 			fail ("Type of constructor parameter #" ++ show idx ++ " ('" ++ show typ ++
 			      "') type does not implement '" ++ show ''Column ++ "'")
 
-		pure (TableField ("column" ++ show idx) typ)
+		TableField ("column" ++ show idx) typ <$> newName ("column" ++ show idx)
+
+-- |
+makeCtorPattern :: Name -> [TableField] -> Pat
+makeCtorPattern ctor fields =
+	ConP ctor (map (\ (TableField _ _ name) -> VarP name) fields)
 
 -- | Verify that the given constructor is viable and construct a 'TableDec'.
 checkTableCtor :: Name -> Con -> Q TableDec
-checkTableCtor tableName (RecC ctorName ctorFields) = do
+checkTableCtor table (RecC ctor ctorFields) = do
 	when (length ctorFields < 1)
-	     (fail ("'" ++ show ctorName ++ "' must have at least one field"))
+	     (fail ("'" ++ show ctor ++ "' must have at least one field"))
 
-	TableDec tableName ctorName <$> checkRecordFields ctorFields
+	fields <- checkRecordFields ctorFields
+	pure (TableDec table ctor fields (makeCtorPattern ctor fields))
 
-checkTableCtor tableName (NormalC ctorName ctorFields) = do
+checkTableCtor table (NormalC ctor ctorFields) = do
 	when (length ctorFields < 1)
-	     (fail ("'" ++ show ctorName ++ "' must have at least one field"))
+	     (fail ("'" ++ show ctor ++ "' must have at least one field"))
 
-	TableDec tableName ctorName <$> checkNormalFields ctorFields
+	fields <- checkNormalFields ctorFields
+	pure (TableDec table ctor fields (makeCtorPattern ctor fields))
 
-checkTableCtor tableName _ =
-	fail ("'" ++ show tableName ++ "' must have a normal or record constructor")
+checkTableCtor table _ =
+	fail ("'" ++ show table ++ "' must have a normal or record constructor")
 
 -- | Make sure the given declaration can be used, then construct a 'TableDec'.
 checkTableDec :: Name -> Dec -> Q TableDec

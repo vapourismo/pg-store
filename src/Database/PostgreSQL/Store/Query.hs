@@ -23,10 +23,11 @@ module Database.PostgreSQL.Store.Query (
 	QueryBuild (..),
 	QueryBuilder,
 	runQueryBuilder,
-	writeValue,
+	writeParam,
 	writeCode,
 	writeStringCode,
 	writeIdentifier,
+	writeAbsIdentifier,
 	intercalateBuilder
 ) where
 
@@ -380,13 +381,9 @@ instance QueryBuild B.ByteString Value Query where
 instance QueryBuild String Value Query where
 	buildQuery statement = Query (fromString statement)
 
-instance QueryBuild Exp Exp Exp where
+instance QueryBuild String (Q Exp) (Q Exp) where
 	buildQuery statement values =
-		AppE (AppE (ConE 'Query) statement) (ListE values)
-
-instance QueryBuild String Exp Exp where
-	buildQuery statement =
-		buildQuery (AppE (VarE 'fromString) (LitE (StringL statement)))
+		[e| Query (fromString $(stringE statement)) $(listE values) |]
 
 -- | Internal state for 'QueryBuilder'
 data QueryBuilderState s v = QueryBuilderState s Word [v]
@@ -414,8 +411,8 @@ writeStringCode code =
 	writeCode (fromString code)
 
 -- | Embed a value into the query.
-writeValue :: (Monoid s, IsString s) => v -> QueryBuilder s v
-writeValue value = do
+writeParam :: (Monoid s, IsString s) => v -> QueryBuilder s v
+writeParam value = do
 	modify $ \ (QueryBuilderState statement index values) ->
 		QueryBuilderState (mappend statement (fromString ("$" ++ show index)))
 		                  (index + 1)
@@ -424,7 +421,14 @@ writeValue value = do
 -- | Insert an identifier into the query.
 writeIdentifier :: (Monoid s, IsString s) => String -> QueryBuilder s v
 writeIdentifier name =
-	writeCode (fromString ('\"' : name ++ "\""))
+	writeStringCode (quoteIdentifier name)
+
+-- |  Insert an absolute identifier into the query.
+writeAbsIdentifier :: (Monoid s, IsString s) => String -> String -> QueryBuilder s v
+writeAbsIdentifier table field = do
+	writeIdentifier table
+	writeCode "."
+	writeIdentifier field
 
 -- | Insert a query builder between other builders.
 intercalateBuilder :: QueryBuilder s v -> [QueryBuilder s v] -> QueryBuilder s v
