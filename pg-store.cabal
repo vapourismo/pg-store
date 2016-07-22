@@ -41,5 +41,6 @@ test-suite tests
   hs-source-dirs:   tests
   other-modules:    Test.Database.PostgreSQL.Store.Query,
                     Test.Database.PostgreSQL.Store.Columns,
+                    Test.Database.PostgreSQL.Store.Table,
                     Test.Database.PostgreSQL.Store
   main-is:          Main.hs
