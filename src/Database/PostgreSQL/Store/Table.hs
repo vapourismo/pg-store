@@ -152,22 +152,25 @@ tableDeleteStatement table =
 	tableIdentifier table ++
 	" WHERE \"$id\" = $1"
 
--- | Pack fields of a table type instance.
-packFields :: Name -> TableDec -> Q Exp
-packFields row (TableDec _ ctor fields) = do
-	generate <$> mapM (\ (TableField name _) -> newName name) fields
+-- | Bind fields of a table type instance.
+bindFields :: Name -> TableDec -> ([Name] -> Q Exp) -> Q Exp
+bindFields row (TableDec _ ctor fields) action =
+	mapM (\ (TableField name _) -> newName name) fields >>= generate
 	where
 		generate names =
-			-- let Ctor name0 name1 .. nameN = [pack name0, pack name1, ... pack nameN]
-			LetE [destructureCtor names] (packValues names)
+			-- let Ctor name0 name1 .. nameN = row in $(action ['name0, 'name1 ... 'nameN])
+			LetE [destructureCtor names] <$> action names
 
 		destructureCtor names =
-			-- Ctor name0 name1 ... nameN
+			-- Ctor name0 name1 ... nameN = row
 			ValD (ConP ctor (map VarP names)) (NormalB (VarE row)) []
 
-		packValues names =
-			-- [pack name0, pack name1, ... pack nameN]
-			ListE (map (\ n -> AppE (VarE 'pack) (VarE n)) names)
+-- | Pack fields of a table type instance.
+packFields :: Name -> TableDec -> Q Exp
+packFields row dec =
+	bindFields row dec $ \ names ->
+		-- [pack name0, pack name1 ... pack nameN]
+		pure (ListE (map (\ n -> AppE (VarE 'pack) (VarE n)) names))
 
 -- | Generate the create statement for a table.
 makeCreateStatement :: TableDec -> [TableConstraint] -> Q Exp
