@@ -110,26 +110,6 @@ tableInsertStatementEnd :: String
 tableInsertStatementEnd =
 	" RETURNING \"$id\""
 
--- | Bind fields of a table type instance.
-bindFields :: Name -> TableDec -> ([Name] -> Q Exp) -> Q Exp
-bindFields row (TableDec _ ctor fields _) action =
-	mapM (\ (TableField name _ _) -> newName name) fields >>= generate
-	where
-		generate names =
-			-- let Ctor name0 name1 .. nameN = row in $(action ['name0, 'name1 ... 'nameN])
-			LetE [destructureCtor names] <$> action names
-
-		destructureCtor names =
-			-- Ctor name0 name1 ... nameN = row
-			ValD (ConP ctor (map VarP names)) (NormalB (VarE row)) []
-
--- | Pack fields of a table type instance.
-packFields :: Name -> TableDec -> Q Exp
-packFields row dec =
-	bindFields row dec $ \ names ->
-		-- [pack name0, pack name1 ... pack nameN]
-		pure (ListE (map (\ n -> AppE (VarE 'pack) (VarE n)) names))
-
 -- | Call a constructor with some variables.
 callConstructor :: Name -> [Name] -> Exp
 callConstructor ctor params =
