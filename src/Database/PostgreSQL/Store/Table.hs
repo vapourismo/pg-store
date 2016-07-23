@@ -24,7 +24,6 @@ import Control.Monad.Except
 import Data.Int
 import Data.List hiding (insert)
 import Data.Proxy
-import Data.String
 
 import qualified Data.ByteString as B
 
@@ -138,51 +137,12 @@ callConstructor :: Name -> [Name] -> Exp
 callConstructor ctor params =
 	foldl AppE (ConE ctor) (map VarE params)
 
--- | Generate the create statement for a table.
-makeCreateStatement :: TableDec -> [TableConstraint] -> Q Exp
-makeCreateStatement (TableDec table _ fields _) constraints =
-	[e| fromString ($(stringE createTablePart) ++ intercalate ", " $descriptions ++ ")") |]
-	where
-		createTablePart =
-			"CREATE TABLE IF NOT EXISTS " ++
-			tableIdentifier table ++
-			" ("
-
-		descriptions = do
-			fs <- mapM describeField fields
-			cs <- mapM describeConstraint constraints
-			pure (ListE (identField : fs ++ cs))
-
-		identField =
-			LitE (StringL "\"$id\" BIGSERIAL NOT NULL PRIMARY KEY")
-
-		-- Fetch column description for a field and its associated type
-		describeField (TableField name typ _) =
-			[e| columnDescription (Proxy :: Proxy $(pure typ)) $(stringE (quoteIdentifier name)) |]
-
-		-- Generate the SQL described in the given constraint
-		describeConstraint cont =
-			stringE $ case cont of
-				Unique names ->
-					"UNIQUE (" ++ intercalate ", " (map (quoteIdentifier . nameBase) names) ++ ")"
-
-				Check statement ->
-					"CHECK (" ++ statement ++ ")"
-
 -- | Generate implementation for 'writeTuple'.
 makeWriteTuple :: Name -> TableDec -> Q Exp
 makeWriteTuple row dec =
 	[e| do writeCode ("(" :: B.ByteString)
 	       intercalateBuilder (writeCode ("," :: B.ByteString)) (map writeParam $(packFields row dec))
 	       writeCode (")" :: B.ByteString) |]
-
--- | Generate the query which allows you to insert many rows at once.
-makeInsertManyQuery :: Name -> TableDec -> Q Exp
-makeInsertManyQuery rows dec =
-	[e| runQueryBuilder $ do
-	        writeCode ($(stringE (tableInsertStatementBegin dec)) :: B.ByteString)
-	        intercalateBuilder (writeCode ("," :: B.ByteString)) (map writeTuple $(varE rows))
-	        writeCode ($(stringE tableInsertStatementEnd) :: B.ByteString) |]
 
 -- | Generate the list of selectors.
 makeQuerySelectors :: [TableField] -> Q Exp
@@ -204,13 +164,49 @@ makeResultProcessor (TableDec _ ctor fields _) = do
 		makeConstruction names =
 			NoBindS (AppE (VarE 'pure) (callConstructor ctor names))
 
--- |
+-- | Generate the create query.
+makeCreateQuery :: TableDec -> [TableConstraint] -> Q Exp
+makeCreateQuery (TableDec table _ fields _) constraints =
+	runQueryBuilder $ do
+		writeCode "CREATE TABLE IF NOT EXISTS " :: QueryBuilder [Q Exp] (Q Exp)
+		writeIdentifier (show table)
+		writeCode " ("
+
+		intercalateBuilder (writeCode ", ") $
+			identDescription :
+			map describeField fields ++
+			map describeConstraint constraints
+
+		writeCode ")"
+	where
+		identDescription = do
+			writeIdentifier "$id"
+			writeCode "BIGSERIAL NOT NULL PRIMARY KEY"
+
+		describeField :: TableField -> QueryBuilder [Q Exp] (Q Exp)
+		describeField (TableField name typ _) =
+			writeCode [e| columnDescription (Proxy :: Proxy $(pure typ))
+			                                $(stringE (quoteIdentifier name)) |]
+
+		describeConstraint :: TableConstraint -> QueryBuilder [Q Exp] (Q Exp)
+		describeConstraint (Unique names) = do
+			writeCode "UNIQUE ("
+			intercalateBuilder (writeCode ", ") $
+				map (writeIdentifier . nameBase) names
+			writeCode ")"
+
+		describeConstraint (Check code) = do
+			writeCode "CHECK ("
+			writeCode code
+			writeCode ")"
+
+-- | Generate the query which insert a row.
 makeInsertQuery :: TableDec -> Q Exp
 makeInsertQuery (TableDec table _ fields _) =
 	runQueryBuilder $ do
 		writeCode "INSERT INTO " :: QueryBuilder String (Q Exp)
 		writeIdentifier (show table)
-		writeCode "("
+		writeCode " ("
 		intercalateBuilder (writeCode ", ") $
 			map (\ (TableField name _ _) -> writeIdentifier name) fields
 		writeCode ") VALUES ("
@@ -219,11 +215,19 @@ makeInsertQuery (TableDec table _ fields _) =
 		writeCode ") RETURNING "
 		writeIdentifier "$id"
 
+-- | Generate the query which inserts multiple rows at once.
+makeInsertManyQuery :: Name -> TableDec -> Q Exp
+makeInsertManyQuery rows dec =
+	[e| runQueryBuilder $ do
+	        writeCode ($(stringE (tableInsertStatementBegin dec)) :: B.ByteString)
+	        intercalateBuilder (writeCode ("," :: B.ByteString)) (map writeTuple $(varE rows))
+	        writeCode ($(stringE tableInsertStatementEnd) :: B.ByteString) |]
+
 -- | Generate the query for finding a row.
 makeFindQuery :: Name -> TableDec -> Q Exp
 makeFindQuery ref (TableDec table _ fields _) =
 	runQueryBuilder $ do
-		writeCode "SELECT "  :: QueryBuilder String (Q Exp)
+		writeCode "SELECT " :: QueryBuilder String (Q Exp)
 		intercalateBuilder (writeCode ", ") $
 			map (\ (TableField name _ _) -> writeIdentifier name) fields
 		writeCode " FROM "
@@ -237,7 +241,7 @@ makeFindQuery ref (TableDec table _ fields _) =
 makeUpdateQuery :: Name -> TableDec -> Q Exp
 makeUpdateQuery ref (TableDec table _ fields _) =
 	runQueryBuilder $ do
-		writeCode "UPDATE "  :: QueryBuilder String (Q Exp)
+		writeCode "UPDATE " :: QueryBuilder String (Q Exp)
 		writeIdentifier (show table)
 		writeCode " SET "
 		intercalateBuilder (writeCode ", ") $
@@ -297,7 +301,7 @@ implementClasses dec@(TableDec table _ fields destructPat) constraints =
 				query_ $(makeDeleteQuery 'ref table)
 
 			createTableQuery _ =
-				Query $(makeCreateStatement dec constraints) []
+				$(makeCreateQuery dec constraints)
 
 			writeTuple row =
 				$(makeWriteTuple 'row dec)
