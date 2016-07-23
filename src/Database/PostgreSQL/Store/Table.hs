@@ -81,9 +81,6 @@ class Table a where
 	-- Use 'mkCreateQuery' for convenience.
 	createTableQuery :: Proxy a -> Query
 
-	-- |
-	writeTuple :: a -> QueryBuilder B.ByteString Value
-
 -- | Table field declaration
 data TableField = TableField String Type Name
 
@@ -137,13 +134,6 @@ packFields row dec =
 callConstructor :: Name -> [Name] -> Exp
 callConstructor ctor params =
 	foldl AppE (ConE ctor) (map VarE params)
-
--- | Generate implementation for 'writeTuple'.
-makeWriteTuple :: Name -> TableDec -> Q Exp
-makeWriteTuple row dec =
-	[e| do writeStringCode "("
-	       intercalateBuilder (writeStringCode ",") (map writeParam $(packFields row dec))
-	       writeStringCode ")" |]
 
 -- | Generate the list of selectors.
 makeQuerySelectors :: [TableField] -> Q Exp
@@ -218,11 +208,20 @@ makeInsertQuery (TableDec table _ fields _) =
 
 -- | Generate the query which inserts multiple rows at once.
 makeInsertManyQuery :: Name -> TableDec -> Q Exp
-makeInsertManyQuery rows dec =
-	[e| runQueryBuilder $ do
-	        writeStringCode $(stringE (tableInsertStatementBegin dec))
-	        intercalateBuilder (writeStringCode ",") (map writeTuple $(varE rows))
-	        writeStringCode $(stringE tableInsertStatementEnd) |]
+makeInsertManyQuery rows dec@(TableDec _ _ fields destructPat) =
+	[e|
+		let
+			writeTuple $(pure destructPat) = do
+				writeStringCode "(" :: QueryBuilder B.ByteString Value
+				intercalateBuilder (writeStringCode ",") $(ListE <$> mapM packColumn fields)
+				writeStringCode ")"
+		in runQueryBuilder $ do
+			writeStringCode $(stringE (tableInsertStatementBegin dec))
+			intercalateBuilder (writeStringCode ",") (map writeTuple $(varE rows))
+			writeStringCode $(stringE tableInsertStatementEnd)
+	|]
+	where
+		packColumn (TableField _ _ boundName) = [e| writeColumn $(varE boundName) |]
 
 -- | Generate the query for finding a row.
 makeFindQuery :: Name -> TableDec -> Q Exp
@@ -303,9 +302,6 @@ implementClasses dec@(TableDec table _ fields destructPat) constraints =
 
 			createTableQuery _ =
 				$(makeCreateQuery dec constraints)
-
-			writeTuple row =
-				$(makeWriteTuple 'row dec)
 	|]
 
 -- | Check that each field's type has an implementation of 'Column'.
