@@ -1,5 +1,6 @@
-{-# LANGUAGE OverloadedStrings, TemplateHaskell, BangPatterns, GeneralizedNewtypeDeriving,
-             MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances #-}
+{-# LANGUAGE QuasiQuotes, TemplateHaskell, BangPatterns,
+             GeneralizedNewtypeDeriving, MultiParamTypeClasses, FunctionalDependencies,
+             FlexibleInstances, FlexibleContexts #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Query
@@ -20,12 +21,15 @@ module Database.PostgreSQL.Store.Query (
 	makeTableSelectors,
 
 	-- * Query builder
-	QueryBuild (..),
+	QueryCode,
+	QueryBuildable,
+	QueryBuilderT,
 	QueryBuilder,
+	runQueryBuilderT,
 	runQueryBuilder,
 	writeParam,
+	writeColumn,
 	writeCode,
-	writeStringCode,
 	writeIdentifier,
 	writeAbsIdentifier,
 	intercalateBuilder
@@ -39,9 +43,10 @@ import           Control.Monad.State.Strict
 
 import           Data.List
 import           Data.Proxy
+import           Data.Monoid
 import           Data.String
-import qualified Data.Text          as T
-import qualified Data.ByteString    as B
+import qualified Data.Text       as T
+import qualified Data.ByteString as B
 
 import           Data.Char
 import           Data.Attoparsec.Text
@@ -341,7 +346,7 @@ parseStoreStatementE code = do
 			fail (show msg)
 
 		Right xs -> do
-			[e| fromString (concat $(listE (runQueryBuilder_ (mapM_ reduceSegment xs)))) |]
+			[e| mconcat $(listE (runQueryBuilder_ (mapM_ reduceSegment xs))) |]
 
 -- | Just like 'pgsq' but only produces the statement associated with the query. Referenced
 -- values are not inlined, they are simply dismissed.
@@ -354,90 +359,114 @@ pgss =
 		quoteDec  = const (fail "Cannot use 'pgss' in declaration")
 	}
 
--- | Build 'r' using 's' and 'v'.
-class (Monoid s) => QueryBuild s v r | s v -> r where
-	buildQuery :: s -> [v] -> r
+-- | Internal state for every builder
+data BuilderState s p = BuilderState s Word [p]
 
-instance QueryBuild B.ByteString Value Query where
+-- | Type @i@ can be appended to @s@.
+class QueryCode i s where
+	appendCode :: i -> BuilderState s a -> BuilderState s a
+
+instance QueryCode String String where
+	appendCode code (BuilderState statement idx params) =
+		BuilderState (statement ++ code) idx params
+
+instance QueryCode String B.ByteString where
+	appendCode code =
+		appendCode (fromString code :: B.ByteString)
+
+instance QueryCode B.ByteString B.ByteString where
+	appendCode code (BuilderState statement idx params) =
+		BuilderState (statement <> code) idx params
+
+instance QueryCode String [Q Exp] where
+	appendCode code =
+		appendCode [stringE code]
+
+instance QueryCode (Q Exp) [Q Exp] where
+	appendCode code =
+		appendCode [code]
+
+instance QueryCode [Q Exp] [Q Exp] where
+	appendCode code (BuilderState statement idx params) =
+		BuilderState (statement ++ code) idx params
+
+-- | Can build @o@ using @s@ and @[p]@.
+class QueryBuildable s p o | s p -> o where
+	buildQuery :: s -> [p] -> o
+
+instance QueryBuildable String Value Query where
+	buildQuery code = Query (fromString code)
+
+instance QueryBuildable B.ByteString Value Query where
 	buildQuery = Query
 
-instance QueryBuild String Value Query where
-	buildQuery statement = Query (fromString statement)
+instance QueryBuildable String (Q Exp) (Q Exp) where
+	buildQuery code =
+		buildQuery [e| fromString $(stringE code) |]
 
-instance QueryBuild String (Q Exp) (Q Exp) where
-	buildQuery statement values =
-		[e| Query (fromString $(stringE statement)) $(listE values) |]
+instance QueryBuildable (Q Exp) (Q Exp) (Q Exp) where
+	buildQuery code params =
+		[e| Query $code $(listE params) |]
 
-instance QueryBuild [Q Exp] (Q Exp) (Q Exp) where
-	buildQuery statements values =
-		[e| Query (fromString (concat $(listE statements))) $(listE values) |]
+instance QueryBuildable [Q Exp] (Q Exp) (Q Exp) where
+	buildQuery codeSegments =
+		buildQuery [e| B.concat $(listE (map (\ code -> [e| fromString $code |]) codeSegments)) |]
 
-class QueryCode s where
-	makeCode :: String -> s
+-- | Query builder as monad transformer
+type QueryBuilderT s p m = StateT (BuilderState s p) m ()
 
-instance QueryCode B.ByteString where
-	makeCode = fromString
-
-instance QueryCode String where
-	makeCode = id
-
-instance QueryCode [Q Exp] where
-	makeCode str = [stringE str]
-
--- | Internal state for 'QueryBuilder'
-data QueryBuilderState s v = QueryBuilderState s Word [v]
+-- | Run query builder.
+runQueryBuilderT :: (QueryBuildable s p o, Monoid s, Monad m) => QueryBuilderT s p m -> m o
+runQueryBuilderT builder = do
+	(\ (BuilderState code _ params) -> buildQuery code params)
+		<$> execStateT builder (BuilderState mempty 1 [])
 
 -- | Query builder
-type QueryBuilder s v = State (QueryBuilderState s v) ()
+type QueryBuilder s p = State (BuilderState s p) ()
 
--- | Execute the query builder.
-runQueryBuilder :: (QueryBuild s v r) => QueryBuilder s v -> r
+-- | Run query builder.
+runQueryBuilder :: (QueryBuildable s p o, Monoid s) => QueryBuilder s p -> o
 runQueryBuilder builder =
-	buildQuery statement values
+	buildQuery code params
 	where
-		QueryBuilderState statement _ values =
-			execState builder (QueryBuilderState mempty 1 [])
+		BuilderState code _ params = execState builder (BuilderState mempty 1 [])
 
--- | Execute query builder, but only retrieve the statement.
-runQueryBuilder_ :: (Monoid s) => QueryBuilder s v -> s
+-- | Run query builder, return only the statement.
+runQueryBuilder_ :: (Monoid s) => QueryBuilder s p -> s
 runQueryBuilder_ builder =
-	statement
+	code
 	where
-		QueryBuilderState statement _ _ =
-			execState builder (QueryBuilderState mempty 1 [])
+		BuilderState code _ _ = execState builder (BuilderState mempty 1 [])
 
--- | Write a piece of code.
-writeCode :: (Monoid s) => s -> QueryBuilder s v
+-- | Add a piece of SQL to the statement.
+writeCode :: (QueryCode i s, Monad m) => i -> QueryBuilderT s p m
 writeCode code =
-	modify $ \ (QueryBuilderState statement index values) ->
-		QueryBuilderState (mappend statement code) index values
+	modify (appendCode code)
 
--- | Write a piece of code.
-writeStringCode :: (QueryCode s, Monoid s) => String -> QueryBuilder s v
-writeStringCode code =
-	writeCode (makeCode code)
-
--- | Embed a value into the query.
-writeParam :: (Monoid s, QueryCode s) => v -> QueryBuilder s v
-writeParam value = do
-	modify $ \ (QueryBuilderState statement index values) ->
-		QueryBuilderState (mappend statement (makeCode ("$" ++ show index)))
-		                  (index + 1)
-		                  (values ++ [value])
-
--- | Insert an identifier into the query.
-writeIdentifier :: (Monoid s, QueryCode s) => String -> QueryBuilder s v
+-- | Add an identifier.
+writeIdentifier :: (QueryCode String s, Monad m) => String -> QueryBuilderT s p m
 writeIdentifier name =
-	writeStringCode (quoteIdentifier name)
+	writeCode (quoteIdentifier name)
 
--- |  Insert an absolute identifier into the query.
-writeAbsIdentifier :: (Monoid s, QueryCode s) => String -> String -> QueryBuilder s v
-writeAbsIdentifier table field = do
-	writeIdentifier table
-	writeStringCode "."
-	writeIdentifier field
+-- | Add an absolute identifier.
+writeAbsIdentifier :: (QueryCode String s, Monad m) => String -> String -> QueryBuilderT s p m
+writeAbsIdentifier ns name = do
+	writeIdentifier ns
+	writeCode "."
+	writeIdentifier name
 
--- | Insert a query builder between other builders.
-intercalateBuilder :: QueryBuilder s v -> [QueryBuilder s v] -> QueryBuilder s v
+-- | Embed a parameter.
+writeParam :: (QueryCode String s, Monad m) => p -> QueryBuilderT s p m
+writeParam param =
+	modify $ \ (BuilderState code idx params) ->
+		appendCode ("$" ++ show idx) (BuilderState code (idx + 1) (params ++ [param]))
+
+-- | Embed a value parameter.
+writeColumn :: (Column p, QueryCode String s, Monad m) => p -> QueryBuilderT s Value m
+writeColumn param =
+	writeParam (pack param)
+
+-- | Do something between other builders.
+intercalateBuilder :: (Monad m) => QueryBuilderT s p m -> [QueryBuilderT s p m] -> QueryBuilderT s p m
 intercalateBuilder x xs =
 	sequence_ (intersperse x xs)

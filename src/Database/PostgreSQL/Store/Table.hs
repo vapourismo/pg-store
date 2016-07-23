@@ -23,8 +23,8 @@ import Control.Monad.Except
 
 import Data.Int
 import Data.List hiding (insert)
+import Data.Proxy
 import Data.String
-import Data.Typeable
 
 import qualified Data.ByteString as B
 
@@ -172,17 +172,17 @@ makeCreateStatement (TableDec table _ fields _) constraints =
 -- | Generate implementation for 'writeTuple'.
 makeWriteTuple :: Name -> TableDec -> Q Exp
 makeWriteTuple row dec =
-	[e| do writeStringCode "("
-	       intercalateBuilder (writeStringCode ",") (map writeParam $(packFields row dec))
-	       writeStringCode ")" |]
+	[e| do writeCode ("(" :: B.ByteString)
+	       intercalateBuilder (writeCode ("," :: B.ByteString)) (map writeParam $(packFields row dec))
+	       writeCode (")" :: B.ByteString) |]
 
 -- | Generate the query which allows you to insert many rows at once.
 makeInsertManyQuery :: Name -> TableDec -> Q Exp
 makeInsertManyQuery rows dec =
 	[e| runQueryBuilder $ do
-	        writeStringCode $(stringE (tableInsertStatementBegin dec))
-	        intercalateBuilder (writeStringCode ",") (map writeTuple $(varE rows))
-	        writeStringCode $(stringE tableInsertStatementEnd) |]
+	        writeCode ($(stringE (tableInsertStatementBegin dec)) :: B.ByteString)
+	        intercalateBuilder (writeCode ("," :: B.ByteString)) (map writeTuple $(varE rows))
+	        writeCode ($(stringE tableInsertStatementEnd) :: B.ByteString) |]
 
 -- | Generate the list of selectors.
 makeQuerySelectors :: [TableField] -> Q Exp
@@ -208,7 +208,7 @@ makeResultProcessor (TableDec _ ctor fields _) = do
 makeInsertQuery :: TableDec -> Q Exp
 makeInsertQuery (TableDec table _ fields _) =
 	runQueryBuilder $ do
-		writeCode "INSERT INTO "
+		writeCode "INSERT INTO " :: QueryBuilder String (Q Exp)
 		writeIdentifier (show table)
 		writeCode "("
 		intercalateBuilder (writeCode ", ") $
@@ -223,7 +223,7 @@ makeInsertQuery (TableDec table _ fields _) =
 makeFindQuery :: Name -> TableDec -> Q Exp
 makeFindQuery ref (TableDec table _ fields _) =
 	runQueryBuilder $ do
-		writeCode "SELECT "
+		writeCode "SELECT "  :: QueryBuilder String (Q Exp)
 		intercalateBuilder (writeCode ", ") $
 			map (\ (TableField name _ _) -> writeIdentifier name) fields
 		writeCode " FROM "
@@ -237,7 +237,7 @@ makeFindQuery ref (TableDec table _ fields _) =
 makeUpdateQuery :: Name -> TableDec -> Q Exp
 makeUpdateQuery ref (TableDec table _ fields _) =
 	runQueryBuilder $ do
-		writeCode "UPDATE "
+		writeCode "UPDATE "  :: QueryBuilder String (Q Exp)
 		writeIdentifier (show table)
 		writeCode " SET "
 		intercalateBuilder (writeCode ", ") $
@@ -254,7 +254,7 @@ makeUpdateQuery ref (TableDec table _ fields _) =
 makeDeleteQuery :: Name -> Name -> Q Exp
 makeDeleteQuery ref table =
 	runQueryBuilder $ do
-		writeCode "DELETE FROM "
+		writeCode "DELETE FROM " :: QueryBuilder String (Q Exp)
 		writeIdentifier (show table)
 		writeCode " WHERE "
 		writeIdentifier "$id"
