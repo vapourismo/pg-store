@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes, TemplateHaskell, BangPatterns,
              GeneralizedNewtypeDeriving, MultiParamTypeClasses, FunctionalDependencies,
-             FlexibleInstances, FlexibleContexts #-}
+             FlexibleInstances, FlexibleContexts, TypeFamilies #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Query
@@ -23,15 +23,14 @@ module Database.PostgreSQL.Store.Query (
 	-- * Query builder
 	QueryCode,
 	QueryBuildable,
-	QueryBuilderT,
 	QueryBuilder,
-	runQueryBuilderT,
 	runQueryBuilder,
-	writeParam,
-	writeColumn,
 	writeCode,
+	writeStringCode,
 	writeIdentifier,
 	writeAbsIdentifier,
+	writeParam,
+	writeColumn,
 	intercalateBuilder
 ) where
 
@@ -183,35 +182,38 @@ reduceSegment :: Segment -> QueryBuilder [Q Exp] (Q Exp)
 reduceSegment seg =
 	case seg of
 		SOther str ->
-			writeCode [stringE str]
+			writeStringCode str
 
 		SQuote delim cnt ->
-			writeCode [stringE (delim : cnt ++ [delim])]
+			writeStringCode (delim : cnt ++ [delim])
 
 		SVariable varName ->
 			writeParam $ do
 				mbName <- lookupValueName varName
-				maybe (fail ("'" ++ varName ++ "' does not refer to anything"))
-				      (\ name -> [e| pack $(varE name) |])
-				      mbName
+				case mbName of
+					Just name -> [e| pack $(varE name) |]
+					Nothing   -> fail ("'" ++ varName ++ "' does not refer to anything")
 
 		STable tableName ->
-			writeCode [do mbName <- lookupTypeName tableName
-			              maybe (fail ("'" ++ tableName ++ "' does not refer to anything"))
-			                    tableNameE -- Replace with table name
-			                    mbName]
+			writeCode $ do
+				mbName <- lookupTypeName tableName
+				case mbName of
+					Just name -> [e| fromString $(tableNameE name) |]
+					Nothing   -> fail ("'" ++ tableName ++ "' does not refer to anything")
 
 		SSelector tableName ->
-			writeCode [do mbName <- lookupTypeName tableName
-			              maybe (fail ("'" ++ tableName ++ "' does not refer to anything"))
-			                    makeTableSelectorsE -- Replace with selector list
-			                    mbName]
+			writeCode $ do
+				mbName <- lookupTypeName tableName
+				case mbName of
+					Just name -> [e| fromString $(makeTableSelectorsE name) |]
+					Nothing   -> fail ("'" ++ tableName ++ "' does not refer to anything")
 
 		SIdentifier tableName ->
-			writeCode [do mbName <- lookupTypeName tableName
-			              maybe (fail ("'" ++ tableName ++ "' does not refer to anything"))
-			                    tableAbsoluteIDNameE -- Replace with absolute ID name
-			                    mbName]
+			writeCode $ do
+				mbName <- lookupTypeName tableName
+				case mbName of
+					Just name -> [e| fromString $(tableAbsoluteIDNameE name) |]
+					Nothing   -> fail ("'" ++ tableName ++ "' does not refer to anything")
 
 -- | Parse quasi-quoted query.
 parseStoreQueryE :: String -> Q Exp
@@ -362,64 +364,49 @@ pgss =
 -- | Internal state for every builder
 data BuilderState s p = BuilderState s Word [p]
 
--- | Type @i@ can be appended to @s@.
-class QueryCode i s where
-	appendCode :: i -> BuilderState s a -> BuilderState s a
+-- |
+class QueryCode s where
+	type Code s
 
-instance QueryCode String String where
-	appendCode code (BuilderState statement idx params) =
-		BuilderState (statement ++ code) idx params
+	appendCode :: s -> Code s -> s
 
-instance QueryCode String B.ByteString where
-	appendCode code =
-		appendCode (fromString code :: B.ByteString)
+	appendStringCode :: s -> String -> s
 
-instance QueryCode B.ByteString B.ByteString where
-	appendCode code (BuilderState statement idx params) =
-		BuilderState (statement <> code) idx params
+instance QueryCode B.ByteString where
+	type Code B.ByteString = B.ByteString
 
-instance QueryCode String [Q Exp] where
-	appendCode code =
-		appendCode [stringE code]
+	appendCode = B.append
 
-instance QueryCode (Q Exp) [Q Exp] where
-	appendCode code =
-		appendCode [code]
+	appendStringCode bs str = bs <> fromString str
 
-instance QueryCode [Q Exp] [Q Exp] where
-	appendCode code (BuilderState statement idx params) =
-		BuilderState (statement ++ code) idx params
+instance QueryCode [Q Exp] where
+	type Code [Q Exp] = Q Exp
+
+	appendCode segments exp = segments ++ [exp]
+
+	appendStringCode segments str = appendCode segments [e| fromString $(stringE str) |]
+
+instance QueryCode String where
+	type Code String = String
+
+	appendCode segments code = segments ++ code
+
+	appendStringCode = appendCode
 
 -- | Can build @o@ using @s@ and @[p]@.
 class QueryBuildable s p o | s p -> o where
 	buildQuery :: s -> [p] -> o
 
-instance QueryBuildable String Value Query where
-	buildQuery code = Query (fromString code)
-
 instance QueryBuildable B.ByteString Value Query where
 	buildQuery = Query
 
 instance QueryBuildable String (Q Exp) (Q Exp) where
-	buildQuery code =
-		buildQuery [e| fromString $(stringE code) |]
-
-instance QueryBuildable (Q Exp) (Q Exp) (Q Exp) where
 	buildQuery code params =
-		[e| Query $code $(listE params) |]
+		[e| Query (fromString $(stringE code)) $(listE params) |]
 
 instance QueryBuildable [Q Exp] (Q Exp) (Q Exp) where
-	buildQuery codeSegments =
-		buildQuery [e| B.concat $(listE (map (\ code -> [e| fromString $code |]) codeSegments)) |]
-
--- | Query builder as monad transformer
-type QueryBuilderT s p m = StateT (BuilderState s p) m ()
-
--- | Run query builder.
-runQueryBuilderT :: (QueryBuildable s p o, Monoid s, Monad m) => QueryBuilderT s p m -> m o
-runQueryBuilderT builder = do
-	(\ (BuilderState code _ params) -> buildQuery code params)
-		<$> execStateT builder (BuilderState mempty 1 [])
+	buildQuery codeSegments params =
+		[e| Query (B.concat $(listE codeSegments)) $(listE params) |]
 
 -- | Query builder
 type QueryBuilder s p = State (BuilderState s p) ()
@@ -438,35 +425,42 @@ runQueryBuilder_ builder =
 	where
 		BuilderState code _ _ = execState builder (BuilderState mempty 1 [])
 
--- | Add a piece of SQL to the statement.
-writeCode :: (QueryCode i s, Monad m) => i -> QueryBuilderT s p m
+-- | Write code.
+writeCode :: (QueryCode s) => Code s -> QueryBuilder s p
 writeCode code =
-	modify (appendCode code)
+	modify $ \ (BuilderState stmt idx params) ->
+		BuilderState (appendCode stmt code) idx params
+
+-- | Write string code.
+writeStringCode :: (QueryCode s) => String -> QueryBuilder s p
+writeStringCode code =
+	modify $ \ (BuilderState stmt idx params) ->
+		BuilderState (appendStringCode stmt code) idx params
 
 -- | Add an identifier.
-writeIdentifier :: (QueryCode String s, Monad m) => String -> QueryBuilderT s p m
+writeIdentifier :: (QueryCode s) => String -> QueryBuilder s p
 writeIdentifier name =
-	writeCode (quoteIdentifier name)
+	writeStringCode (quoteIdentifier name)
 
 -- | Add an absolute identifier.
-writeAbsIdentifier :: (QueryCode String s, Monad m) => String -> String -> QueryBuilderT s p m
+writeAbsIdentifier :: (QueryCode s) => String -> String -> QueryBuilder s p
 writeAbsIdentifier ns name = do
 	writeIdentifier ns
-	writeCode "."
+	writeStringCode "."
 	writeIdentifier name
 
 -- | Embed a parameter.
-writeParam :: (QueryCode String s, Monad m) => p -> QueryBuilderT s p m
-writeParam param =
+writeParam :: (QueryCode s) => p -> QueryBuilder s p
+writeParam param = do
 	modify $ \ (BuilderState code idx params) ->
-		appendCode ("$" ++ show idx) (BuilderState code (idx + 1) (params ++ [param]))
+		BuilderState (appendStringCode code ("$" ++ show idx)) (idx + 1) (params ++ [param])
 
 -- | Embed a value parameter.
-writeColumn :: (Column p, QueryCode String s, Monad m) => p -> QueryBuilderT s Value m
+writeColumn :: (Column p, QueryCode s) => p -> QueryBuilder s Value
 writeColumn param =
 	writeParam (pack param)
 
 -- | Do something between other builders.
-intercalateBuilder :: (Monad m) => QueryBuilderT s p m -> [QueryBuilderT s p m] -> QueryBuilderT s p m
+intercalateBuilder :: QueryBuilder s p -> [QueryBuilder s p] -> QueryBuilder s p
 intercalateBuilder x xs =
 	sequence_ (intersperse x xs)

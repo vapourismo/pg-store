@@ -24,6 +24,7 @@ import Control.Monad.Except
 import Data.Int
 import Data.List hiding (insert)
 import Data.Proxy
+import Data.String
 
 import qualified Data.ByteString as B
 
@@ -140,9 +141,9 @@ callConstructor ctor params =
 -- | Generate implementation for 'writeTuple'.
 makeWriteTuple :: Name -> TableDec -> Q Exp
 makeWriteTuple row dec =
-	[e| do writeCode ("(" :: B.ByteString)
-	       intercalateBuilder (writeCode ("," :: B.ByteString)) (map writeParam $(packFields row dec))
-	       writeCode (")" :: B.ByteString) |]
+	[e| do writeStringCode "("
+	       intercalateBuilder (writeStringCode ",") (map writeParam $(packFields row dec))
+	       writeStringCode ")" |]
 
 -- | Generate the list of selectors.
 makeQuerySelectors :: [TableField] -> Q Exp
@@ -168,37 +169,37 @@ makeResultProcessor (TableDec _ ctor fields _) = do
 makeCreateQuery :: TableDec -> [TableConstraint] -> Q Exp
 makeCreateQuery (TableDec table _ fields _) constraints =
 	runQueryBuilder $ do
-		writeCode "CREATE TABLE IF NOT EXISTS " :: QueryBuilder [Q Exp] (Q Exp)
+		writeStringCode "CREATE TABLE IF NOT EXISTS " :: QueryBuilder [Q Exp] (Q Exp)
 		writeIdentifier (show table)
-		writeCode " ("
+		writeStringCode " ("
 
-		intercalateBuilder (writeCode ", ") $
+		intercalateBuilder (writeStringCode ", ") $
 			identDescription :
 			map describeField fields ++
 			map describeConstraint constraints
 
-		writeCode ")"
+		writeStringCode ")"
 	where
 		identDescription = do
 			writeIdentifier "$id"
-			writeCode "BIGSERIAL NOT NULL PRIMARY KEY"
+			writeStringCode "BIGSERIAL NOT NULL PRIMARY KEY"
 
 		describeField :: TableField -> QueryBuilder [Q Exp] (Q Exp)
 		describeField (TableField name typ _) =
-			writeCode [e| columnDescription (Proxy :: Proxy $(pure typ))
-			                                $(stringE (quoteIdentifier name)) |]
+			writeCode [e| fromString (columnDescription (Proxy :: Proxy $(pure typ))
+			                                            $(stringE (quoteIdentifier name))) |]
 
 		describeConstraint :: TableConstraint -> QueryBuilder [Q Exp] (Q Exp)
 		describeConstraint (Unique names) = do
-			writeCode "UNIQUE ("
-			intercalateBuilder (writeCode ", ") $
+			writeStringCode "UNIQUE ("
+			intercalateBuilder (writeStringCode ", ") $
 				map (writeIdentifier . nameBase) names
-			writeCode ")"
+			writeStringCode ")"
 
 		describeConstraint (Check code) = do
-			writeCode "CHECK ("
-			writeCode code
-			writeCode ")"
+			writeStringCode "CHECK ("
+			writeStringCode code
+			writeStringCode ")"
 
 -- | Generate the query which insert a row.
 makeInsertQuery :: TableDec -> Q Exp
@@ -219,9 +220,9 @@ makeInsertQuery (TableDec table _ fields _) =
 makeInsertManyQuery :: Name -> TableDec -> Q Exp
 makeInsertManyQuery rows dec =
 	[e| runQueryBuilder $ do
-	        writeCode ($(stringE (tableInsertStatementBegin dec)) :: B.ByteString)
-	        intercalateBuilder (writeCode ("," :: B.ByteString)) (map writeTuple $(varE rows))
-	        writeCode ($(stringE tableInsertStatementEnd) :: B.ByteString) |]
+	        writeStringCode $(stringE (tableInsertStatementBegin dec))
+	        intercalateBuilder (writeStringCode ",") (map writeTuple $(varE rows))
+	        writeStringCode $(stringE tableInsertStatementEnd) |]
 
 -- | Generate the query for finding a row.
 makeFindQuery :: Name -> TableDec -> Q Exp
