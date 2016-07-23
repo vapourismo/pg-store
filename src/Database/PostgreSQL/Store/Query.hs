@@ -17,8 +17,6 @@ module Database.PostgreSQL.Store.Query (
 
 	-- * Helpers
 	quoteIdentifier,
-	makeTableIdentifier,
-	makeTableSelectors,
 
 	-- * Query builder
 	QueryCode,
@@ -93,39 +91,26 @@ class QueryTable a where
 	tableSelectors :: Proxy a -> [SelectorElement]
 
 -- | Generate the quoted identifier for a table.
-makeTableIdentifier :: (QueryTable a) => Proxy a -> String
+makeTableIdentifier :: (QueryTable a, IsString b) => Proxy a -> b
 makeTableIdentifier proxy =
-	quoteIdentifier (tableName proxy)
+	fromString (quoteIdentifier (tableName proxy))
 
--- | Generate table name expression.
-tableNameE :: Name -> Q Exp
-tableNameE typName =
-	[e| makeTableIdentifier (Proxy :: Proxy $(conT typName)) |]
-
--- | Generate table ID name expression
-tableIDNameE :: Name -> Q Exp
-tableIDNameE typName =
-	[e| quoteIdentifier (tableIDName (Proxy :: Proxy $(conT typName))) |]
-
--- | Generate absolute table ID name expression.
-tableAbsoluteIDNameE :: Name -> Q Exp
-tableAbsoluteIDNameE typName =
-	[e| $(tableNameE typName) ++ "." ++ $(tableIDNameE typName) |]
+-- | Generate the quoted identifier for table's id column.
+makeTableIDIdentifier :: (QueryTable a, IsString b) => Proxy a -> b
+makeTableIDIdentifier proxy =
+	fromString (quoteIdentifier (tableName proxy) ++
+	            "." ++
+	            quoteIdentifier (tableIDName proxy))
 
 -- | Generate the list of expression used as selector.
-makeTableSelectors :: (QueryTable a) => Proxy a -> String
+makeTableSelectors :: (QueryTable a, IsString b) => Proxy a -> b
 makeTableSelectors proxy =
-	intercalate ", " (map makeElement (tableSelectors proxy))
+	fromString (intercalate ", " (map makeElement (tableSelectors proxy)))
 	where
 		makeElement (SelectorField name) =
 			quoteIdentifier (tableName proxy) ++ "." ++ quoteIdentifier name
 		makeElement (SelectorSpecial expr) =
 			expr
-
--- | Generate the selector list expression.
-makeTableSelectorsE :: Name -> Q Exp
-makeTableSelectorsE typName =
-	[e| makeTableSelectors (Proxy :: Proxy $(conT typName)) |]
 
 -- | Query segment
 data Segment
@@ -187,33 +172,29 @@ reduceSegment seg =
 		SQuote delim cnt ->
 			writeStringCode (delim : cnt ++ [delim])
 
-		SVariable varName ->
-			writeParam $ do
-				mbName <- lookupValueName varName
-				case mbName of
-					Just name -> [e| pack $(varE name) |]
-					Nothing   -> fail ("'" ++ varName ++ "' does not refer to anything")
+		SVariable varName -> writeParam $ do
+			mbName <- lookupValueName varName
+			case mbName of
+				Just name -> [e| pack $(varE name) |]
+				Nothing   -> fail ("'" ++ varName ++ "' does not refer to anything")
 
-		STable tableName ->
-			writeCode $ do
-				mbName <- lookupTypeName tableName
-				case mbName of
-					Just name -> [e| fromString $(tableNameE name) |]
-					Nothing   -> fail ("'" ++ tableName ++ "' does not refer to anything")
+		STable tableName -> writeCode $ do
+			mbName <- lookupTypeName tableName
+			case mbName of
+				Just table -> [e| makeTableIdentifier (Proxy :: Proxy $(conT table)) |]
+				Nothing    -> fail ("'" ++ tableName ++ "' does not refer to anything")
 
-		SSelector tableName ->
-			writeCode $ do
-				mbName <- lookupTypeName tableName
-				case mbName of
-					Just name -> [e| fromString $(makeTableSelectorsE name) |]
-					Nothing   -> fail ("'" ++ tableName ++ "' does not refer to anything")
+		SSelector tableName -> writeCode $ do
+			mbName <- lookupTypeName tableName
+			case mbName of
+				Just table -> [e| makeTableSelectors (Proxy :: Proxy $(conT table)) |]
+				Nothing    -> fail ("'" ++ tableName ++ "' does not refer to anything")
 
-		SIdentifier tableName ->
-			writeCode $ do
-				mbName <- lookupTypeName tableName
-				case mbName of
-					Just name -> [e| fromString $(tableAbsoluteIDNameE name) |]
-					Nothing   -> fail ("'" ++ tableName ++ "' does not refer to anything")
+		SIdentifier tableName -> writeCode $ do
+			mbName <- lookupTypeName tableName
+			case mbName of
+				Just table -> [e| makeTableIDIdentifier (Proxy :: Proxy $(conT table)) |]
+				Nothing    -> fail ("'" ++ tableName ++ "' does not refer to anything")
 
 -- | Parse quasi-quoted query.
 parseStoreQueryE :: String -> Q Exp
