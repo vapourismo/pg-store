@@ -69,14 +69,14 @@ liveSpecs con =
 						insert (OnlyEvens 2)
 					shouldSatisfy res3 $ \ r ->
 						case r of
-							Left (UniqueViolation _ _) -> True
+							Left (ExecError _ UniqueViolation _ _ _) -> True
 							_                          -> False
 
 					-- Violate CHECK
 					res4 <- runErrand con (insert (OnlyEvens 1))
 					shouldSatisfy res4 $ \ r ->
 						case r of
-							Left (CheckViolation _ _) -> True
+							Left (ExecError _ CheckViolation _ _ _) -> True
 							_                         -> False
 
 				it "inserts many rows" $ do
@@ -115,7 +115,7 @@ liveSpecs con =
 						update ref (OnlyEvens 2)
 					shouldSatisfy res1 $ \ r ->
 						case r of
-							Left (UniqueViolation _ _) -> True
+							Left (ExecError _ UniqueViolation _ _ _) -> True
 							_                          -> False
 
 					-- Vioate CHECK
@@ -124,7 +124,7 @@ liveSpecs con =
 						update ref (OnlyEvens 7)
 					shouldSatisfy res2 $ \ r ->
 						case r of
-							Left (CheckViolation _ _) -> True
+							Left (ExecError _ CheckViolation _ _ _) -> True
 							_                         -> False
 
 				it "updates many rows" $

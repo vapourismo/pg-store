@@ -8,6 +8,9 @@
 module Database.PostgreSQL.Store.Errand (
 	-- * Errand
 	ErrandError (..),
+	ErrorCode (..),
+	P.ExecStatus (..),
+
 	Errand,
 	runErrand,
 
@@ -36,17 +39,27 @@ import           Database.PostgreSQL.Store.Columns
 -- | Error during errand
 data ErrandError
 	= NoResult
+		-- ^ No 'Result' has been returned.
 	| EmptyResult
+		-- ^ Result set is empty.
 	| UserError String
-	| ExecError P.ExecStatus (Maybe B.ByteString)
+		-- ^ A user has thrown an error.
+	| ExecError P.ExecStatus ErrorCode B.ByteString B.ByteString B.ByteString
+		-- ^ Query execution failed.
 	| ResultError ResultError
-	| IntegrityViolation B.ByteString B.ByteString
-	| RestrictViolation B.ByteString B.ByteString
-	| NotNullViolation B.ByteString B.ByteString
-	| ForeignKeyViolation B.ByteString B.ByteString
-	| UniqueViolation B.ByteString B.ByteString
-	| CheckViolation B.ByteString B.ByteString
-	| ExclusionViolation B.ByteString B.ByteString
+		-- ^ Result processing failed.
+	deriving (Show, Eq)
+
+-- | Error codes
+data ErrorCode
+	= UnknownErrorCause B.ByteString
+	| IntegrityViolation
+	| RestrictViolation
+	| NotNullViolation
+	| ForeignKeyViolation
+	| UniqueViolation
+	| CheckViolation
+	| ExclusionViolation
 	deriving (Show, Eq)
 
 -- | An interaction with the database
@@ -70,43 +83,28 @@ execute (Query statement params) = Errand . ReaderT $ \ con -> do
 		P.TuplesOk  -> pure res
 
 		other -> do
-			info <- lift $
+			(state, msg, detail, hint) <- lift $
 				(,,,) <$> P.resultErrorField res P.DiagSqlstate
 				      <*> P.resultErrorField res P.DiagMessagePrimary
 				      <*> P.resultErrorField res P.DiagMessageDetail
 				      <*> P.resultErrorField res P.DiagMessageHint
 
-			case info of
-				(Just "23000", msg, detail, _hint) ->
-					throwError (IntegrityViolation (fromMaybe B.empty msg)
-					                               (fromMaybe B.empty detail))
+			let cause =
+				case fromMaybe B.empty state of
+					"23000" -> IntegrityViolation
+					"23001" -> RestrictViolation
+					"23502" -> NotNullViolation
+					"23503" -> ForeignKeyViolation
+					"23505" -> UniqueViolation
+					"23514" -> CheckViolation
+					"23P01" -> ExclusionViolation
+					code    -> UnknownErrorCause code
 
-				(Just "23001", msg, detail, _hint) ->
-					throwError (RestrictViolation (fromMaybe B.empty msg)
-					                              (fromMaybe B.empty detail))
-
-				(Just "23502", msg, detail, _hint) ->
-					throwError (NotNullViolation (fromMaybe B.empty msg)
-					                             (fromMaybe B.empty detail))
-
-				(Just "23503", msg, detail, _hint) ->
-					throwError (ForeignKeyViolation (fromMaybe B.empty msg)
-					                                (fromMaybe B.empty detail))
-
-				(Just "23505", msg, detail, _hint) ->
-					throwError (UniqueViolation (fromMaybe B.empty msg)
-					                            (fromMaybe B.empty detail))
-
-				(Just "23514", msg, detail, _hint) ->
-					throwError (CheckViolation (fromMaybe B.empty msg)
-					                           (fromMaybe B.empty detail))
-
-				(Just "23P01", msg, detail, _hint) ->
-					throwError (ExclusionViolation (fromMaybe B.empty msg)
-					                               (fromMaybe B.empty detail))
-
-				_ -> do
-					ExecError other <$> lift (P.resultErrorMessage res) >>= throwError
+			throwError (ExecError other
+			                      cause
+			                      (fromMaybe B.empty msg)
+			                      (fromMaybe B.empty detail)
+			                      (fromMaybe B.empty hint))
 
 	where
 		-- Turn 'Maybe P.Result' into 'Either ErrandError P.Result'

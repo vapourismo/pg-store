@@ -7,6 +7,8 @@ module Database.PostgreSQL.Store (
 	-- * Errands
 	Errand,
 	ErrandError (..),
+	ErrorCode (..),
+	ExecStatus (..),
 	runErrand,
 	execute,
 	query,
