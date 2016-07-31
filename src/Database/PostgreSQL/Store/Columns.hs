@@ -16,13 +16,15 @@ module Database.PostgreSQL.Store.Columns (
 import           Data.Int
 import           Data.Word
 import           Data.Bits
+import           Data.Time
 import           Data.Monoid
 import           Data.Typeable
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.Lazy as TL
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as BL
+import qualified Data.Text                      as T
+import qualified Data.Text.Encoding             as T
+import qualified Data.Text.Lazy                 as TL
+import qualified Data.ByteString                as B
+import qualified Data.ByteString.Char8          as C8
+import qualified Data.ByteString.Lazy           as BL
 import           Data.ByteString.Builder
 import           Data.Attoparsec.ByteString
 import           Data.Attoparsec.ByteString.Char8 (signed, decimal)
@@ -71,6 +73,11 @@ class Column a where
 		case columnCheck proxy identifier of
 			Just stmt -> " CHECK (" ++ stmt ++ ")"
 			Nothing   -> ""
+
+instance Column Value where
+	pack = id
+	unpack = Just
+	columnTypeName _ = "blob"
 
 instance (Column a) => Column (Maybe a) where
 	pack = maybe NullValue pack
@@ -240,6 +247,15 @@ instance Column Integer where
 	unpack _                          = Nothing
 
 	columnTypeName _ = "numeric"
+
+instance Column UTCTime where
+	pack t = Value $(OID.timestamp) (C8.pack (formatTime defaultTimeLocale "%F %T%Q" t))
+
+	unpack (Value $(OID.timestamp) dat) =
+		parseTimeM False defaultTimeLocale "%F %T%Q" (C8.unpack dat)
+	unpack _ = Nothing
+
+	columnTypeName _ = "timestamp"
 
 instance Column [Char] where
 	pack str = Value $(OID.text) (buildByteString stringUtf8 str)

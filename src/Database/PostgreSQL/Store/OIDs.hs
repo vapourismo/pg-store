@@ -18,7 +18,9 @@ module Database.PostgreSQL.Store.OIDs (
 	char,
 	varchar,
 	text,
-	bytea
+	bytea,
+	timestamp,
+	timestamptz
 ) where
 
 import           Language.Haskell.TH
@@ -79,3 +81,11 @@ text = genOID 25
 -- | Byte array
 bytea :: OIDQ
 bytea = genOID 17
+
+-- | Timestamp without timezone
+timestamp :: OIDQ
+timestamp = genOID 1114
+
+-- | Timestamp with timezone
+timestamptz :: OIDQ
+timestamptz = genOID 1184
