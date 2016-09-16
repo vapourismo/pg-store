@@ -247,14 +247,14 @@ parseStoreQueryE code = do
 --
 -- The @\@@-operators is also an alias for the function @ABS@. If you have an expression that
 -- triggers the quasi-quoter such as @\@A@, but you would like to use the @ABS@ functionality, then
--- simply reformat your expression to @\@(A)@ or @\@\"A\"@ or @ABS(A)@.
+-- simply reformat your expression to @\@(A)@ or @ABS(A)@.
 --
 -- > instance QueryTable YourType where
 -- >     tableName _ = "YourTable"
 -- >
 -- > myQuery :: Query
 -- > myQuery =
--- >     [pgsq| SELECT * FROM @Table WHERE @Table.column = 1337 |]
+-- >     [pgsq| SELECT * FROM @YourType WHERE @YourType.column = 1337 |]
 --
 -- The table name will be inlined which results in the following.
 --
@@ -267,7 +267,7 @@ parseStoreQueryE code = do
 -- > TableIdentExp ::= '&' TypeName
 --
 -- @&@ is also the operator for bitwise-AND. To resolve the ambiguity for expressions like @A&B@,
--- simply reformat it to @A & B@ or @A&(B)@ or @A&\"B\"@.
+-- simply reformat it to @A & B@ or @A&(B)@.
 --
 -- > instance QueryTable YourType where
 -- >     tableName _   = "YourTable"
@@ -283,9 +283,6 @@ parseStoreQueryE code = do
 -- > fetchIDs :: Errand [Reference YourType]
 -- > fetchIDs =
 -- >     query [pgsq| SELECT &YourType FROM @YourType |]
---
--- Note, just like @\@@, the operator @&@ is reserved. Although @A&B@ is a valid SQL expression, it
--- will trigger the quasi-quoter. To avoid this, you reform your expression to @A & B@ or @A&(B)@.
 --
 -- = Selectors
 -- 'mkTable' will automatically implement 'Result' and 'QueryTable' for you. This allows you to make
