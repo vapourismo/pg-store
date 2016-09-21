@@ -23,13 +23,14 @@ library
                     template-haskell >= 2.11 && < 3,
                     bytestring, text, postgresql-libpq, attoparsec, mtl, time
   hs-source-dirs:   src
-  exposed-modules:  Database.PostgreSQL.Store.Result,
-                    Database.PostgreSQL.Store.Columns,
-                    Database.PostgreSQL.Store.Query,
-                    Database.PostgreSQL.Store.Errand,
-                    Database.PostgreSQL.Store.Table,
-                    Database.PostgreSQL.Store.OIDs,
+  exposed-modules:  Database.PostgreSQL.Store.Result
+                    Database.PostgreSQL.Store.Columns
+                    Database.PostgreSQL.Store.Query
+                    Database.PostgreSQL.Store.Errand
+                    Database.PostgreSQL.Store.Table
+                    Database.PostgreSQL.Store.OIDs
                     Database.PostgreSQL.Store
+  other-modules:    Database.PostgreSQL.Store.Table.Class
 
 test-suite tests
   type:             exitcode-stdio-1.0
@@ -37,9 +38,9 @@ test-suite tests
   default-language: Haskell2010
   build-depends:    base, pg-store, hspec, QuickCheck, bytestring, text, postgresql-libpq, mtl
   hs-source-dirs:   tests
-  other-modules:    Test.Database.PostgreSQL.Store.Query,
-                    Test.Database.PostgreSQL.Store.Columns,
-                    Test.Database.PostgreSQL.Store.Table,
+  other-modules:    Test.Database.PostgreSQL.Store.Query
+                    Test.Database.PostgreSQL.Store.Columns
+                    Test.Database.PostgreSQL.Store.Table
                     Test.Database.PostgreSQL.Store
   main-is:          Main.hs
 
