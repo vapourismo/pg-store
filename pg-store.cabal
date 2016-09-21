@@ -43,7 +43,8 @@ test-suite tests
                     Test.Database.PostgreSQL.Store
   main-is:          Main.hs
 
-executable playground-approach
+benchmark play-approach
+  type:             exitcode-stdio-1.0
   ghc-options:      -Wall -fno-warn-unused-do-bind -fno-warn-tabs -with-rtsopts -p
   default-language: Haskell2010
   build-depends:    base, pg-store, postgresql-libpq, mtl, bytestring
