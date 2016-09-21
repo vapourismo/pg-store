@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, BangPatterns #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Table

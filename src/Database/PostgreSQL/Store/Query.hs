@@ -1,6 +1,11 @@
-{-# LANGUAGE QuasiQuotes, TemplateHaskell, BangPatterns,
-             GeneralizedNewtypeDeriving, MultiParamTypeClasses, FunctionalDependencies,
-             FlexibleInstances, FlexibleContexts, TypeFamilies #-}
+{-# LANGUAGE QuasiQuotes,
+             TemplateHaskell,
+             BangPatterns,
+             MultiParamTypeClasses,
+             FunctionalDependencies,
+             FlexibleInstances,
+             FlexibleContexts,
+             TypeFamilies #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Query

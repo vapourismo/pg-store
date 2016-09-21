@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, RecordWildCards, FlexibleInstances, TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings, FlexibleInstances, TemplateHaskell #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Columns
