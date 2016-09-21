@@ -138,7 +138,7 @@ typeName =
 
 -- | Qualified type name
 qualifiedTypeName :: Parser String
-qualifiedTypeName = do
+qualifiedTypeName =
 	intercalate "." <$> sepBy1 typeName (char '.')
 
 -- | Quote
@@ -203,12 +203,12 @@ reduceSegment seg =
 
 -- | Parse quasi-quoted query.
 parseStoreQueryE :: String -> Q Exp
-parseStoreQueryE code = do
+parseStoreQueryE code =
 	case parseOnly (segments <* endOfInput) (T.pack code) of
 		Left msg ->
 			fail msg
 
-		Right xs -> do
+		Right xs ->
 			runQueryBuilder (mapM_ reduceSegment xs)
 
 -- | This quasi-quoter allows you to generate instances of 'Query'. It lets you write SQL with some
@@ -325,12 +325,12 @@ pgsq =
 
 -- | Parse quasi-quoted query but return only statement.
 parseStoreStatementE :: String -> Q Exp
-parseStoreStatementE code = do
+parseStoreStatementE code =
 	case parseOnly (segments <* endOfInput) (T.pack code) of
 		Left msg ->
 			fail (show msg)
 
-		Right xs -> do
+		Right xs ->
 			[e| mconcat $(listE (runQueryBuilder_ (mapM_ reduceSegment xs))) |]
 
 -- | Just like 'pgsq' but only produces the statement associated with the query. Referenced
@@ -434,7 +434,7 @@ writeAbsIdentifier ns name = do
 
 -- | Embed a parameter.
 writeParam :: (QueryCode s) => p -> QueryBuilder s p
-writeParam param = do
+writeParam param =
 	modify $ \ (BuilderState code idx params) ->
 		BuilderState (appendStringCode code ("$" ++ show idx)) (idx + 1) (params ++ [param])
 
