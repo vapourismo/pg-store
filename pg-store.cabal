@@ -23,15 +23,11 @@ library
                     template-haskell >= 2.11 && < 3,
                     bytestring, blaze-builder, text, postgresql-libpq, attoparsec, mtl, time
   hs-source-dirs:   src
-  exposed-modules:  Database.PostgreSQL.Store.Result
+  exposed-modules:  Database.PostgreSQL.Store.Table
                     Database.PostgreSQL.Store.Columns
-                    Database.PostgreSQL.Store.Query
-                    Database.PostgreSQL.Store.Errand
-                    Database.PostgreSQL.Store.Table
-                    Database.PostgreSQL.Store.OIDs
-                    Database.PostgreSQL.Store
   other-modules:    Database.PostgreSQL.Store.Table.Class
                     Database.PostgreSQL.Store.Table.TH
+                    Database.PostgreSQL.Store.OIDs
 
 -- test-suite tests
 --   type:             exitcode-stdio-1.0
