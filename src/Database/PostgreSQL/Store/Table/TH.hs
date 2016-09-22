@@ -6,6 +6,8 @@
 -- License:    BSD3
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Table.TH (
+	checkTableName,
+	implementTable
 ) where
 
 import           Language.Haskell.TH
@@ -24,6 +26,10 @@ data TableField = TableField Name Type
 
 -- | Table type declaration
 data TableDec = TableDec Name Name [TableField]
+
+-- | Retrieve the table's type name.
+tableTypeName :: TableDec -> Name
+tableTypeName (TableDec name _ _ ) = name
 
 -- | Check that each field's type has an implementation of 'Column'.
 checkRecordFields :: [VarBangType] -> Q [TableField]
@@ -105,18 +111,17 @@ checkTableName typeName = do
 		_          -> fail ("'" ++ show typeName ++ "' is not a type constructor")
 
 -- | Generate the table information using the table declaration.
-makeTableInfo :: TableDec -> TableInformation
-makeTableInfo (TableDec _ _ fields) =
+toTableInfo :: TableDec -> TableInformation
+toTableInfo (TableDec _ _ fields) =
 	TableInformation "$id" (map buildField fields)
 	where
 		buildField (TableField fieldName _) =
 			B.toByteString (B.fromString (nameBase (fieldName)))
 
 -- | Implement 'Table' for a type.
-mkTable :: Name -> Q [Dec]
-mkTable typeName =
-	checkTableName typeName >>= \ dec ->
-		[d|
-			instance Table $(conT typeName) where
-				tableInfo _ = $(lift (makeTableInfo dec))
-		|]
+implementTable :: TableDec -> Q [Dec]
+implementTable dec =
+	[d|
+		instance Table $(conT (tableTypeName dec)) where
+			tableInfo _ = $(lift (toTableInfo dec))
+	|]
