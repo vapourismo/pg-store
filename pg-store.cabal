@@ -21,7 +21,7 @@ library
   default-language: Haskell2010
   build-depends:    base >= 4.9 && < 5,
                     template-haskell >= 2.11 && < 3,
-                    bytestring, text, postgresql-libpq, attoparsec, mtl, time
+                    bytestring, blaze-builder, text, postgresql-libpq, attoparsec, mtl, time
   hs-source-dirs:   src
   exposed-modules:  Database.PostgreSQL.Store.Result
                     Database.PostgreSQL.Store.Columns
@@ -31,6 +31,7 @@ library
                     Database.PostgreSQL.Store.OIDs
                     Database.PostgreSQL.Store
   other-modules:    Database.PostgreSQL.Store.Table.Class
+                    Database.PostgreSQL.Store.Table.TH
 
 test-suite tests
   type:             exitcode-stdio-1.0
