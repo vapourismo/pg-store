@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, TemplateHaskell, FlexibleInstances, UndecidableInstances #-}
 
 -- |
--- Module:     Database.PostgreSQL.Store.Table.Class
+-- Module:     Database.PostgreSQL.Store.Query
 -- Copyright:  (c) Ole Krüger 2016
 -- License:    BSD3
 -- Maintainer: Ole Krüger <ole@vprsm.de>
@@ -12,7 +12,6 @@ module Database.PostgreSQL.Store.Query (
 	-- * Builder
 	QueryBuilder,
 	buildQuery,
-
 	insertCode,
 	insertName,
 	QueryEntity (..),
@@ -35,14 +34,13 @@ import           Control.Monad.State.Strict hiding (lift)
 import           Data.List
 import           Data.Char
 import           Data.Proxy
-import           Data.String
 import           Data.Attoparsec.Text
 import qualified Data.ByteString    as B
 import qualified Data.Text          as T
 import qualified Data.Text.Encoding as T
 
 import           Database.PostgreSQL.Store.Columns
-import           Database.PostgreSQL.Store.Table.Class
+import           Database.PostgreSQL.Store.Query.Builder
 
 -- | Query including statement and parameters
 data Query = Query {
@@ -53,91 +51,12 @@ data Query = Query {
 	queryParams :: ![Value]
 } deriving (Show, Eq, Ord)
 
--- | Query builder
-type QueryBuilder = State (Int, B.ByteString, [Value]) ()
-
 -- | Build a "Query" using the given builder.
 buildQuery :: QueryBuilder -> Query
 buildQuery builder =
 	Query code values
 	where
 		(_, code, values) = execState builder (1, B.empty, [])
-
--- | Generate the placeholder for a parameter.
-genParam :: Int -> B.ByteString
-genParam index =
-	B.append "$" (fromString (show index))
-
--- | Insert a piece of SQL.
-insertCode :: B.ByteString -> QueryBuilder
-insertCode otherCode =
-	modify $ \ (counter, code, values) ->
-		(counter, B.append code otherCode, values)
-
--- | Insert a name. This function takes care of proper quotation.
-insertName :: B.ByteString -> QueryBuilder
-insertName name =
-	if isAllowed then
-		insertCode name
-	else
-		insertCode (B.concat ["\"", B.intercalate "\"\"" (B.split 34 name), "\""])
-	where
-		isAllowedHead b =
-			(b >= 97 && b <= 122)    -- 'a' to 'z'
-			|| (b >= 65 && b <= 90)  -- 'A' to 'Z'
-			|| b == 95               -- '_'
-
-		isAllowedBody b =
-			isAllowedHead b
-			|| (b >= 48 && b <= 57)  -- '0' to '9'
-
-		isAllowed =
-			case B.uncons name of
-				Nothing -> True
-				Just (h, b) -> isAllowedHead h && B.all isAllowedBody b
-
--- | Insert the table name of a table type.
-insertTableName :: (Table a) => proxy a -> QueryBuilder
-insertTableName proxy =
-	insertName (tableName (tableInfo proxy))
-
--- | Insert the identifier column name of a table type.
-insertTableIdentColumnName :: (Table a) => proxy a -> QueryBuilder
-insertTableIdentColumnName proxy = do
-	insertTableName proxy
-	insertCode "."
-	insertName (tableIdentColumn (tableInfo proxy))
-
--- | Insert a comma-seperated list of columns for a table type.
-insertTableColumnNames :: (Table a) => proxy a -> QueryBuilder
-insertTableColumnNames proxy =
-	sequence_ $
-		intersperse (insertCode ",") $
-			map insertColName (tableColumns (tableInfo proxy))
-	where
-		insertColName name = do
-			insertTableName proxy
-			insertCode "."
-			insertName name
-
--- | Generalize over types that can be either inlined or attached.
-class QueryEntity a where
-	insertEntity :: a -> QueryBuilder
-
--- | Every type that implements "Column" can be used as entity.
-instance {-# OVERLAPPABLE #-} (Column a) => QueryEntity a where
-	insertEntity value =
-		modify $ \ (counter, code, values) ->
-			(counter + 1, B.append code (genParam counter), values ++ [pack value])
-
--- | List of values are inserted as tuples.
-instance (QueryEntity a) => QueryEntity [a] where
-	insertEntity xs = do
-		insertCode "("
-		sequence_ $
-			intersperse (insertCode ",") $
-				map insertEntity xs
-		insertCode ")"
 
 -- | Name
 valueName :: Parser String

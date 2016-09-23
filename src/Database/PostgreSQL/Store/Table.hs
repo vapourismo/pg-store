@@ -25,8 +25,8 @@ import qualified Data.ByteString                    as B
 import qualified Blaze.ByteString.Builder           as B
 import qualified Blaze.ByteString.Builder.Char.Utf8 as B
 
-import           Database.PostgreSQL.Store.Table.Class
 import           Database.PostgreSQL.Store.Columns
+import           Database.PostgreSQL.Store.Table.Class
 
 -- | Table field declaration
 data TableField = TableField Name Type
