@@ -77,7 +77,26 @@ insertCode otherCode =
 -- | Insert a name. This function takes care of proper quotation.
 insertName :: B.ByteString -> QueryBuilder
 insertName name =
-	insertCode (B.concat ["\"", B.intercalate "\"\"" (B.split 34 name), "\""])
+	if isAllowed then
+		insertCode name
+	else
+		insertCode (B.concat ["\"", B.intercalate "\"\"" (B.split 34 name), "\""])
+	where
+		isAllowedHead b =
+			(b >= 97 && b <= 122)    -- 'a' to 'z'
+			|| (b >= 65 && b <= 90)  -- 'A' to 'Z'
+			|| b == 95               -- '_'
+
+		isAllowedBody b =
+			(b >= 97 && b <= 122)    -- 'a' to 'z'
+			|| (b >= 65 && b <= 90)  -- 'A' to 'Z'
+			|| (b >= 48 && b <= 57)  -- '0' to '9'
+			|| b == 95               -- '_'
+
+		isAllowed =
+			case B.uncons name of
+				Nothing -> True
+				Just (h, b) -> isAllowedHead h && B.all isAllowedBody b
 
 -- | Insert the table name of a table type.
 insertTableName :: (Table a) => proxy a -> QueryBuilder
