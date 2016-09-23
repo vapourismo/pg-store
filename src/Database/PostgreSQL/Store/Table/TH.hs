@@ -112,9 +112,12 @@ checkTableName typeName = do
 
 -- | Generate the table information using the table declaration.
 toTableInfo :: TableDec -> TableInformation
-toTableInfo (TableDec _ _ fields) =
-	TableInformation "$id" (map buildField fields)
+toTableInfo (TableDec typeName _ fields) =
+	TableInformation name "$id" (map buildField fields)
 	where
+		name =
+			B.toByteString (B.fromString (nameBase typeName))
+
 		buildField (TableField fieldName _) =
 			B.toByteString (B.fromString (nameBase (fieldName)))
 

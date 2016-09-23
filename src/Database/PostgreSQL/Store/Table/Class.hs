@@ -17,6 +17,7 @@ import qualified Data.ByteString as B
 
 -- | Table-related information about a type.
 data TableInformation = TableInformation {
+	tableName        :: !B.ByteString,
 	tableIdentColumn :: !B.ByteString,
 	tableColumns     :: ![B.ByteString]
 } deriving (Show, Eq, Ord)
@@ -27,8 +28,9 @@ liftByteString bs =
 	[e| B.pack $(lift (B.unpack bs)) |]
 
 instance Lift TableInformation where
-	lift (TableInformation identColumn columns) =
+	lift (TableInformation name identColumn columns) =
 		[e| TableInformation
+		        $(liftByteString name)
 		        $(liftByteString identColumn)
 		        $(listE (map liftByteString columns)) |]
 
