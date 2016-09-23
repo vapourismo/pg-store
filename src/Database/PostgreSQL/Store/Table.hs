@@ -14,12 +14,15 @@ module Database.PostgreSQL.Store.Table (
 	makeTable
 ) where
 
-import Language.Haskell.TH
+import           Language.Haskell.TH
 
-import Database.PostgreSQL.Store.Table.Class
-import Database.PostgreSQL.Store.Table.TH
+import qualified Data.ByteString as B
+
+import           Database.PostgreSQL.Store.Table.Class
+import           Database.PostgreSQL.Store.Table.TH
 
 -- | Implement 'Table' for a type.
-makeTable :: Name -> Q [Dec]
-makeTable typeName =
-	checkTableName typeName >>= implementTable
+makeTable :: Name -> Maybe B.ByteString -> Q [Dec]
+makeTable typeName overrideName = do
+	dec <- checkTableName typeName
+	implementTable dec overrideName

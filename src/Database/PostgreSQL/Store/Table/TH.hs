@@ -15,6 +15,9 @@ import           Language.Haskell.TH.Syntax
 
 import           Control.Monad
 
+import           Data.Maybe
+
+import qualified Data.ByteString                    as B
 import qualified Blaze.ByteString.Builder           as B
 import qualified Blaze.ByteString.Builder.Char.Utf8 as B
 
@@ -111,20 +114,20 @@ checkTableName typeName = do
 		_          -> fail ("'" ++ show typeName ++ "' is not a type constructor")
 
 -- | Generate the table information using the table declaration.
-toTableInfo :: TableDec -> TableInformation
-toTableInfo (TableDec typeName _ fields) =
+toTableInfo :: TableDec -> Maybe B.ByteString -> TableInformation
+toTableInfo (TableDec typeName _ fields) overrideName =
 	TableInformation name "$id" (map buildField fields)
 	where
 		name =
-			B.toByteString (B.fromString (nameBase typeName))
+			fromMaybe (B.toByteString (B.fromString (nameBase typeName))) overrideName
 
 		buildField (TableField fieldName _) =
 			B.toByteString (B.fromString (nameBase (fieldName)))
 
 -- | Implement 'Table' for a type.
-implementTable :: TableDec -> Q [Dec]
-implementTable dec =
+implementTable :: TableDec -> Maybe B.ByteString -> Q [Dec]
+implementTable dec overrideName =
 	[d|
 		instance Table $(conT (tableTypeName dec)) where
-			tableInfo _ = $(lift (toTableInfo dec))
+			tableInfo _ = $(lift (toTableInfo dec overrideName))
 	|]
