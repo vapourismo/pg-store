@@ -20,7 +20,7 @@ module Database.PostgreSQL.Store.Query (
 	insertTableIdentColumnName,
 	insertTableColumnNames,
 
-	-- *
+	-- * Template Haskell
 	parseQuery,
 	pgsq
 ) where
