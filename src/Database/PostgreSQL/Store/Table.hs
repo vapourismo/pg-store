@@ -100,7 +100,7 @@ checkTableDec _ (DataD ctx typeName typeVars kind ctors _) = do
 	unless (length ctors == 1) $
 		fail ("'" ++ show typeName ++ "' must have 1 constructor")
 
-	unless (kind == Just StarT) $
+	unless (kind == Just StarT || kind == Nothing) $
 		fail ("'" ++ show typeName ++ "' must have kind *")
 
 	checkTableCtor typeName (head ctors)
