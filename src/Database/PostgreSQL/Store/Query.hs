@@ -88,10 +88,8 @@ insertName name =
 			|| b == 95               -- '_'
 
 		isAllowedBody b =
-			(b >= 97 && b <= 122)    -- 'a' to 'z'
-			|| (b >= 65 && b <= 90)  -- 'A' to 'Z'
+			isAllowedHead b
 			|| (b >= 48 && b <= 57)  -- '0' to '9'
-			|| b == 95               -- '_'
 
 		isAllowed =
 			case B.uncons name of
