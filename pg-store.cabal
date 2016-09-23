@@ -26,7 +26,6 @@ library
   exposed-modules:  Database.PostgreSQL.Store.Table
                     Database.PostgreSQL.Store.Columns
   other-modules:    Database.PostgreSQL.Store.Table.Class
-                    Database.PostgreSQL.Store.Table.TH
                     Database.PostgreSQL.Store.OIDs
 
 -- test-suite tests
