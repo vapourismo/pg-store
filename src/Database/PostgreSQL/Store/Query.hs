@@ -16,6 +16,9 @@ module Database.PostgreSQL.Store.Query (
 	insertCode,
 	insertName,
 	QueryEntity (..),
+	insertTableName,
+	insertTableIdentColumnName,
+	insertTableColumnNames,
 
 	-- *
 	parseQuery,
@@ -76,6 +79,30 @@ insertName :: B.ByteString -> QueryBuilder
 insertName name =
 	insertCode (B.concat ["\"", B.intercalate "\"\"" (B.split 34 name), "\""])
 
+-- | Insert the table name of a table type.
+insertTableName :: (Table a) => proxy a -> QueryBuilder
+insertTableName proxy =
+	insertName (tableName (tableInfo proxy))
+
+-- | Insert the identifier column name of a table type.
+insertTableIdentColumnName :: (Table a) => proxy a -> QueryBuilder
+insertTableIdentColumnName proxy = do
+	insertTableName proxy
+	insertCode "."
+	insertName (tableIdentColumn (tableInfo proxy))
+
+-- | Insert a comma-seperated list of columns for a table type.
+insertTableColumnNames :: (Table a) => proxy a -> QueryBuilder
+insertTableColumnNames proxy =
+	sequence_ $
+		intersperse (insertCode ",") $
+			map insertColName (tableColumns (tableInfo proxy))
+	where
+		insertColName name = do
+			insertTableName proxy
+			insertCode "."
+			insertName name
+
 -- | Generalize over types that can be either inlined or attached.
 class QueryEntity a where
 	insertEntity :: a -> QueryBuilder
@@ -95,6 +122,11 @@ instance (QueryEntity a) => QueryEntity [a] where
 				map insertEntity xs
 		insertCode ")"
 
+-- | Name
+valueName :: Parser String
+valueName =
+	(:) <$> (letter <|> char '_') <*> many (satisfy isAlphaNum <|> char '_')
+
 -- | Type name
 typeName :: Parser String
 typeName =
@@ -108,15 +140,36 @@ qualifiedTypeName =
 -- | Query segment
 data QuerySegment
 	= QueryTable String
+	| QuerySelector String
+	| QueryIdentifier String
+	| QueryEntity String
 	| QueryQuote Char String
 	| QueryOther String
 	deriving (Show, Eq, Ord)
 
--- | Segment referencing a table type
+-- | Table type
 tableSegment :: Parser QuerySegment
 tableSegment = do
 	char '@'
 	QueryTable <$> qualifiedTypeName
+
+-- | Segment
+selectorSegment :: Parser QuerySegment
+selectorSegment = do
+	char '#'
+	QuerySelector <$> qualifiedTypeName
+
+-- | Identifier
+identifierSegment :: Parser QuerySegment
+identifierSegment = do
+	char '&'
+	QueryIdentifier <$> qualifiedTypeName
+
+-- | Entity
+entitySegment :: Parser QuerySegment
+entitySegment = do
+	char '$'
+	QueryEntity <$> valueName
 
 -- | Quotation
 quoteSegment :: Char -> Parser QuerySegment
@@ -140,6 +193,9 @@ querySegment =
 	choice [quoteSegment '\'',
 	        quoteSegment '"',
 	        tableSegment,
+	        selectorSegment,
+	        identifierSegment,
+	        entitySegment,
 	        otherSegment]
 
 -- | Lift "ByteString".
@@ -156,7 +212,28 @@ translateSegment segment =
 			case mbTypeName of
 				Nothing -> fail ("'" ++ typeName ++ "' does not refer to a type")
 				Just typ ->
-					[e| insertName (tableName (tableInfo (Proxy :: Proxy $(conT typ)))) |]
+					[e| insertTableName (Proxy :: Proxy $(conT typ)) |]
+
+		QuerySelector typeName -> do
+			mbTypeName <- lookupTypeName typeName
+			case mbTypeName of
+				Nothing -> fail ("'" ++ typeName ++ "' does not refer to a type")
+				Just typ ->
+					[e| insertTableColumnNames (Proxy :: Proxy $(conT typ)) |]
+
+		QueryIdentifier typeName -> do
+			mbTypeName <- lookupTypeName typeName
+			case mbTypeName of
+				Nothing -> fail ("'" ++ typeName ++ "' does not refer to a type")
+				Just typ ->
+					[e| insertTableIdentColumnName (Proxy :: Proxy $(conT typ)) |]
+
+		QueryEntity valueName -> do
+			mbValueName <- lookupValueName valueName
+			case mbValueName of
+				Nothing -> fail ("'" ++ valueName ++ "' does not refer to a type")
+				Just valueName ->
+					[e| insertEntity $(varE valueName) |]
 
 		QueryQuote _ code ->
 			[e| insertCode $(liftByteString (T.encodeUtf8 (T.pack code))) |]
