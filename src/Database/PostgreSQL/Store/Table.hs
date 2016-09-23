@@ -55,7 +55,7 @@ checkRecordFields fields =
 
 -- | Check that each constructor parameter type implements 'Column'.
 checkNormalFields :: [BangType] -> Q [TableField]
-checkNormalFields fields = do
+checkNormalFields fields =
 	forM (fields `zip` [1 .. length fields]) $ \ ((_, typ), idx) -> do
 		ii <- isInstance ''Column [typ]
 		unless ii $
@@ -91,17 +91,17 @@ checkTableCtor typeName _ =
 -- | Make sure the given declaration can be used, then construct a 'TableDec'.
 checkTableDec :: Name -> Dec -> Q TableDec
 checkTableDec _ (DataD ctx typeName typeVars kind ctors _) = do
-	when (length ctx > 0)
-	     (fail ("'" ++ show typeName ++ "' must not have a context"))
+	unless (null ctx) $
+		fail ("'" ++ show typeName ++ "' must not have a context")
 
-	when (length typeVars > 0)
-	     (fail ("'" ++ show typeName ++ "' must not use type variables"))
+	unless (null typeVars) $
+		fail ("'" ++ show typeName ++ "' must not use type variables")
 
-	when (length ctors /= 1)
-	     (fail ("'" ++ show typeName ++ "' must have 1 constructor"))
+	unless (length ctors == 1) $
+		fail ("'" ++ show typeName ++ "' must have 1 constructor")
 
-	when (kind /= Nothing && kind /= Just StarT)
-	     (fail ("'" ++ show typeName ++ "' must have kind *"))
+	unless (kind == Just StarT) $
+		fail ("'" ++ show typeName ++ "' must have kind *")
 
 	checkTableCtor typeName (head ctors)
 
@@ -134,7 +134,7 @@ defaultTableOptions =
 
 -- | Generate the table information using the table declaration.
 toTableInfo :: TableDec -> TableOptions -> TableInformation
-toTableInfo (TableDec typeName _ fields) (TableOptions {..}) =
+toTableInfo (TableDec typeName _ fields) TableOptions {..} =
 	TableInformation
 		(tableOptTransformName typeName)
 		tableOptIdentName
