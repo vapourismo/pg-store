@@ -27,16 +27,13 @@ import qualified Blaze.ByteString.Builder.Char.Utf8 as B
 
 import           Database.PostgreSQL.Store.Columns
 import           Database.PostgreSQL.Store.Table.Class
+import           Database.PostgreSQL.Store.Query.Builder
 
 -- | Table field declaration
 data TableField = TableField Name Type
 
 -- | Table type declaration
 data TableDec = TableDec Name Name [TableField]
-
--- | Retrieve the table's type name.
-tableTypeName :: TableDec -> Name
-tableTypeName (TableDec name _ _ ) = name
 
 -- | Check that each field's type has an implementation of 'Column'.
 checkRecordFields :: [VarBangType] -> Q [TableField]
@@ -132,24 +129,42 @@ defaultTableOptions =
 		tableOptTransformFieldName = B.toByteString . B.fromString . nameBase
 	}
 
--- | Generate the table information using the table declaration.
-toTableInfo :: TableDec -> TableOptions -> TableInformation
-toTableInfo (TableDec typeName _ fields) TableOptions {..} =
-	TableInformation
-		(tableOptTransformName typeName)
-		tableOptIdentName
-		(map (\ (TableField name _) -> tableOptTransformFieldName name) fields)
-
 -- | Implement 'Table' for a type.
 implementTable :: TableDec -> TableOptions -> Q [Dec]
-implementTable dec options =
+implementTable (TableDec typeName _ fields) TableOptions {..}=
 	[d|
-		instance Table $(conT (tableTypeName dec)) where
-			tableInfo _ = $(lift (toTableInfo dec options))
+		instance Table $(conT typeName) where
+			tableInfo _ = $(lift info)
 	|]
+	where
+		info =
+			TableInformation
+				(tableOptTransformName typeName)
+				tableOptIdentName
+				(map (\ (TableField name _) -> tableOptTransformFieldName name) fields)
 
--- | Implement 'Table' for a type.
+-- | Implement 'QueryEntity' for a type.
+implementQueryEntity :: TableDec -> Q [Dec]
+implementQueryEntity (TableDec typeName ctor fields) =
+	genVarNames >>= \ boundNames ->
+		[d|
+			instance QueryEntity $(conT typeName) where
+				insertEntity $(destructPattern boundNames) =
+					$(functionBody boundNames)
+		|]
+	where
+		genVarNames =
+			mapM (\ (TableField fieldName _) -> newName (nameBase fieldName)) fields
+
+		destructPattern names =
+			pure (ConP ctor (map VarP names))
+
+		functionBody names =
+			DoE <$> mapM (\ name -> NoBindS <$> [e| insertEntity $(varE name) |]) names
+
+-- | Implement 'Table' and 'QueryEntity' for a type.
 makeTable :: Name -> TableOptions -> Q [Dec]
 makeTable typeName options = do
 	dec <- checkTableName typeName
-	implementTable dec options
+	concat <$> sequence [implementTable dec options,
+	                     implementQueryEntity dec]
