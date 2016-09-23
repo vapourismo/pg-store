@@ -96,10 +96,15 @@ instance {-# OVERLAPPABLE #-} (Column a) => QueryEntity a where
 			(counter + 1, B.append code (genParam counter), values ++ [pack value])
 
 -- | List of values are inserted as tuples.
-instance (QueryEntity a) => QueryEntity [a] where
+instance {-# OVERLAPPABLE #-} (QueryEntity a) => QueryEntity [a] where
 	insertEntity xs = do
 		insertCode "("
 		sequence_ $
 			intersperse (insertCode ",") $
 				map insertEntity xs
 		insertCode ")"
+
+-- | We need this instance to
+instance QueryEntity [Char] where
+	insertEntity string =
+		insertEntity (pack string)
