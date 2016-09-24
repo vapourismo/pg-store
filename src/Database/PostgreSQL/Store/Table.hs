@@ -150,7 +150,7 @@ implementQueryEntity (TableDec typeName ctor fields) =
 		[d|
 			instance QueryEntity $(conT typeName) where
 				insertEntity $(destructPattern boundNames) =
-					$(functionBody boundNames)
+					insertEntity $(entityList boundNames)
 		|]
 	where
 		genVarNames =
@@ -159,8 +159,8 @@ implementQueryEntity (TableDec typeName ctor fields) =
 		destructPattern names =
 			pure (ConP ctor (map VarP names))
 
-		functionBody names =
-			DoE <$> mapM (\ name -> NoBindS <$> [e| insertEntity $(varE name) |]) names
+		entityList names =
+			ListE <$> forM names (\ name -> [e| pack $(varE name) |])
 
 -- | Implement 'Table' and 'QueryEntity' for a type.
 makeTable :: Name -> TableOptions -> Q [Dec]
