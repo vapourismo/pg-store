@@ -26,6 +26,9 @@ library
   exposed-modules:  Database.PostgreSQL.Store.Table
                     Database.PostgreSQL.Store.Columns
                     Database.PostgreSQL.Store.Query
+                    Database.PostgreSQL.Store.Errand
+                    Database.PostgreSQL.Store.Result
+                    Database.PostgreSQL.Store
   other-modules:    Database.PostgreSQL.Store.Table.Class
                     Database.PostgreSQL.Store.Query.Builder
                     Database.PostgreSQL.Store.OIDs

@@ -12,9 +12,10 @@ module Database.PostgreSQL.Store.Query (
 	-- * Builder
 	QueryBuilder,
 	buildQuery,
+
 	insertCode,
 	insertName,
-	QueryEntity (..),
+	insertEntity,
 	insertTableName,
 	insertTableIdentColumnName,
 	insertTableColumnNames,

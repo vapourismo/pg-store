@@ -18,10 +18,6 @@ module Database.PostgreSQL.Store (
 	-- * Queries
 	Query (..),
 	pgsq,
-	pgss,
-
-	QueryTable (..),
-	SelectorElement (..),
 
 	-- * Values
 	Value (..),
@@ -35,14 +31,14 @@ module Database.PostgreSQL.Store (
 	unpackColumn,
 
 	Single (..),
-	Reference (..),
 
 	-- * Tables
+	TableInformation (..),
 	Table (..),
-	mkCreateQuery,
 
-	mkTable,
-	TableConstraint (..)
+	TableOptions (..),
+	defaultTableOptions,
+	makeTable
 ) where
 
 import Database.PostgreSQL.Store.Columns
