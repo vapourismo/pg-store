@@ -96,15 +96,26 @@ instance {-# OVERLAPPABLE #-} (Column a) => QueryEntity a where
 			(counter + 1, B.append code (genParam counter), values ++ [pack value])
 
 -- | List of values are inserted as tuples.
-instance {-# OVERLAPPABLE #-} (QueryEntity a) => QueryEntity [a] where
+instance {-# OVERLAPPABLE #-} (Column a) => QueryEntity [a] where
 	insertEntity xs = do
 		insertCode "("
-		sequence_ $
-			intersperse (insertCode ",") $
-				map insertEntity xs
+		insertEntity (map insertEntity xs)
 		insertCode ")"
 
--- | We need this instance to
+-- | We need this instance to differentiate from @Column a => QueryEntity [a]@.
 instance QueryEntity [Char] where
 	insertEntity string =
 		insertEntity (pack string)
+	{-# INLINE insertEntity #-}
+
+-- | Inline query builder as is.
+instance QueryEntity QueryBuilder where
+	insertEntity builder =
+		builder
+	{-# INLINE insertEntity #-}
+
+-- | Chain query builders in a comma-seperated list.
+instance QueryEntity [QueryBuilder] where
+	insertEntity builders =
+		sequence_ $
+			intersperse (insertCode ",") builders
