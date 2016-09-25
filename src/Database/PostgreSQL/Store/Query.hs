@@ -9,20 +9,11 @@ module Database.PostgreSQL.Store.Query (
 	-- * Type
 	Query (..),
 
-	-- * Builder
-	QueryBuilder,
-	buildQuery,
-
-	insertCode,
-	insertName,
-	insertEntity,
-	insertTableName,
-	insertTableIdentColumnName,
-	insertTableColumnNames,
-
 	-- * Template Haskell
 	parseQuery,
-	pgsq
+	pgsq,
+	parseQueryBuilder,
+	pgsqb
 ) where
 
 import           Language.Haskell.TH
@@ -241,4 +232,24 @@ pgsq =
 		quotePat  = const (fail "Cannot use 'pgsq' in pattern"),
 		quoteType = const (fail "Cannot use 'pgsq' in type"),
 		quoteDec  = const (fail "Cannot use 'pgsq' in declaration")
+	}
+
+-- | Parse a query string.
+parseQueryBuilder :: String -> Q Exp
+parseQueryBuilder code =
+	case parseOnly (some querySegment <* endOfInput) (T.pack code) of
+		Left msg ->
+			fail ("Query parser failed: " ++ msg)
+
+		Right segments ->
+			[e| $(DoE . map NoBindS <$> mapM translateSegment segments) |]
+
+-- | Quasi-quoter which can be used to generate "QueryBuilder"s conveniently.
+pgsqb :: QuasiQuoter
+pgsqb =
+	QuasiQuoter {
+		quoteExp  = parseQueryBuilder,
+		quotePat  = const (fail "Cannot use 'pgsqb' in pattern"),
+		quoteType = const (fail "Cannot use 'pgsqb' in type"),
+		quoteDec  = const (fail "Cannot use 'pgsqb' in declaration")
 	}
