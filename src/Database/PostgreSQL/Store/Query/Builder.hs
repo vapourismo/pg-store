@@ -13,7 +13,8 @@ module Database.PostgreSQL.Store.Query.Builder (
 	QueryEntity (..),
 	insertTableName,
 	insertTableIdentColumnName,
-	insertTableColumnNames
+	insertTableColumnNames,
+	surroundWithParens
 ) where
 
 import           Control.Monad.State.Strict
@@ -32,6 +33,7 @@ type QueryBuilder = State (Int, B.ByteString, [Value]) ()
 genParam :: Int -> B.ByteString
 genParam index =
 	B.append "$" (fromString (show index))
+{-# INLINE genParam #-}
 
 -- | Insert a piece of SQL.
 insertCode :: B.ByteString -> QueryBuilder
@@ -85,6 +87,14 @@ insertTableColumnNames proxy =
 			insertCode "."
 			insertName name
 
+-- | Surround the given statement with parentheses.
+surroundWithParens :: QueryBuilder -> QueryBuilder
+surroundWithParens builder = do
+	insertCode "("
+	builder
+	insertCode ")"
+{-# INLINE surroundWithParens #-}
+
 -- | Generalize over types that can be either inlined or attached.
 class QueryEntity a where
 	insertEntity :: a -> QueryBuilder
@@ -94,13 +104,6 @@ instance {-# OVERLAPPABLE #-} (Column a) => QueryEntity a where
 	insertEntity value =
 		modify $ \ (counter, code, values) ->
 			(counter + 1, B.append code (genParam counter), values ++ [pack value])
-
--- | List of values are inserted as tuples.
-instance {-# OVERLAPPABLE #-} (Column a) => QueryEntity [a] where
-	insertEntity xs = do
-		insertCode "("
-		insertEntity (map insertEntity xs)
-		insertCode ")"
 
 -- | We need this instance to differentiate from @Column a => QueryEntity [a]@.
 instance QueryEntity [Char] where
@@ -114,91 +117,85 @@ instance QueryEntity QueryBuilder where
 		builder
 	{-# INLINE insertEntity #-}
 
--- | Chain query builders in a comma-seperated list.
-instance QueryEntity [QueryBuilder] where
-	insertEntity builders =
+-- | List of values are inserted as tuples.
+instance {-# OVERLAPPABLE #-} (QueryEntity a) => QueryEntity [a] where
+	insertEntity xs =
 		sequence_ $
-			intersperse (insertCode ",") builders
+			intersperse (insertCode ",") (map insertEntity xs)
 
 instance (QueryEntity a, QueryEntity b) => QueryEntity (a, b) where
-	insertEntity (a, b) = do
-		insertCode "("
-		insertEntity a
-		insertCode ","
-		insertEntity b
-		insertCode ")"
+	insertEntity (a, b) =
+		surroundWithParens $ do
+			insertEntity a
+			insertCode ","
+			insertEntity b
 
 instance (QueryEntity a, QueryEntity b, QueryEntity c) => QueryEntity (a, b, c) where
-	insertEntity (a, b, c) = do
-		insertCode "("
-		insertEntity a
-		insertCode ","
-		insertEntity b
-		insertCode ","
-		insertEntity c
-		insertCode ")"
+	insertEntity (a, b, c) =
+		surroundWithParens $ do
+			insertEntity a
+			insertCode ","
+			insertEntity b
+			insertCode ","
+			insertEntity c
 
 instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d)
          => QueryEntity (a, b, c, d) where
-	insertEntity (a, b, c, d) = do
-		insertCode "("
-		insertEntity a
-		insertCode ","
-		insertEntity b
-		insertCode ","
-		insertEntity c
-		insertCode ","
-		insertEntity d
-		insertCode ")"
+	insertEntity (a, b, c, d) =
+		surroundWithParens $ do
+			insertEntity a
+			insertCode ","
+			insertEntity b
+			insertCode ","
+			insertEntity c
+			insertCode ","
+			insertEntity d
 
 instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d, QueryEntity e)
          => QueryEntity (a, b, c, d, e) where
-	insertEntity (a, b, c, d, e) = do
-		insertCode "("
-		insertEntity a
-		insertCode ","
-		insertEntity b
-		insertCode ","
-		insertEntity c
-		insertCode ","
-		insertEntity d
-		insertCode ","
-		insertEntity e
-		insertCode ")"
+	insertEntity (a, b, c, d, e) =
+		surroundWithParens $ do
+			insertEntity a
+			insertCode ","
+			insertEntity b
+			insertCode ","
+			insertEntity c
+			insertCode ","
+			insertEntity d
+			insertCode ","
+			insertEntity e
 
 instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d, QueryEntity e, QueryEntity f)
          => QueryEntity (a, b, c, d, e, f) where
-	insertEntity (a, b, c, d, e, f) = do
-		insertCode "("
-		insertEntity a
-		insertCode ","
-		insertEntity b
-		insertCode ","
-		insertEntity c
-		insertCode ","
-		insertEntity d
-		insertCode ","
-		insertEntity e
-		insertCode ","
-		insertEntity f
-		insertCode ")"
+	insertEntity (a, b, c, d, e, f) =
+		surroundWithParens $ do
+			insertEntity a
+			insertCode ","
+			insertEntity b
+			insertCode ","
+			insertEntity c
+			insertCode ","
+			insertEntity d
+			insertCode ","
+			insertEntity e
+			insertCode ","
+			insertEntity f
 
 instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d, QueryEntity e, QueryEntity f,
           QueryEntity g)
          => QueryEntity (a, b, c, d, e, f, g) where
-	insertEntity (a, b, c, d, e, f, g) = do
-		insertCode "("
-		insertEntity a
-		insertCode ","
-		insertEntity b
-		insertCode ","
-		insertEntity c
-		insertCode ","
-		insertEntity d
-		insertCode ","
-		insertEntity e
-		insertCode ","
-		insertEntity f
-		insertCode ","
-		insertEntity g
-		insertCode ")"
+	insertEntity (a, b, c, d, e, f, g) =
+		surroundWithParens $ do
+			insertEntity a
+			insertCode ","
+			insertEntity b
+			insertCode ","
+			insertEntity c
+			insertCode ","
+			insertEntity d
+			insertCode ","
+			insertEntity e
+			insertCode ","
+			insertEntity f
+			insertCode ","
+			insertEntity g
