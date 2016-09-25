@@ -27,7 +27,6 @@ import qualified Blaze.ByteString.Builder.Char.Utf8 as B
 
 import           Database.PostgreSQL.Store.Columns
 import           Database.PostgreSQL.Store.Table.Class
-import           Database.PostgreSQL.Store.Query.Builder
 
 -- | Table field declaration
 data TableField = TableField Name Type
@@ -131,11 +130,15 @@ defaultTableOptions =
 
 -- | Implement 'Table' for a type.
 implementTable :: TableDec -> TableOptions -> Q [Dec]
-implementTable (TableDec typeName _ fields) TableOptions {..}=
-	[d|
-		instance Table $(conT typeName) where
-			tableInfo _ = $(lift info)
-	|]
+implementTable (TableDec typeName ctor fields) TableOptions {..} =
+	genVarNames >>= \ boundNames ->
+		[d|
+			instance Table $(conT typeName) where
+				tableInfo _ = $(lift info)
+
+				unpackRow $(destructPattern boundNames) =
+					$(ListE <$> mapM genPackColumn boundNames)
+		|]
 	where
 		info =
 			TableInformation
@@ -143,28 +146,17 @@ implementTable (TableDec typeName _ fields) TableOptions {..}=
 				tableOptIdentName
 				(map (\ (TableField name _) -> tableOptTransformFieldName name) fields)
 
--- | Implement 'QueryEntity' for a type.
-implementQueryEntity :: TableDec -> Q [Dec]
-implementQueryEntity (TableDec typeName ctor fields) =
-	genVarNames >>= \ boundNames ->
-		[d|
-			instance QueryEntity $(conT typeName) where
-				insertEntity $(destructPattern boundNames) =
-					insertEntity $(entityList boundNames)
-		|]
-	where
 		genVarNames =
 			mapM (\ (TableField fieldName _) -> newName (nameBase fieldName)) fields
 
 		destructPattern names =
 			pure (ConP ctor (map VarP names))
 
-		entityList names =
-			ListE <$> forM names (\ name -> [e| pack $(varE name) |])
+		genPackColumn name =
+			[e| pack $(varE name) |]
 
 -- | Implement 'Table' and 'QueryEntity' for a type.
 makeTable :: Name -> TableOptions -> Q [Dec]
 makeTable typeName options = do
 	dec <- checkTableName typeName
-	concat <$> sequence [implementTable dec options,
-	                     implementQueryEntity dec]
+	implementTable dec options

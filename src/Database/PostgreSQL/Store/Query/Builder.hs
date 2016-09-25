@@ -121,7 +121,8 @@ instance QueryEntity QueryBuilder where
 instance {-# OVERLAPPABLE #-} (QueryEntity a) => QueryEntity [a] where
 	insertEntity xs =
 		sequence_ $
-			intersperse (insertCode ",") (map insertEntity xs)
+			intersperse (insertCode ",") $
+				map insertEntity xs
 
 instance (QueryEntity a, QueryEntity b) => QueryEntity (a, b) where
 	insertEntity (a, b) =

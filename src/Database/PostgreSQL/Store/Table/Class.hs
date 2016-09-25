@@ -15,6 +15,8 @@ import           Language.Haskell.TH.Syntax
 
 import qualified Data.ByteString as B
 
+import           Database.PostgreSQL.Store.Columns
+
 -- | Table-related information about a type.
 data TableInformation = TableInformation {
 	tableName        :: !B.ByteString,
@@ -37,3 +39,5 @@ instance Lift TableInformation where
 -- | Attach table information to a type.
 class Table a where
 	tableInfo :: proxy a -> TableInformation
+
+	unpackRow :: a -> [Value]
