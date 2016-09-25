@@ -119,3 +119,86 @@ instance QueryEntity [QueryBuilder] where
 	insertEntity builders =
 		sequence_ $
 			intersperse (insertCode ",") builders
+
+instance (QueryEntity a, QueryEntity b) => QueryEntity (a, b) where
+	insertEntity (a, b) = do
+		insertCode "("
+		insertEntity a
+		insertCode ","
+		insertEntity b
+		insertCode ")"
+
+instance (QueryEntity a, QueryEntity b, QueryEntity c) => QueryEntity (a, b, c) where
+	insertEntity (a, b, c) = do
+		insertCode "("
+		insertEntity a
+		insertCode ","
+		insertEntity b
+		insertCode ","
+		insertEntity c
+		insertCode ")"
+
+instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d)
+         => QueryEntity (a, b, c, d) where
+	insertEntity (a, b, c, d) = do
+		insertCode "("
+		insertEntity a
+		insertCode ","
+		insertEntity b
+		insertCode ","
+		insertEntity c
+		insertCode ","
+		insertEntity d
+		insertCode ")"
+
+instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d, QueryEntity e)
+         => QueryEntity (a, b, c, d, e) where
+	insertEntity (a, b, c, d, e) = do
+		insertCode "("
+		insertEntity a
+		insertCode ","
+		insertEntity b
+		insertCode ","
+		insertEntity c
+		insertCode ","
+		insertEntity d
+		insertCode ","
+		insertEntity e
+		insertCode ")"
+
+instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d, QueryEntity e, QueryEntity f)
+         => QueryEntity (a, b, c, d, e, f) where
+	insertEntity (a, b, c, d, e, f) = do
+		insertCode "("
+		insertEntity a
+		insertCode ","
+		insertEntity b
+		insertCode ","
+		insertEntity c
+		insertCode ","
+		insertEntity d
+		insertCode ","
+		insertEntity e
+		insertCode ","
+		insertEntity f
+		insertCode ")"
+
+instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d, QueryEntity e, QueryEntity f,
+          QueryEntity g)
+         => QueryEntity (a, b, c, d, e, f, g) where
+	insertEntity (a, b, c, d, e, f, g) = do
+		insertCode "("
+		insertEntity a
+		insertCode ","
+		insertEntity b
+		insertCode ","
+		insertEntity c
+		insertCode ","
+		insertEntity d
+		insertCode ","
+		insertEntity e
+		insertCode ","
+		insertEntity f
+		insertCode ","
+		insertEntity g
+		insertCode ")"
