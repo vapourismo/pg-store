@@ -8,6 +8,9 @@
 module Database.PostgreSQL.Store.Query.Builder (
 	-- * Builder
 	QueryBuilder,
+
+	BuildQuery (..),
+
 	insertCode,
 	insertName,
 	QueryEntity (..),
@@ -28,6 +31,18 @@ import           Database.PostgreSQL.Store.Table.Class
 
 -- | Query builder
 type QueryBuilder = State (Int, B.ByteString, [Value]) ()
+
+class BuildQuery a where
+	buildQuery :: QueryBuilder -> a
+
+instance BuildQuery QueryBuilder where
+	buildQuery = id
+
+instance BuildQuery B.ByteString where
+	buildQuery builder =
+		code
+		where
+			(_, code, _) = execState builder (1, B.empty, [])
 
 -- | Generate the placeholder for a parameter.
 genParam :: Int -> B.ByteString

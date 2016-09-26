@@ -46,23 +46,11 @@ data Query r = Query {
 	queryParams :: ![Value]
 } deriving (Show, Eq, Ord)
 
-class BuildQuery a where
-	buildQuery :: QueryBuilder -> a
-
-instance BuildQuery QueryBuilder where
-	buildQuery = id
-
 instance BuildQuery (Query r) where
 	buildQuery builder =
 		Query code values
 		where
 			(_, code, values) = execState builder (1, B.empty, [])
-
-instance BuildQuery B.ByteString where
-	buildQuery builder =
-		code
-		where
-			(_, code, _) = execState builder (1, B.empty, [])
 
 -- | Name
 valueName :: Parser String
