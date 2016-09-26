@@ -74,8 +74,8 @@ class Column a where
 		defaultColumnInfo
 
 -- | Generate column description in SQL. Think @CREATE TABLE@.
-describeColumn :: (Column a) => Proxy a -> B.ByteString -> B.ByteString
-describeColumn proxy identifier =
+describeColumn :: ColumnInformation -> B.ByteString -> B.ByteString
+describeColumn ColumnInformation {..} identifier =
 	B.concat [identifier,
 	          " ",
 	          columnTypeName,
@@ -83,9 +83,6 @@ describeColumn proxy identifier =
 	          maybe B.empty
 	                (\ genStmt -> B.concat [" CHECK (", genStmt identifier, ")"])
 	                columnCheck]
-	where
-		ColumnInformation {..} =
-			columnInfo proxy
 
 instance Column Value where
 	pack = id
