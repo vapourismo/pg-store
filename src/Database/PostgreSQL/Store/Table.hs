@@ -21,6 +21,7 @@ import           Language.Haskell.TH.Syntax
 
 import           Control.Monad
 
+import           Data.Proxy
 import qualified Data.ByteString                    as B
 import qualified Blaze.ByteString.Builder           as B
 import qualified Blaze.ByteString.Builder.Char.Utf8 as B
@@ -131,23 +132,30 @@ defaultTableOptions =
 		tableOptTransformFieldName = B.toByteString . B.fromString . nameBase
 	}
 
+-- | Lift "ByteString".
+liftByteString :: B.ByteString -> Q Exp
+liftByteString bs =
+	[e| B.pack $(lift (B.unpack bs)) |]
+
 -- | Implement 'Table' for a type.
 implementTable :: TableDec -> TableOptions -> Q [Dec]
 implementTable (TableDec typeName ctor fields) TableOptions {..} =
 	genVarNames >>= \ boundNames ->
 		[d|
 			instance Table $(conT typeName) where
-				tableInfo _ = $(lift info)
+				tableInfo _ =
+					TableInformation
+						$(liftByteString (tableOptTransformName typeName))
+						$(liftByteString tableOptIdentName)
+						$(listE (map genColumn fields))
 
 				unpackRow $(destructPattern boundNames) =
 					$(ListE <$> mapM genPackColumn boundNames)
 		|]
 	where
-		info =
-			TableInformation
-				(tableOptTransformName typeName)
-				tableOptIdentName
-				(map (\ (TableField name _) -> tableOptTransformFieldName name) fields)
+		genColumn (TableField name typ) =
+			[e| ($(liftByteString (tableOptTransformFieldName name)),
+			     columnInfo (Proxy :: Proxy $(pure typ))) |]
 
 		genVarNames =
 			mapM (\ (TableField fieldName _) -> newName (nameBase fieldName)) fields

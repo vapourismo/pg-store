@@ -82,7 +82,7 @@ insertTableColumnNames proxy =
 		intersperse (insertCode ",") $
 			map insertColName (tableColumns (tableInfo proxy))
 	where
-		insertColName name = do
+		insertColName (name, _) = do
 			insertTableName proxy
 			insertCode "."
 			insertName name
