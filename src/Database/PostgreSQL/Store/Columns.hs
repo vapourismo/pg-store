@@ -11,6 +11,7 @@ module Database.PostgreSQL.Store.Columns (
 
 	-- * Columns
 	ColumnInformation (..),
+	defaultColumnInfo,
 	Column (..),
 	describeColumn
 ) where
@@ -98,20 +99,9 @@ instance (Column a) => Column (Maybe a) where
 	unpack val       = Just <$> unpack val
 
 	columnInfo proxy =
-		otherColumnInfo {
+		(columnInfo ((const Proxy :: proxy (Maybe a) -> Proxy a) proxy)) {
 			columnAllowNull = True
 		}
-
-		where
-			transformProxy :: proxy (Maybe a) -> Proxy a
-			transformProxy _ =
-				Proxy
-
-			otherColumnInfo :: ColumnInformation
-			otherColumnInfo =
-				columnInfo (transformProxy proxy)
-
-
 
 instance Column Bool where
 	pack True = Value $(OID.bool) "true"
