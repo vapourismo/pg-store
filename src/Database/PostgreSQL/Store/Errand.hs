@@ -221,6 +221,10 @@ instance (Table a) => Column (Reference a) where
 			tableProxy =
 				(const Proxy :: proxy (Reference a) -> Proxy a) proxy
 
+instance Result (Reference a) where
+	queryResultProcessor =
+		Reference <$> unpackColumn
+
 -- | Insert a single row into a table. Returns the inserted value of the identifier column.
 insert :: (Table a) => a -> Query (Reference a)
 insert row =
