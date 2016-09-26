@@ -79,7 +79,7 @@ runErrand con (Errand errand) =
 	runExceptT (runReaderT errand con)
 
 -- | Execute a query and return the internal raw result.
-execute :: Query -> Errand P.Result
+execute :: Query a -> Errand P.Result
 execute (Query statement params) = Errand . ReaderT $ \ con -> do
 	res <- ExceptT $
 		transformResult <$> P.execParams con statement (map transformParam params) P.Text
@@ -177,28 +177,28 @@ instance (Result a, Result b, Result c, Result d, Result e, Result f, Result g)
 		         <*> queryResultProcessor
 
 -- | Execute a query and process its result set.
-query :: (Result a) => Query -> Errand [a]
+query :: (Result a) => Query a -> Errand [a]
 query qry =
 	queryWith qry queryResultProcessor
 
 -- | Execute a query and dismiss its result.
-query_ :: Query -> Errand ()
+query_ :: Query a -> Errand ()
 query_ qry =
 	() <$ execute qry
 
 -- | Execute a query and process its result set using the provided result processor.
-queryWith :: Query -> ResultProcessor a -> Errand [a]
+queryWith :: Query a -> ResultProcessor a -> Errand [a]
 queryWith qry proc = do
 	result <- execute qry
 	Errand (lift (withExceptT ResultError (processResult result proc)))
 
 -- | Insert a single row into a table. Returns the inserted value of the identifier column.
-insert :: (Table a) => a -> Query
+insert :: (Table a) => a -> Query ()
 insert row =
 	[pgsq| INSERT INTO @row (#row) VALUES (${unpackRow row}) RETURNING &row |]
 
 -- | Insert many rows into a table.
-insertMany :: (Table a) => [a] -> Query
+insertMany :: (Table a) => [a] -> Query ()
 insertMany [] = [pgsq||]
 insertMany rows =
 	[pgsq| INSERT INTO ${insertTableName rows}

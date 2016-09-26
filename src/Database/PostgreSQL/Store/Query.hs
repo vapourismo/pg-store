@@ -37,7 +37,7 @@ import           Database.PostgreSQL.Store.Columns
 import           Database.PostgreSQL.Store.Query.Builder
 
 -- | Query including statement and parameters
-data Query = Query {
+data Query r = Query {
 	-- | Statement
 	queryStatement :: !B.ByteString,
 
@@ -46,7 +46,7 @@ data Query = Query {
 } deriving (Show, Eq, Ord)
 
 -- | Build a "Query" using the given builder.
-buildQuery :: QueryBuilder -> Query
+buildQuery :: QueryBuilder -> Query r
 buildQuery builder =
 	Query code values
 	where
