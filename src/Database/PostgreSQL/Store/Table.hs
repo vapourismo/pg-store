@@ -25,8 +25,11 @@ import qualified Data.ByteString                    as B
 import qualified Blaze.ByteString.Builder           as B
 import qualified Blaze.ByteString.Builder.Char.Utf8 as B
 
+import           Database.PostgreSQL.Store.Errand
+import           Database.PostgreSQL.Store.Result
 import           Database.PostgreSQL.Store.Columns
 import           Database.PostgreSQL.Store.Table.Class
+import           Database.PostgreSQL.Store.Query.Builder
 
 -- | Table field declaration
 data TableField = TableField Name Type
@@ -155,8 +158,53 @@ implementTable (TableDec typeName ctor fields) TableOptions {..} =
 		genPackColumn name =
 			[e| pack $(varE name) |]
 
--- | Implement 'Table' and 'QueryEntity' for a type.
+-- | Implement 'QueryEntity' for a type.
+implementQueryEntity :: TableDec -> Q [Dec]
+implementQueryEntity (TableDec typeName ctor fields) =
+	genVarNames >>= \ boundNames ->
+		[d|
+			instance QueryEntity $(conT typeName) where
+				insertEntity $(destructPattern boundNames) =
+					insertEntity $(entityList boundNames)
+		|]
+	where
+		genVarNames =
+			mapM (\ (TableField fieldName _) -> newName (nameBase fieldName)) fields
+
+		destructPattern names =
+			pure (ConP ctor (map VarP names))
+
+		entityList names =
+			ListE <$> forM names (\ name -> [e| pack $(varE name) |])
+
+
+-- | Implement 'Result' for a type.
+implementResult :: TableDec -> Q [Dec]
+implementResult (TableDec typeName ctor fields) =
+	genVarNames >>= \ boundNames ->
+		[d|
+			instance Result $(conT typeName) where
+				queryResultProcessor =
+					$(pure (functionBody boundNames))
+		|]
+	where
+		genVarNames =
+			mapM (\ (TableField fieldName _) -> newName (nameBase fieldName)) fields
+
+		doBinding name =
+			BindS (VarP name) (VarE 'unpackColumn)
+
+		constructValue names =
+			AppE (VarE 'pure)
+			     (foldl (\ a b -> AppE a (VarE b)) (ConE ctor) names)
+
+		functionBody names =
+			DoE (map doBinding names ++ [NoBindS (constructValue names)])
+
+-- | Implement 'Table', 'Result' and 'QueryEntity' for a type.
 makeTable :: Name -> TableOptions -> Q [Dec]
 makeTable typeName options = do
 	dec <- checkTableName typeName
-	implementTable dec options
+	concat <$> sequence [implementTable dec options,
+	                     implementResult dec,
+	                     implementQueryEntity dec]
