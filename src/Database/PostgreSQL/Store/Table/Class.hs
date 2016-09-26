@@ -21,13 +21,6 @@ data TableInformation = TableInformation {
 	tableColumns     :: ![(B.ByteString, ColumnInformation)]
 }
 
--- instance Lift TableInformation where
--- 	lift (TableInformation name identColumn columns) =
--- 		[e| TableInformation
--- 		        $(liftByteString name)
--- 		        $(liftByteString identColumn)
--- 		        $(listE (map liftByteString columns)) |]
-
 -- | Attach table information to a type.
 class Table a where
 	tableInfo :: proxy a -> TableInformation
