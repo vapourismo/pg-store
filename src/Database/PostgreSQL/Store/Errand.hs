@@ -234,8 +234,22 @@ create proxy =
 		TableInformation {..} =
 			tableInfo proxy
 
-		genColumn name info =
-			insertCode (describeColumn info (buildQuery (insertName name)))
+		genColumn name ColumnInformation {..} = do
+			insertName name
+			insertCode " "
+			insertCode columnTypeName
+
+			when columnAllowNull $
+				insertCode " NOT NULL"
+
+			case columnCheck of
+				Just genStmt -> do
+					insertCode " CHECK ("
+					insertCode (genStmt (buildQuery (insertName name)))
+					insertCode ")"
+
+				Nothing ->
+					pure ()
 
 		identColumn = do
 			insertName tableIdentColumn

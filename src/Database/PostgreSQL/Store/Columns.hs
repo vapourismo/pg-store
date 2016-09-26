@@ -12,8 +12,8 @@ module Database.PostgreSQL.Store.Columns (
 	-- * Columns
 	ColumnInformation (..),
 	defaultColumnInfo,
+
 	Column (..),
-	describeColumn
 ) where
 
 import           Data.Int
@@ -72,17 +72,6 @@ class Column a where
 	columnInfo :: proxy a -> ColumnInformation
 	columnInfo _ =
 		defaultColumnInfo
-
--- | Generate column description in SQL. Think @CREATE TABLE@.
-describeColumn :: ColumnInformation -> B.ByteString -> B.ByteString
-describeColumn ColumnInformation {..} identifier =
-	B.concat [identifier,
-	          " ",
-	          columnTypeName,
-	          if columnAllowNull then B.empty else " NOT NULL",
-	          maybe B.empty
-	                (\ genStmt -> B.concat [" CHECK (", genStmt identifier, ")"])
-	                columnCheck]
 
 instance Column Value where
 	pack = id
