@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, GeneralizedNewtypeDeriving, FlexibleInstances,
-             UndecidableInstances #-}
+             UndecidableInstances, QuasiQuotes #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Errand
@@ -22,6 +22,10 @@ module Database.PostgreSQL.Store.Errand (
 
 	-- * Result parser
 	Result (..),
+
+	-- * Queries
+	insert,
+	insertMany
 ) where
 
 import           Control.Monad.Trans
@@ -32,7 +36,10 @@ import           Data.Maybe
 import qualified Data.ByteString           as B
 
 import qualified Database.PostgreSQL.LibPQ as P
+
 import           Database.PostgreSQL.Store.Query
+import           Database.PostgreSQL.Store.Query.Builder
+import           Database.PostgreSQL.Store.Table.Class
 import           Database.PostgreSQL.Store.Result
 import           Database.PostgreSQL.Store.Columns
 
@@ -184,3 +191,16 @@ queryWith :: Query -> ResultProcessor a -> Errand [a]
 queryWith qry proc = do
 	result <- execute qry
 	Errand (lift (withExceptT ResultError (processResult result proc)))
+
+-- | Insert a single row into a table. Returns the inserted value of the identifier column.
+insert :: (Table a) => a -> Query
+insert row =
+	[pgsq| INSERT INTO @row (#row) VALUES (${unpackRow row}) RETURNING &row |]
+
+-- | Insert many rows into a table.
+insertMany :: (Table a) => [a] -> Query
+insertMany [] = [pgsq||]
+insertMany rows =
+	[pgsq| INSERT INTO ${insertTableName rows}
+	       VALUES ${map (surroundWithParens . insertEntity . unpackRow) rows}
+	       RETURNING ${insertTableIdentColumnName rows} |]
