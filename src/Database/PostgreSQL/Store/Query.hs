@@ -28,9 +28,10 @@ import           Data.List
 import           Data.Char
 import           Data.Proxy
 import           Data.Attoparsec.Text
-import qualified Data.ByteString    as B
-import qualified Data.Text          as T
-import qualified Data.Text.Encoding as T
+import qualified Data.ByteString                    as B
+import qualified Blaze.ByteString.Builder           as B
+import qualified Blaze.ByteString.Builder.Char.Utf8 as B
+import qualified Data.Text                          as T
 
 import           Database.PostgreSQL.Store.Columns
 import           Database.PostgreSQL.Store.Query.Builder
@@ -186,6 +187,11 @@ liftByteString :: B.ByteString -> Q Exp
 liftByteString bs =
 	[e| B.pack $(lift (B.unpack bs)) |]
 
+-- | Pack 'String' code into a 'ByteString'.
+packCode :: String -> B.ByteString
+packCode code =
+	B.toByteString (B.fromString code)
+
 -- | Translate a "QuerySegment" to an expression.
 translateSegment :: QuerySegment -> Q Exp
 translateSegment segment =
@@ -246,15 +252,15 @@ translateSegment segment =
 					[e| insertEntity $(pure exp) |]
 
 		QueryQuote _ code ->
-			[e| insertCode $(liftByteString (T.encodeUtf8 (T.pack code))) |]
+			[e| insertCode $(liftByteString (packCode code)) |]
 
 		QueryOther code ->
-			[e| insertCode $(liftByteString (T.encodeUtf8 (T.pack code))) |]
+			[e| insertCode $(liftByteString (packCode code)) |]
 
 -- | Parse a query string.
 parseQuery :: String -> Q Exp
 parseQuery code =
-	case parseOnly (some querySegment <* endOfInput) (T.pack code) of
+	case parseOnly (some querySegment <* endOfInput) (T.strip (T.pack code)) of
 		Left msg ->
 			fail ("Query parser failed: " ++ msg)
 
@@ -274,7 +280,7 @@ pgsq =
 -- | Parse a query string.
 parseQueryBuilder :: String -> Q Exp
 parseQueryBuilder code =
-	case parseOnly (some querySegment <* endOfInput) (T.pack code) of
+	case parseOnly (some querySegment <* endOfInput) (T.strip (T.pack code)) of
 		Left msg ->
 			fail ("Query parser failed: " ++ msg)
 
