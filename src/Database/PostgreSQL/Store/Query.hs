@@ -19,6 +19,7 @@ module Database.PostgreSQL.Store.Query (
 import           Language.Haskell.TH
 import           Language.Haskell.TH.Syntax
 import           Language.Haskell.TH.Quote
+import           Language.Haskell.Meta.Parse
 
 import           Control.Applicative
 import           Control.Monad.State.Strict hiding (lift)
@@ -74,6 +75,7 @@ data QuerySegment
 	| QueryIdentifier String
 	| QueryIdentifierProxy String
 	| QueryEntity String
+	| QueryEntityCode String
 	| QueryQuote Char String
 	| QueryOther String
 	deriving (Show, Eq, Ord)
@@ -114,9 +116,37 @@ identifierProxySegment = do
 	char '&'
 	QueryIdentifierProxy <$> valueName
 
+-- |
+entityCodeSegment :: Parser QuerySegment
+entityCodeSegment =
+	QueryEntityCode <$> (string "${" *> insideCode <* char '}')
+	where
+		insideCode =
+			concat <$> many (choice [bracedCode,
+			                         quoteCode '\'',
+			                         quoteCode '\"',
+			                         some (satisfy (notInClass "\"'{}"))])
+
+		bracedCode =
+			char '{' *> insideCode <* char '}'
+
+		quoteCode delim = do
+			char delim
+			cnt <- many (choice [escapedDelim delim, notDelim delim])
+			char delim
+			pure (concat cnt)
+
+		escapedDelim delim = do
+			char '\\'
+			char delim
+			pure ['\\', delim]
+
+		notDelim delim =
+			(: []) <$> notChar delim
+
 -- | Entity
-entitySegment :: Parser QuerySegment
-entitySegment = do
+entityNameSegment :: Parser QuerySegment
+entityNameSegment = do
 	char '$'
 	QueryEntity <$> valueName
 
@@ -147,7 +177,8 @@ querySegment =
 	        selectorProxySegment,
 	        identifierSegment,
 	        identifierProxySegment,
-	        entitySegment,
+	        entityCodeSegment,
+	        entityNameSegment,
 	        otherSegment]
 
 -- | Lift "ByteString".
@@ -207,6 +238,12 @@ translateSegment segment =
 				Nothing -> fail ("'" ++ valueName ++ "' does not refer to a value")
 				Just name ->
 					[e| insertEntity $(varE name) |]
+
+		QueryEntityCode code ->
+			case parseExp code of
+				Left msg -> fail ("Error in code " ++ show code ++ ": " ++ msg)
+				Right exp ->
+					[e| insertEntity $(pure exp) |]
 
 		QueryQuote _ code ->
 			[e| insertCode $(liftByteString (T.encodeUtf8 (T.pack code))) |]
