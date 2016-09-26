@@ -135,19 +135,39 @@ instance (Result a, Result b, Result c) => Result (a, b, c) where
 
 instance (Result a, Result b, Result c, Result d) => Result (a, b, c, d) where
 	queryResultProcessor =
-		(,,,) <$> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor
+		(,,,) <$> queryResultProcessor
+		      <*> queryResultProcessor
+		      <*> queryResultProcessor
+		      <*> queryResultProcessor
 
 instance (Result a, Result b, Result c, Result d, Result e) => Result (a, b, c, d, e) where
 	queryResultProcessor =
-		(,,,,) <$> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor
+		(,,,,) <$> queryResultProcessor
+		       <*> queryResultProcessor
+		       <*> queryResultProcessor
+		       <*> queryResultProcessor
+		       <*> queryResultProcessor
 
-instance (Result a, Result b, Result c, Result d, Result e, Result f) => Result (a, b, c, d, e, f) where
+instance (Result a, Result b, Result c, Result d, Result e, Result f)
+         => Result (a, b, c, d, e, f) where
 	queryResultProcessor =
-		(,,,,,) <$> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor
+		(,,,,,) <$> queryResultProcessor
+		        <*> queryResultProcessor
+		        <*> queryResultProcessor
+		        <*> queryResultProcessor
+		        <*> queryResultProcessor
+		        <*> queryResultProcessor
 
-instance (Result a, Result b, Result c, Result d, Result e, Result f, Result g) => Result (a, b, c, d, e, f, g) where
+instance (Result a, Result b, Result c, Result d, Result e, Result f, Result g)
+         => Result (a, b, c, d, e, f, g) where
 	queryResultProcessor =
-		(,,,,,,) <$> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor <*> queryResultProcessor
+		(,,,,,,) <$> queryResultProcessor
+		         <*> queryResultProcessor
+		         <*> queryResultProcessor
+		         <*> queryResultProcessor
+		         <*> queryResultProcessor
+		         <*> queryResultProcessor
+		         <*> queryResultProcessor
 
 -- | Execute a query and process its result set.
 query :: (Result a) => Query -> Errand [a]
