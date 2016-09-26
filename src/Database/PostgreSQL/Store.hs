@@ -10,10 +10,16 @@ module Database.PostgreSQL.Store (
 	ErrorCode (..),
 	ExecStatus (..),
 	runErrand,
+
 	execute,
 	query,
 	query_,
 	queryWith,
+
+	Reference (..),
+
+	insert,
+	insertMany,
 
 	-- * Queries
 	Query (..),

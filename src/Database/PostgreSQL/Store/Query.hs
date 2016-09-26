@@ -9,11 +9,12 @@ module Database.PostgreSQL.Store.Query (
 	-- * Type
 	Query (..),
 
+	-- * Builder
+	BuildQuery (..),
+
 	-- * Template Haskell
 	parseQuery,
-	pgsq,
-	parseQueryBuilder,
-	pgsqb
+	pgsq
 ) where
 
 import           Language.Haskell.TH
@@ -45,12 +46,23 @@ data Query r = Query {
 	queryParams :: ![Value]
 } deriving (Show, Eq, Ord)
 
--- | Build a "Query" using the given builder.
-buildQuery :: QueryBuilder -> Query r
-buildQuery builder =
-	Query code values
-	where
-		(_, code, values) = execState builder (1, B.empty, [])
+class BuildQuery a where
+	buildQuery :: QueryBuilder -> a
+
+instance BuildQuery QueryBuilder where
+	buildQuery = id
+
+instance BuildQuery (Query r) where
+	buildQuery builder =
+		Query code values
+		where
+			(_, code, values) = execState builder (1, B.empty, [])
+
+instance BuildQuery B.ByteString where
+	buildQuery builder =
+		code
+		where
+			(_, code, _) = execState builder (1, B.empty, [])
 
 -- | Name
 valueName :: Parser String
@@ -265,7 +277,7 @@ parseQuery code =
 			fail ("Query parser failed: " ++ msg)
 
 		Right [] ->
-			[e| Query B.empty [] |]
+			[e| buildQuery (pure ()) |]
 
 		Right segments ->
 			[e| buildQuery $(DoE . map NoBindS <$> mapM translateSegment segments) |]
@@ -278,27 +290,4 @@ pgsq =
 		quotePat  = const (fail "Cannot use 'pgsq' in pattern"),
 		quoteType = const (fail "Cannot use 'pgsq' in type"),
 		quoteDec  = const (fail "Cannot use 'pgsq' in declaration")
-	}
-
--- | Parse a query string.
-parseQueryBuilder :: String -> Q Exp
-parseQueryBuilder code =
-	case parseOnly (many querySegment <* endOfInput) (T.strip (T.pack code)) of
-		Left msg ->
-			fail ("Query parser failed: " ++ msg)
-
-		Right [] ->
-			[e| pure () |]
-
-		Right segments ->
-			[e| $(DoE . map NoBindS <$> mapM translateSegment segments) |]
-
--- | Quasi-quoter which can be used to generate "QueryBuilder"s conveniently.
-pgsqb :: QuasiQuoter
-pgsqb =
-	QuasiQuoter {
-		quoteExp  = parseQueryBuilder,
-		quotePat  = const (fail "Cannot use 'pgsqb' in pattern"),
-		quoteType = const (fail "Cannot use 'pgsqb' in type"),
-		quoteDec  = const (fail "Cannot use 'pgsqb' in declaration")
 	}

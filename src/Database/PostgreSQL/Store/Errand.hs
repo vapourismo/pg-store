@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, GeneralizedNewtypeDeriving, FlexibleInstances,
-             UndecidableInstances, QuasiQuotes #-}
+             UndecidableInstances, QuasiQuotes, RecordWildCards #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Errand
@@ -23,6 +23,9 @@ module Database.PostgreSQL.Store.Errand (
 	-- * Result parser
 	Result (..),
 
+	-- * Reference
+	Reference (..),
+
 	-- * Queries
 	insert,
 	insertMany
@@ -32,7 +35,9 @@ import           Control.Monad.Trans
 import           Control.Monad.Except
 import           Control.Monad.Reader
 
+import           Data.Int
 import           Data.Maybe
+import           Data.Proxy
 import qualified Data.ByteString           as B
 
 import qualified Database.PostgreSQL.LibPQ as P
@@ -192,13 +197,37 @@ queryWith qry proc = do
 	result <- execute qry
 	Errand (lift (withExceptT ResultError (processResult result proc)))
 
+-- | Reference a row of type @a@.
+newtype Reference a = Reference Int64
+	deriving (Eq, Ord)
+
+instance Show (Reference a) where
+	show (Reference n) = show n
+
+instance (Table a) => Column (Reference a) where
+	pack (Reference rid) =
+		pack rid
+
+	unpack val =
+		Reference <$> unpack val
+
+	columnInfo proxy =
+		defaultColumnInfo {
+			columnTypeName =
+				[pgsq| BIGINT REFERENCES ${insertTableName tableProxy}
+				                         (${insertTableColumnNames tableProxy}) |]
+		}
+		where
+			tableProxy =
+				(const Proxy :: proxy (Reference a) -> Proxy a) proxy
+
 -- | Insert a single row into a table. Returns the inserted value of the identifier column.
-insert :: (Table a) => a -> Query ()
+insert :: (Table a) => a -> Query (Reference a)
 insert row =
 	[pgsq| INSERT INTO @row (#row) VALUES (${unpackRow row}) RETURNING &row |]
 
 -- | Insert many rows into a table.
-insertMany :: (Table a) => [a] -> Query ()
+insertMany :: (Table a) => [a] -> Query (Reference a)
 insertMany [] = [pgsq||]
 insertMany rows =
 	[pgsq| INSERT INTO ${insertTableName rows}
