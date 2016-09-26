@@ -260,9 +260,12 @@ translateSegment segment =
 -- | Parse a query string.
 parseQuery :: String -> Q Exp
 parseQuery code =
-	case parseOnly (some querySegment <* endOfInput) (T.strip (T.pack code)) of
+	case parseOnly (many querySegment <* endOfInput) (T.strip (T.pack code)) of
 		Left msg ->
 			fail ("Query parser failed: " ++ msg)
+
+		Right [] ->
+			[e| Query B.empty [] |]
 
 		Right segments ->
 			[e| buildQuery $(DoE . map NoBindS <$> mapM translateSegment segments) |]
@@ -280,9 +283,12 @@ pgsq =
 -- | Parse a query string.
 parseQueryBuilder :: String -> Q Exp
 parseQueryBuilder code =
-	case parseOnly (some querySegment <* endOfInput) (T.strip (T.pack code)) of
+	case parseOnly (many querySegment <* endOfInput) (T.strip (T.pack code)) of
 		Left msg ->
 			fail ("Query parser failed: " ++ msg)
+
+		Right [] ->
+			[e| pure () |]
 
 		Right segments ->
 			[e| $(DoE . map NoBindS <$> mapM translateSegment segments) |]
