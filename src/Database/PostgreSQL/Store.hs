@@ -30,8 +30,6 @@ module Database.PostgreSQL.Store (
 	skipColumn,
 	unpackColumn,
 
-	Single (..),
-
 	-- * Tables
 	TableInformation (..),
 	Table (..),

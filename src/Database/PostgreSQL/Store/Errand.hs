@@ -1,4 +1,5 @@
-{-# LANGUAGE OverloadedStrings, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings, GeneralizedNewtypeDeriving, FlexibleInstances,
+             UndecidableInstances #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Errand
@@ -21,7 +22,6 @@ module Database.PostgreSQL.Store.Errand (
 
 	-- * Result parser
 	Result (..),
-	Single (..)
 ) where
 
 import           Control.Monad.Trans
@@ -119,6 +119,11 @@ execute (Query statement params) = Errand . ReaderT $ \ con -> do
 class Result a where
 	queryResultProcessor :: ResultProcessor a
 
+-- | Every type that implements 'Column' can also implement 'Result'.
+instance {-# OVERLAPPABLE #-} (Column a) => Result a where
+	queryResultProcessor =
+		unpackColumn
+
 -- | Combine result parsers sequencially.
 instance (Result a, Result b) => Result (a, b) where
 	queryResultProcessor =
@@ -159,13 +164,3 @@ queryWith :: Query -> ResultProcessor a -> Errand [a]
 queryWith qry proc = do
 	result <- execute qry
 	Errand (lift (withExceptT ResultError (processResult result proc)))
-
--- | Helper type to capture an single column.
-newtype Single a = Single { fromSingle :: a }
-	deriving (Eq, Ord)
-
-instance (Show a) => Show (Single a) where
-	show = show . fromSingle
-
-instance (Column a) => Result (Single a) where
-	queryResultProcessor = Single <$> unpackColumn
