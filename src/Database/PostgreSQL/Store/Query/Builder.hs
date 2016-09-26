@@ -32,17 +32,30 @@ import           Database.PostgreSQL.Store.Table.Class
 -- | Query builder
 type QueryBuilder = State (Int, B.ByteString, [Value]) ()
 
+-- | What can be built using a 'QueryBuilder'.
 class BuildQuery a where
+	-- | Generate an instance of @a@ using the information given by the 'QueryBuilder'.
 	buildQuery :: QueryBuilder -> a
 
+-- | Leave 'QueryBuilder' as is.
 instance BuildQuery QueryBuilder where
 	buildQuery = id
 
+-- | Generate only the query code.
 instance BuildQuery B.ByteString where
 	buildQuery builder =
 		code
 		where
-			(_, code, _) = execState builder (1, B.empty, [])
+			(_, code, _) =
+				execState builder (1, B.empty, [])
+
+-- | Generate both query code and values.
+instance BuildQuery (B.ByteString, [Value]) where
+	buildQuery builder =
+		(code, values)
+		where
+			(_, code, values) =
+				execState builder (1, B.empty, [])
 
 -- | Generate the placeholder for a parameter.
 genParam :: Int -> B.ByteString
@@ -50,7 +63,7 @@ genParam index =
 	B.append "$" (fromString (show index))
 {-# INLINE genParam #-}
 
--- | Insert a piece of SQL.
+-- | Insert a piece of SQL code into the query.
 insertCode :: B.ByteString -> QueryBuilder
 insertCode otherCode =
 	modify $ \ (counter, code, values) ->
@@ -90,7 +103,7 @@ insertTableIdentColumnName proxy = do
 	insertCode "."
 	insertName (tableIdentColumn (tableInfo proxy))
 
--- | Insert a comma-seperated list of columns for a table type.
+-- | Insert a comma-seperated list of column names for a table type.
 insertTableColumnNames :: (Table a) => proxy a -> QueryBuilder
 insertTableColumnNames proxy =
 	sequence_ $
@@ -112,33 +125,35 @@ surroundWithParens builder = do
 
 -- | Generalize over types that can be either inlined or attached.
 class QueryEntity a where
+	-- | Embed an entity into the query.
 	insertEntity :: a -> QueryBuilder
 
--- | Every type that implements "Column" can be used as entity.
+-- | Every type that implements 'Column' can be used as entity.
 instance {-# OVERLAPPABLE #-} (Column a) => QueryEntity a where
 	insertEntity value =
 		modify $ \ (counter, code, values) ->
 			(counter + 1, B.append code (genParam counter), values ++ [pack value])
 
--- | We need this instance to differentiate from @Column a => QueryEntity [a]@.
+-- | Differentiate from @QueryEntity a => QueryEntity [a]@.
 instance QueryEntity [Char] where
 	insertEntity string =
 		insertEntity (pack string)
 	{-# INLINE insertEntity #-}
 
--- | Inline query builder as is.
+-- | Inline a query builder as is.
 instance QueryEntity QueryBuilder where
 	insertEntity builder =
 		builder
 	{-# INLINE insertEntity #-}
 
--- | List of values are inserted as tuples.
+-- | List of entities are inserted as a comma-seperated list. Parentheses are not inserted.
 instance {-# OVERLAPPABLE #-} (QueryEntity a) => QueryEntity [a] where
 	insertEntity xs =
 		sequence_ $
 			intersperse (insertCode ",") $
 				map insertEntity xs
 
+-- | Tuple of entities is inserted as a tuple in SQL.
 instance (QueryEntity a, QueryEntity b) => QueryEntity (a, b) where
 	insertEntity (a, b) =
 		surroundWithParens $ do
@@ -146,6 +161,7 @@ instance (QueryEntity a, QueryEntity b) => QueryEntity (a, b) where
 			insertCode ","
 			insertEntity b
 
+-- | Tuple of entities is inserted as a tuple in SQL.
 instance (QueryEntity a, QueryEntity b, QueryEntity c) => QueryEntity (a, b, c) where
 	insertEntity (a, b, c) =
 		surroundWithParens $ do
@@ -155,6 +171,7 @@ instance (QueryEntity a, QueryEntity b, QueryEntity c) => QueryEntity (a, b, c) 
 			insertCode ","
 			insertEntity c
 
+-- | Tuple of entities is inserted as a tuple in SQL.
 instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d)
          => QueryEntity (a, b, c, d) where
 	insertEntity (a, b, c, d) =
@@ -167,6 +184,7 @@ instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d)
 			insertCode ","
 			insertEntity d
 
+-- | Tuple of entities is inserted as a tuple in SQL.
 instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d, QueryEntity e)
          => QueryEntity (a, b, c, d, e) where
 	insertEntity (a, b, c, d, e) =
@@ -181,6 +199,7 @@ instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d, QueryEntit
 			insertCode ","
 			insertEntity e
 
+-- | Tuple of entities is inserted as a tuple in SQL.
 instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d, QueryEntity e, QueryEntity f)
          => QueryEntity (a, b, c, d, e, f) where
 	insertEntity (a, b, c, d, e, f) =
@@ -197,6 +216,7 @@ instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d, QueryEntit
 			insertCode ","
 			insertEntity f
 
+-- | Tuple of entities is inserted as a tuple in SQL.
 instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d, QueryEntity e, QueryEntity f,
           QueryEntity g)
          => QueryEntity (a, b, c, d, e, f, g) where
