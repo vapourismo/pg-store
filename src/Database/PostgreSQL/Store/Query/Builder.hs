@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, FlexibleInstances, UndecidableInstances #-}
 
 -- |
--- Module:     Database.PostgreSQL.Store.Table.Builder
+-- Module:     Database.PostgreSQL.Store.Query.Builder
 -- Copyright:  (c) Ole Krüger 2016
 -- License:    BSD3
 -- Maintainer: Ole Krüger <ole@vprsm.de>
