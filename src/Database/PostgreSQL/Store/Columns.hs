@@ -22,15 +22,17 @@ import           Data.Bits
 import           Data.Time
 import           Data.Monoid
 import           Data.Typeable
-import qualified Data.Text                      as T
-import qualified Data.Text.Encoding             as T
-import qualified Data.Text.Lazy                 as TL
-import qualified Data.ByteString                as B
-import qualified Data.ByteString.Char8          as C8
-import qualified Data.ByteString.Lazy           as BL
-import           Data.ByteString.Builder
+import qualified Data.Text                          as T
+import qualified Data.Text.Encoding                 as T
+import qualified Data.Text.Lazy                     as TL
+import qualified Data.ByteString                    as B
+import qualified Data.ByteString.Char8              as C8
+import qualified Data.ByteString.Lazy               as BL
 import           Data.Attoparsec.ByteString
 import           Data.Attoparsec.ByteString.Char8 (signed, decimal)
+
+import qualified Blaze.ByteString.Builder           as B
+import qualified Blaze.ByteString.Builder.Char.Utf8 as B
 
 import           Database.PostgreSQL.LibPQ (Oid)
 import qualified Database.PostgreSQL.Store.OIDs as OID
@@ -112,7 +114,7 @@ instance Column Bool where
 
 instance Column Int where
 	pack n =
-		Value $(OID.int8) (buildByteString intDec n)
+		Value $(OID.int8) (showByteString n)
 
 	unpack (Value $(OID.int2) dat) = parseMaybe (signed decimal) dat
 	unpack (Value $(OID.int4) dat) = parseMaybe (signed decimal) dat
@@ -130,7 +132,7 @@ instance Column Int where
 
 instance Column Int8 where
 	pack n =
-		Value $(OID.int2) (buildByteString int8Dec n)
+		Value $(OID.int2) (showByteString n)
 
 	unpack (Value $(OID.int2) dat) = parseMaybe (signed decimal) dat
 	unpack (Value $(OID.int4) dat) = parseMaybe (signed decimal) dat
@@ -144,7 +146,7 @@ instance Column Int8 where
 
 instance Column Int16 where
 	pack n =
-		Value $(OID.int2) (buildByteString int16Dec n)
+		Value $(OID.int2) (showByteString n)
 
 	unpack (Value $(OID.int2) dat) = parseMaybe (signed decimal) dat
 	unpack (Value $(OID.int4) dat) = parseMaybe (signed decimal) dat
@@ -158,7 +160,7 @@ instance Column Int16 where
 
 instance Column Int32 where
 	pack n =
-		Value $(OID.int4) (buildByteString int32Dec n)
+		Value $(OID.int4) (showByteString n)
 
 	unpack (Value $(OID.int2) dat) = parseMaybe (signed decimal) dat
 	unpack (Value $(OID.int4) dat) = parseMaybe (signed decimal) dat
@@ -173,7 +175,7 @@ instance Column Int32 where
 
 instance Column Int64 where
 	pack n =
-		Value $(OID.int8) (buildByteString int64Dec n)
+		Value $(OID.int8) (showByteString n)
 
 	unpack (Value $(OID.int2) dat) = parseMaybe (signed decimal) dat
 	unpack (Value $(OID.int4) dat) = parseMaybe (signed decimal) dat
@@ -192,8 +194,8 @@ wordRequiresNumeric =
 	(fromIntegral (maxBound :: Word) :: Integer) > 9223372036854775807
 
 instance Column Word where
-	pack n | wordRequiresNumeric = Value $(OID.numeric) (buildByteString wordDec n)
-	       | otherwise           = Value $(OID.int8)    (buildByteString wordDec n)
+	pack n | wordRequiresNumeric = Value $(OID.numeric) (showByteString n)
+	       | otherwise           = Value $(OID.int8)    (showByteString n)
 
 	unpack (Value $(OID.int2)    dat) = parseMaybe decimal dat
 	unpack (Value $(OID.int4)    dat) = parseMaybe decimal dat
@@ -214,7 +216,7 @@ instance Column Word where
 
 instance Column Word8 where
 	pack n =
-		Value $(OID.int2) (buildByteString word8Dec n)
+		Value $(OID.int2) (showByteString n)
 
 	unpack (Value $(OID.int2) dat) = parseMaybe decimal dat
 	unpack (Value $(OID.int4) dat) = parseMaybe decimal dat
@@ -234,7 +236,7 @@ instance Column Word8 where
 
 instance Column Word16 where
 	pack n =
-		Value $(OID.int4) (buildByteString word16Dec n)
+		Value $(OID.int4) (showByteString n)
 
 	unpack (Value $(OID.int2) dat) = parseMaybe decimal dat
 	unpack (Value $(OID.int4) dat) = parseMaybe decimal dat
@@ -254,7 +256,7 @@ instance Column Word16 where
 
 instance Column Word32 where
 	pack n =
-		Value $(OID.int8) (buildByteString word32Dec n)
+		Value $(OID.int8) (showByteString n)
 
 	unpack (Value $(OID.int2) dat) = parseMaybe decimal dat
 	unpack (Value $(OID.int4) dat) = parseMaybe decimal dat
@@ -274,7 +276,7 @@ instance Column Word32 where
 
 instance Column Word64 where
 	pack n =
-		Value $(OID.numeric) (buildByteString word64Dec n)
+		Value $(OID.numeric) (showByteString n)
 
 	unpack (Value $(OID.int2)    dat) = parseMaybe decimal dat
 	unpack (Value $(OID.int4)    dat) = parseMaybe decimal dat
@@ -296,7 +298,7 @@ instance Column Word64 where
 
 instance Column Integer where
 	pack n =
-		Value $(OID.numeric) (buildByteString integerDec n)
+		Value $(OID.numeric) (showByteString n)
 
 	unpack (Value $(OID.int2)    dat) = parseMaybe decimal dat
 	unpack (Value $(OID.int4)    dat) = parseMaybe decimal dat
@@ -311,7 +313,8 @@ instance Column Integer where
 
 instance Column UTCTime where
 	pack stamp =
-		Value $(OID.timestamp) (C8.pack (formatTime defaultTimeLocale "%F %T%Q" stamp))
+		Value $(OID.timestamp)
+		      (B.toByteString (B.fromString (formatTime defaultTimeLocale "%F %T%Q" stamp)))
 
 	unpack (Value $(OID.timestamp) dat) =
 		parseTimeM False defaultTimeLocale "%F %T%Q" (C8.unpack dat)
@@ -324,7 +327,7 @@ instance Column UTCTime where
 
 instance Column [Char] where
 	pack str =
-		Value $(OID.text) (buildByteString stringUtf8 str)
+		Value $(OID.text) (B.toByteString (B.fromString str))
 
 	unpack (Value $(OID.varchar) dat) = pure (T.unpack (T.decodeUtf8 dat))
 	unpack (Value $(OID.char)    dat) = pure (T.unpack (T.decodeUtf8 dat))
@@ -437,12 +440,12 @@ finishParser :: Result r -> Result r
 finishParser (Partial f) = f B.empty
 finishParser x = x
 
--- | Parse a ByteString.
+-- | Parse a 'ByteString'.
 parseMaybe :: Parser a -> B.ByteString -> Maybe a
 parseMaybe p i =
 	maybeResult (finishParser (parse p i))
 
--- | Build strict ByteString.
-buildByteString :: (a -> Builder) -> a -> B.ByteString
-buildByteString f x =
-	BL.toStrict (toLazyByteString (f x))
+-- | Show as 'ByteString'
+showByteString :: (Show a) => a -> B.ByteString
+showByteString =
+	B.toByteString . B.fromString . show
