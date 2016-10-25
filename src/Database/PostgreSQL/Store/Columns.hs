@@ -22,6 +22,7 @@ import           Data.Bits
 import           Data.Time
 import           Data.Monoid
 import           Data.Typeable
+import qualified Data.Aeson                         as A
 import qualified Data.Text                          as T
 import qualified Data.Text.Encoding                 as T
 import qualified Data.Text.Lazy                     as TL
@@ -309,6 +310,18 @@ instance Column Integer where
 	columnInfo _ =
 		defaultColumnInfo {
 			columnTypeName = "numeric"
+		}
+
+instance Column A.Value where
+	pack n =
+		Value $(OID.json) (BL.toStrict (A.encode n))
+
+	unpack (Value $(OID.json) dat) = A.decodeStrict dat
+	unpack _                       = Nothing
+
+	columnInfo _ =
+		defaultColumnInfo {
+			columnTypeName = "json"
 		}
 
 instance Column UTCTime where

@@ -20,7 +20,8 @@ module Database.PostgreSQL.Store.OIDs (
 	text,
 	bytea,
 	timestamp,
-	timestamptz
+	timestamptz,
+	json
 ) where
 
 import           Language.Haskell.TH
@@ -68,7 +69,7 @@ numeric = genOID 1700
 
 -- | Fixed-length string
 char :: OIDQ
-char    = genOID 1042
+char = genOID 1042
 
 -- | Variable-length string
 varchar :: OIDQ
@@ -89,3 +90,7 @@ timestamp = genOID 1114
 -- | Timestamp with timezone
 timestamptz :: OIDQ
 timestamptz = genOID 1184
+
+-- | JSON
+json :: OIDQ
+json = genOID 114
