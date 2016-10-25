@@ -14,11 +14,17 @@ module Database.PostgreSQL.Store.Columns (
 	defaultColumnInfo,
 
 	Column (..),
+
+	-- * Misc
+	EnumWrapper (..),
+	packEnumValue,
+	unpackEnumValue
 ) where
 
 import           Data.Int
 import           Data.Word
 import           Data.Bits
+import           Data.List
 import           Data.Time
 import           Data.Monoid
 import           Data.Typeable
@@ -35,7 +41,7 @@ import           Data.Attoparsec.ByteString.Char8 (signed, decimal)
 import qualified Blaze.ByteString.Builder           as B
 import qualified Blaze.ByteString.Builder.Char.Utf8 as B
 
-import           Database.PostgreSQL.LibPQ (Oid)
+import           Database.PostgreSQL.LibPQ (Oid, invalidOid)
 import qualified Database.PostgreSQL.Store.OIDs as OID
 
 -- | Query parameter or value of a column - see 'pack' on how to generate 'Value's manually but
@@ -376,31 +382,6 @@ instance Column TL.Text where
 	columnInfo _ =
 		columnInfo (Proxy :: Proxy T.Text)
 
-instance Column B.ByteString where
-	pack bs =
-		Value $(OID.bytea) (encodeByteaHex bs)
-
-	unpack (Value $(OID.varchar) dat) = pure dat
-	unpack (Value $(OID.char)    dat) = pure dat
-	unpack (Value $(OID.text)    dat) = pure dat
-	unpack (Value $(OID.bytea)   dat) = decodeByteaHex dat
-	unpack _                          = Nothing
-
-	columnInfo _ =
-		defaultColumnInfo {
-			columnTypeName = "bytea"
-		}
-
-instance Column BL.ByteString where
-	pack bs =
-		pack (BL.toStrict bs)
-
-	unpack val =
-		BL.fromStrict <$> unpack val
-
-	columnInfo _ =
-		columnInfo (Proxy :: Proxy B.ByteString)
-
 -- | Produce the two-digit hexadecimal representation of a 8-bit word.
 word8ToHex :: Word8 -> B.ByteString
 word8ToHex w =
@@ -447,6 +428,65 @@ decodeByteaHex bs
 encodeByteaHex :: B.ByteString -> B.ByteString
 encodeByteaHex bs =
 	"\\x" <> B.concatMap word8ToHex bs
+
+instance Column B.ByteString where
+	pack bs =
+		Value $(OID.bytea) (encodeByteaHex bs)
+
+	unpack (Value $(OID.varchar) dat) = pure dat
+	unpack (Value $(OID.char)    dat) = pure dat
+	unpack (Value $(OID.text)    dat) = pure dat
+	unpack (Value $(OID.bytea)   dat) = decodeByteaHex dat
+	unpack _                          = Nothing
+
+	columnInfo _ =
+		defaultColumnInfo {
+			columnTypeName = "bytea"
+		}
+
+instance Column BL.ByteString where
+	pack bs =
+		pack (BL.toStrict bs)
+
+	unpack val =
+		BL.fromStrict <$> unpack val
+
+	columnInfo _ =
+		columnInfo (Proxy :: Proxy B.ByteString)
+
+-- | Wrapper for enumeration types.
+newtype EnumWrapper a = EnumWrapper { fromEnumWrapper :: a }
+
+-- | Try to find the enum value based on the input string.
+toEnumValue :: (Enum a, Bounded a, Show a) => String -> Maybe a
+toEnumValue =
+	findValue [minBound .. maxBound]
+	where
+		findValue :: (Enum a, Show a) => [a] -> String -> Maybe a
+		findValue values value =
+			toEnum <$> elemIndex value (map show values)
+
+-- | Unpack an instance of an "Enum".
+unpackEnumValue :: (Enum a, Bounded a, Show a) => Value -> Maybe a
+unpackEnumValue (Value _ dat) = toEnumValue (T.unpack (T.decodeUtf8 dat))
+unpackEnumValue	_             = Nothing
+
+-- | Pack an instance of an "Enum".
+packEnumValue :: (Show a) => a -> Value
+packEnumValue value =
+	(pack (show value)) {valueType = invalidOid}
+
+instance (Enum a, Bounded a, Show a) => Column (EnumWrapper a) where
+	pack (EnumWrapper value) =
+		packEnumValue value
+
+	unpack value =
+		EnumWrapper <$> unpackEnumValue value
+
+	columnInfo _ =
+		defaultColumnInfo {
+			columnTypeName = "text"
+		}
 
 -- | Finish the parsing process.
 finishParser :: Result r -> Result r

@@ -21,7 +21,7 @@ module Database.PostgreSQL.Store (
 	insert,
 	insertMany,
 
-	-- * Queries
+	-- * Queriesq
 	Query (..),
 	pgsq,
 
@@ -42,7 +42,12 @@ module Database.PostgreSQL.Store (
 
 	TableOptions (..),
 	defaultTableOptions,
-	makeTable
+	makeTable,
+
+	-- * Enum helper
+	EnumWrapper (..),
+	packEnumValue,
+	unpackEnumValue
 ) where
 
 import Database.PostgreSQL.Store.Columns
