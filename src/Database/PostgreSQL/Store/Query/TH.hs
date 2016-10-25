@@ -228,8 +228,8 @@ translateSegment segment =
 				Right exp ->
 					[e| insertEntity $(pure exp) |]
 
-		QueryQuote _ code ->
-			[e| insertCode $(liftByteString (packCode code)) |]
+		QueryQuote delim code ->
+			[e| insertCode $(liftByteString (packCode (delim : code ++ [delim]))) |]
 
 		QueryOther code ->
 			[e| insertCode $(liftByteString (packCode code)) |]
