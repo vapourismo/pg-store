@@ -44,10 +44,12 @@ module Database.PostgreSQL.Store (
 	defaultTableOptions,
 	makeTable,
 
-	-- * Enum helper
+	-- * Enums
 	EnumWrapper (..),
 	packEnumValue,
-	unpackEnumValue
+	unpackEnumValue,
+
+	makeEnum
 ) where
 
 import Database.PostgreSQL.Store.Columns
@@ -55,3 +57,4 @@ import Database.PostgreSQL.Store.Errand
 import Database.PostgreSQL.Store.Query
 import Database.PostgreSQL.Store.Result
 import Database.PostgreSQL.Store.Table
+import Database.PostgreSQL.Store.Enum
