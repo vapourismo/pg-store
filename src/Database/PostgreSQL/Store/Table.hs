@@ -227,7 +227,7 @@ createTable TableInformation {..} =
 			insertCode " "
 			insertCode columnTypeName
 
-			when columnAllowNull $
+			unless columnAllowNull $
 				insertCode " NOT NULL"
 
 			case columnCheck of
