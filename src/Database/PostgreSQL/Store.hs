@@ -45,11 +45,6 @@ module Database.PostgreSQL.Store (
 	makeTable,
 
 	-- * Enums
-	EnumWrapper (..),
-	packEnumValue,
-	unpackEnumValue,
-
-	makeEnum,
 	createEnum
 ) where
 

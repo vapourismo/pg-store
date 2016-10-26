@@ -1,4 +1,5 @@
-{-# LANGUAGE OverloadedStrings, FlexibleInstances, TemplateHaskell, RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings, FlexibleInstances, TemplateHaskell, RecordWildCards,
+             DefaultSignatures #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Columns
@@ -35,8 +36,9 @@ import           Data.Attoparsec.ByteString.Char8 (signed, decimal)
 import qualified Blaze.ByteString.Builder           as B
 import qualified Blaze.ByteString.Builder.Char.Utf8 as B
 
-import           Database.PostgreSQL.LibPQ (Oid)
+import           Database.PostgreSQL.LibPQ (Oid, invalidOid)
 import qualified Database.PostgreSQL.Store.OIDs as OID
+import           Database.PostgreSQL.Store.Utilities
 
 -- | Query parameter or value of a column - see 'pack' on how to generate 'Value's manually but
 --   conveniently.
@@ -68,8 +70,17 @@ class Column a where
 	-- | Pack column value.
 	pack :: a -> Value
 
+	-- Generic implementation for types that implement 'Show'.
+	default pack :: (Show a) => a -> Value
+	pack input = Value invalidOid (showByteString input)
+
 	-- | Unpack column value.
 	unpack :: Value -> Maybe a
+
+	-- Generic implementation for types that implement 'Read'.
+	default unpack :: (Read a) => Value -> Maybe a
+	unpack (Value _ dat) = readByteString dat
+	unpack _             = Nothing
 
 	-- | Retrieve information about this column type.
 	columnInfo :: proxy a -> ColumnInformation
@@ -457,8 +468,3 @@ finishParser x = x
 parseMaybe :: Parser a -> B.ByteString -> Maybe a
 parseMaybe p i =
 	maybeResult (finishParser (parse p i))
-
--- | Show as 'ByteString'
-showByteString :: (Show a) => a -> B.ByteString
-showByteString =
-	B.toByteString . B.fromString . show
