@@ -29,6 +29,7 @@ import qualified Blaze.ByteString.Builder.Char.Utf8 as B
 import           Database.PostgreSQL.Store.Errand
 import           Database.PostgreSQL.Store.Result
 import           Database.PostgreSQL.Store.Columns
+import           Database.PostgreSQL.Store.Utilities
 import           Database.PostgreSQL.Store.Table.Class
 import           Database.PostgreSQL.Store.Query.Builder
 
@@ -131,11 +132,6 @@ defaultTableOptions =
 		tableOptTransformName      = B.toByteString . B.fromString . nameBase,
 		tableOptTransformFieldName = B.toByteString . B.fromString . nameBase
 	}
-
--- | Lift "ByteString".
-liftByteString :: B.ByteString -> Q Exp
-liftByteString bs =
-	[e| B.pack $(lift (B.unpack bs)) |]
 
 -- | Implement 'Table' for a type.
 implementTable :: TableDec -> TableOptions -> Q [Dec]

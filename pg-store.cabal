@@ -35,6 +35,7 @@ library
                     Database.PostgreSQL.Store.Enum
                     Database.PostgreSQL.Store
   other-modules:    Database.PostgreSQL.Store.OIDs
+                    Database.PostgreSQL.Store.Utilities
 
 -- test-suite tests
 --   type:             exitcode-stdio-1.0

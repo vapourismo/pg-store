@@ -12,7 +12,6 @@ module Database.PostgreSQL.Store.Query.TH (
 ) where
 
 import           Language.Haskell.TH
-import           Language.Haskell.TH.Syntax
 import           Language.Haskell.TH.Quote
 import           Language.Haskell.Meta.Parse
 
@@ -28,6 +27,7 @@ import qualified Blaze.ByteString.Builder.Char.Utf8 as B
 import qualified Data.Text                          as T
 
 import           Database.PostgreSQL.Store.Query.Builder
+import           Database.PostgreSQL.Store.Utilities
 
 -- | Name
 valueName :: Parser String
@@ -158,11 +158,6 @@ querySegment =
 	        entityCodeSegment,
 	        entityNameSegment,
 	        otherSegment]
-
--- | Lift "ByteString".
-liftByteString :: B.ByteString -> Q Exp
-liftByteString bs =
-	[e| B.pack $(lift (B.unpack bs)) |]
 
 -- | Pack 'String' code into a 'ByteString'.
 packCode :: String -> B.ByteString

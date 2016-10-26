@@ -19,7 +19,6 @@ module Database.PostgreSQL.Store.Columns (
 import           Data.Int
 import           Data.Word
 import           Data.Bits
-import           Data.List
 import           Data.Time
 import           Data.Monoid
 import           Data.Typeable
@@ -36,7 +35,7 @@ import           Data.Attoparsec.ByteString.Char8 (signed, decimal)
 import qualified Blaze.ByteString.Builder           as B
 import qualified Blaze.ByteString.Builder.Char.Utf8 as B
 
-import           Database.PostgreSQL.LibPQ (Oid, invalidOid)
+import           Database.PostgreSQL.LibPQ (Oid)
 import qualified Database.PostgreSQL.Store.OIDs as OID
 
 -- | Query parameter or value of a column - see 'pack' on how to generate 'Value's manually but
