@@ -15,6 +15,7 @@ module Database.PostgreSQL.Store.Query (
 	buildQuery,
 
 	insertCode,
+	insertQuote,
 	insertName,
 	insertEntity,
 	insertTableName,

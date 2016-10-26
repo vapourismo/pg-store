@@ -12,6 +12,7 @@ module Database.PostgreSQL.Store.Query.Builder (
 	BuildQuery (..),
 
 	insertCode,
+	insertQuote,
 	insertName,
 	QueryEntity (..),
 	insertTableName,
@@ -68,6 +69,14 @@ insertCode :: B.ByteString -> QueryBuilder
 insertCode otherCode =
 	modify $ \ (counter, code, values) ->
 		(counter, B.append code otherCode, values)
+
+-- | Insert a quote.
+insertQuote :: B.ByteString -> QueryBuilder
+insertQuote contents =
+	insertCode (B.concatMap replaceDelim contents)
+	where
+		replaceDelim 39 = B.pack [39, 39]
+		replaceDelim x  = B.singleton x
 
 -- | Insert a name. This function takes care of proper quotation.
 insertName :: B.ByteString -> QueryBuilder
