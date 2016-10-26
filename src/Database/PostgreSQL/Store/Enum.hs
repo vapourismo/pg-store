@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell, QuasiQuotes, OverloadedStrings #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Enum
@@ -13,11 +13,11 @@ module Database.PostgreSQL.Store.Enum (
 	unpackEnumValue,
 
 	-- * Template Haskell
-	makeEnum
+	makeEnum,
+	createEnum
 ) where
 
 import           Language.Haskell.TH
-import           Language.Haskell.TH.Syntax
 
 import           Data.List
 import qualified Data.ByteString    as B
@@ -26,6 +26,8 @@ import qualified Data.Text.Encoding as T
 
 import           Database.PostgreSQL.LibPQ (invalidOid)
 import           Database.PostgreSQL.Store.Columns
+import           Database.PostgreSQL.Store.Query
+import           Database.PostgreSQL.Store.Utilities
 
 -- | Wrapper for enumeration types.
 newtype EnumWrapper a = EnumWrapper { fromEnumWrapper :: a }
@@ -61,11 +63,6 @@ instance (Enum a, Bounded a, Show a) => Column (EnumWrapper a) where
 			columnTypeName = "text"
 		}
 
--- | Lift "ByteString".
-liftByteString :: B.ByteString -> Q Exp
-liftByteString bs =
-	[e| B.pack $(lift (B.unpack bs)) |]
-
 -- | Implement "Column" for a type which implements "Bounded", "Enum" and "Show".
 makeEnum :: Name -> B.ByteString -> Q [Dec]
 makeEnum typeName name =
@@ -82,3 +79,13 @@ makeEnum typeName name =
 					columnTypeName = $(liftByteString name)
 				}
 	|]
+
+-- | Create the query which create the enum type @a@.
+createEnum :: (Enum a, Bounded a, Show a) => proxy a -> B.ByteString -> Query ()
+createEnum proxy name =
+	create proxy [minBound .. maxBound]
+	where
+		create :: (Show a) => proxy a -> [a] -> Query ()
+		create _ values =
+			[pgsq| CREATE TYPE ${insertName name} AS
+			       ENUM (${map (insertQuote . showByteString) values}) |]

@@ -49,7 +49,8 @@ module Database.PostgreSQL.Store (
 	packEnumValue,
 	unpackEnumValue,
 
-	makeEnum
+	makeEnum,
+	createEnum
 ) where
 
 import Database.PostgreSQL.Store.Columns
