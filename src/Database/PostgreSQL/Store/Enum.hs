@@ -7,7 +7,8 @@
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Enum (
 	-- * Template Haskell
-	createEnum
+	createEnum,
+	createEnum_
 ) where
 
 import qualified Data.ByteString as B
@@ -15,12 +16,17 @@ import qualified Data.ByteString as B
 import           Database.PostgreSQL.Store.Query
 import           Database.PostgreSQL.Store.Utilities
 
--- | Create the query which create the enum type @a@.
-createEnum :: (Enum a, Bounded a, Show a) => proxy a -> B.ByteString -> Query ()
-createEnum proxy name =
+-- | Create an enum type using the given name and values.
+createEnum :: B.ByteString -> [B.ByteString] -> Query ()
+createEnum name values =
+	[pgsq| CREATE TYPE ${insertName name} AS ENUM (${map insertQuote values}) |]
+
+-- | Create an enum type using the given name. This functions figures out which values the enum can
+-- have using its 'Enum' and 'Bounded' instances.
+createEnum_ :: (Enum a, Bounded a, Show a) => proxy a -> B.ByteString -> Query ()
+createEnum_ proxy name =
 	create proxy [minBound .. maxBound]
 	where
 		create :: (Show a) => proxy a -> [a] -> Query ()
 		create _ values =
-			[pgsq| CREATE TYPE ${insertName name} AS
-			       ENUM (${map (insertQuote . showByteString) values}) |]
+			createEnum name (map showByteString values)

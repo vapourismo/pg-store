@@ -45,7 +45,8 @@ module Database.PostgreSQL.Store (
 	makeTable,
 
 	-- * Enums
-	createEnum
+	createEnum,
+	createEnum_
 ) where
 
 import Database.PostgreSQL.Store.Columns
