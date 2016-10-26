@@ -14,6 +14,7 @@ module Database.PostgreSQL.Store.Enum (
 import qualified Data.ByteString as B
 
 import           Database.PostgreSQL.Store.Query
+import           Database.PostgreSQL.Store.Columns
 import           Database.PostgreSQL.Store.Utilities
 
 -- | Create an enum type using the given name and values.
@@ -23,8 +24,8 @@ createEnum name values =
 
 -- | Create an enum type using the given name. This functions figures out which values the enum can
 -- have using its 'Enum' and 'Bounded' instances.
-createEnum_ :: (Enum a, Bounded a, Show a) => B.ByteString -> proxy a -> Query ()
-createEnum_ name proxy =
-	createEnum name (map showByteString values)
+createEnum_ :: (Enum a, Bounded a, Show a, Column a) => proxy a -> Query ()
+createEnum_ proxy =
+	createEnum (columnTypeName (columnInfo proxy)) (map showByteString values)
 	where
 		values = (const [minBound .. maxBound] :: (Bounded a, Enum a) => proxy a -> [a]) proxy
