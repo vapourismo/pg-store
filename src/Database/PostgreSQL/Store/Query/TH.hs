@@ -168,60 +168,60 @@ packCode code =
 translateSegment :: QuerySegment -> Q Exp
 translateSegment segment =
 	case segment of
-		QueryTable typeName -> do
-			mbTypeName <- lookupTypeName typeName
+		QueryTable stringName -> do
+			mbTypeName <- lookupTypeName stringName
 			case mbTypeName of
-				Nothing -> fail ("'" ++ typeName ++ "' does not refer to a type")
+				Nothing -> fail ("'" ++ stringName ++ "' does not refer to a type")
 				Just typ ->
 					[e| insertTableName (Proxy :: Proxy $(conT typ)) |]
 
-		QueryTableProxy valueName -> do
-			mbTypeName <- lookupValueName valueName
+		QueryTableProxy stringName -> do
+			mbTypeName <- lookupValueName stringName
 			case mbTypeName of
-				Nothing -> fail ("'" ++ valueName ++ "' does not refer to a value")
+				Nothing -> fail ("'" ++ stringName ++ "' does not refer to a value")
 				Just name ->
 					[e| insertTableName ((const Proxy :: a -> Proxy a) $(varE name)) |]
 
-		QuerySelector typeName -> do
-			mbTypeName <- lookupTypeName typeName
+		QuerySelector stringName -> do
+			mbTypeName <- lookupTypeName stringName
 			case mbTypeName of
-				Nothing -> fail ("'" ++ typeName ++ "' does not refer to a type")
+				Nothing -> fail ("'" ++ stringName ++ "' does not refer to a type")
 				Just typ ->
 					[e| insertTableColumnNames (Proxy :: Proxy $(conT typ)) |]
 
-		QuerySelectorProxy valueName -> do
-			mbTypeName <- lookupValueName valueName
+		QuerySelectorProxy stringName -> do
+			mbTypeName <- lookupValueName stringName
 			case mbTypeName of
-				Nothing -> fail ("'" ++ valueName ++ "' does not refer to a value")
+				Nothing -> fail ("'" ++ stringName ++ "' does not refer to a value")
 				Just name ->
 					[e| insertTableColumnNames ((const Proxy :: a -> Proxy a) $(varE name)) |]
 
-		QueryIdentifier typeName -> do
-			mbTypeName <- lookupTypeName typeName
+		QueryIdentifier stringName -> do
+			mbTypeName <- lookupTypeName stringName
 			case mbTypeName of
-				Nothing -> fail ("'" ++ typeName ++ "' does not refer to a type")
+				Nothing -> fail ("'" ++ stringName ++ "' does not refer to a type")
 				Just typ ->
 					[e| insertTableIdentColumnName (Proxy :: Proxy $(conT typ)) |]
 
-		QueryIdentifierProxy valueName -> do
-			mbTypeName <- lookupValueName valueName
+		QueryIdentifierProxy stringName -> do
+			mbTypeName <- lookupValueName stringName
 			case mbTypeName of
-				Nothing -> fail ("'" ++ valueName ++ "' does not refer to a value")
+				Nothing -> fail ("'" ++ stringName ++ "' does not refer to a value")
 				Just name ->
 					[e| insertTableIdentColumnName ((const Proxy :: a -> Proxy a) $(varE name)) |]
 
-		QueryEntity valueName -> do
-			mbValueName <- lookupValueName valueName
+		QueryEntity stringName -> do
+			mbValueName <- lookupValueName stringName
 			case mbValueName of
-				Nothing -> fail ("'" ++ valueName ++ "' does not refer to a value")
+				Nothing -> fail ("'" ++ stringName ++ "' does not refer to a value")
 				Just name ->
 					[e| insertEntity $(varE name) |]
 
 		QueryEntityCode code ->
 			case parseExp code of
 				Left msg -> fail ("Error in code " ++ show code ++ ": " ++ msg)
-				Right exp ->
-					[e| insertEntity $(pure exp) |]
+				Right expr ->
+					[e| insertEntity $(pure expr) |]
 
 		QueryQuote delim code ->
 			[e| insertCode $(liftByteString (packCode (delim : code ++ [delim]))) |]
