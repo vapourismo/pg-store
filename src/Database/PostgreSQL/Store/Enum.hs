@@ -23,10 +23,8 @@ createEnum name values =
 
 -- | Create an enum type using the given name. This functions figures out which values the enum can
 -- have using its 'Enum' and 'Bounded' instances.
-createEnum_ :: (Enum a, Bounded a, Show a) => proxy a -> B.ByteString -> Query ()
-createEnum_ proxy name =
-	create proxy [minBound .. maxBound]
+createEnum_ :: (Enum a, Bounded a, Show a) => B.ByteString -> proxy a -> Query ()
+createEnum_ name proxy =
+	createEnum name (map showByteString values)
 	where
-		create :: (Show a) => proxy a -> [a] -> Query ()
-		create _ values =
-			createEnum name (map showByteString values)
+		values = (const [minBound .. maxBound] :: (Bounded a, Enum a) => proxy a -> [a]) proxy
