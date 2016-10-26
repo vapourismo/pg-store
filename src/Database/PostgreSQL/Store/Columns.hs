@@ -427,7 +427,7 @@ decodeByteaHex bs
 	| otherwise = Nothing
 		where
 			unfoldHex "" = []
-			unfoldHex bs = hexToWord8 (B.take 2 bs) : unfoldHex (B.drop 2 bs)
+			unfoldHex xs = hexToWord8 (B.take 2 xs) : unfoldHex (B.drop 2 xs)
 
 -- | Pack textual representation of a byte array.
 encodeByteaHex :: B.ByteString -> B.ByteString
