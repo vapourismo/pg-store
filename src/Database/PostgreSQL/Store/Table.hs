@@ -7,12 +7,14 @@
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Table (
 	-- * Table information
+	TableConstraint (..),
 	TableInformation (..),
 	Table (..),
 
 	-- * Template Haskell
 	TableOptions (..),
 	defaultTableOptions,
+	InterimTableConstraint (..),
 	makeTable,
 
 	createTable,
@@ -137,9 +139,14 @@ defaultTableOptions =
 		tableOptTransformFieldName = B.toByteString . B.fromString . nameBase
 	}
 
+-- |
+data InterimTableConstraint
+	= Unique [Name]
+	| Check B.ByteString
+
 -- | Implement 'Table' for a type.
-implementTable :: TableDec -> TableOptions -> Q [Dec]
-implementTable (TableDec typeName ctor fields) TableOptions {..} =
+implementTable :: TableDec -> [InterimTableConstraint] -> TableOptions -> Q [Dec]
+implementTable (TableDec typeName ctor fields) constraints TableOptions {..} =
 	genVarNames >>= \ boundNames ->
 		[d|
 			instance Table $(conT typeName) where
@@ -148,6 +155,7 @@ implementTable (TableDec typeName ctor fields) TableOptions {..} =
 						$(liftByteString (tableOptTransformName typeName))
 						$(liftByteString tableOptIdentName)
 						$(listE (map genColumn fields))
+						$(listE (map genConstraint constraints))
 
 				unpackRow $(destructPattern boundNames) =
 					$(ListE <$> mapM genPackColumn boundNames)
@@ -166,25 +174,26 @@ implementTable (TableDec typeName ctor fields) TableOptions {..} =
 		genPackColumn name =
 			[e| pack $(varE name) |]
 
+		genConstraint constraint =
+			case constraint of
+				Unique names ->
+					[e| TableUnique $(listE (map (liftByteString . tableOptTransformFieldName) names)) |]
+
+				Check statement ->
+					[e| TableCheck $(liftByteString statement) |]
+
 -- | Implement 'QueryEntity' for a type.
 implementQueryEntity :: TableDec -> Q [Dec]
 implementQueryEntity (TableDec typeName ctor fields) =
 	genVarNames >>= \ boundNames ->
 		[d|
 			instance QueryEntity $(conT typeName) where
-				insertEntity $(destructPattern boundNames) =
-					insertEntity $(entityList boundNames)
+				insertEntity row =
+					insertEntity (unpackRow row)
 		|]
 	where
 		genVarNames =
 			mapM (\ (TableField fieldName _) -> newName (nameBase fieldName)) fields
-
-		destructPattern names =
-			pure (ConP ctor (map VarP names))
-
-		entityList names =
-			ListE <$> forM names (\ name -> [e| pack $(varE name) |])
-
 
 -- | Implement 'Result' for a type.
 implementResult :: TableDec -> Q [Dec]
@@ -210,10 +219,10 @@ implementResult (TableDec typeName ctor fields) =
 			DoE (map doBinding names ++ [NoBindS (constructValue names)])
 
 -- | Implement 'Table', 'Result' and 'QueryEntity' for a type.
-makeTable :: Name -> TableOptions -> Q [Dec]
-makeTable typeName options = do
+makeTable :: Name -> [InterimTableConstraint] -> TableOptions -> Q [Dec]
+makeTable typeName constraints options = do
 	dec <- checkTableName typeName
-	concat <$> sequence [implementTable dec options,
+	concat <$> sequence [implementTable dec constraints options,
 	                     implementResult dec,
 	                     implementQueryEntity dec]
 
@@ -243,8 +252,16 @@ createTable TableInformation {..} =
 			insertName tableIdentColumn
 			insertCode " SERIAL PRIMARY KEY NOT NULL"
 
+		genConstraint constraint =
+			case constraint of
+				TableUnique names ->
+					[pgsq| UNIQUE (${map insertName names}) |]
+
+				TableCheck code ->
+					[pgsq| CHECK (${insertCode code}) |]
+
 		columns =
-			identColumn : map (uncurry genColumn) tableColumns
+			identColumn : map (uncurry genColumn) tableColumns ++ map genConstraint tableConstraints
 
 -- | Create the given table.
 createTable_ :: (Table a) => proxy a -> Query ()

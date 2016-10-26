@@ -6,6 +6,7 @@
 -- License:    BSD3
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Table.Class (
+	TableConstraint (..),
 	TableInformation (..),
 	Table (..)
 ) where
@@ -14,11 +15,17 @@ import qualified Data.ByteString as B
 
 import           Database.PostgreSQL.Store.Columns
 
+-- | Table constraint
+data TableConstraint
+	= TableUnique [B.ByteString]
+	| TableCheck B.ByteString
+
 -- | Table-related information about a type.
 data TableInformation = TableInformation {
 	tableName        :: !B.ByteString,
 	tableIdentColumn :: !B.ByteString,
-	tableColumns     :: ![(B.ByteString, ColumnInformation)]
+	tableColumns     :: ![(B.ByteString, ColumnInformation)],
+	tableConstraints :: [TableConstraint]
 }
 
 -- | Attach table information to a type.

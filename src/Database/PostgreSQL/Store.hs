@@ -37,11 +37,13 @@ module Database.PostgreSQL.Store (
 	unpackColumn,
 
 	-- * Tables
+	TableConstraint (..),
 	TableInformation (..),
 	Table (..),
 
 	TableOptions (..),
 	defaultTableOptions,
+	InterimTableConstraint (..),
 	makeTable,
 
 	createTable,
