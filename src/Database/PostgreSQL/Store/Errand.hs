@@ -27,7 +27,6 @@ module Database.PostgreSQL.Store.Errand (
 	Reference (..),
 
 	-- * Queries
-	create,
 	insert,
 	insertMany
 ) where
@@ -226,38 +225,6 @@ instance Result (Reference a) where
 	queryResultProcessor =
 		Reference <$> unpackColumn
 
--- | Create the given table.
-create :: (Table a) => proxy a -> Query ()
-create proxy =
-	[pgsq| CREATE TABLE ${insertTableName proxy} ($columns) |]
-	where
-		TableInformation {..} =
-			tableInfo proxy
-
-		genColumn name ColumnInformation {..} = do
-			insertName name
-			insertCode " "
-			insertCode columnTypeName
-
-			when columnAllowNull $
-				insertCode " NOT NULL"
-
-			case columnCheck of
-				Just genStmt -> do
-					insertCode " CHECK ("
-					insertCode (genStmt (buildQuery (insertName name)))
-					insertCode ")"
-
-				Nothing ->
-					pure ()
-
-		identColumn = do
-			insertName tableIdentColumn
-			insertCode " SERIAL PRIMARY KEY NOT NULL"
-
-		columns =
-			identColumn : map (uncurry genColumn) tableColumns
-
 -- | Insert a single row into a table. Returns the inserted value of the identifier column.
 insert :: (Table a) => a -> Query (Reference a)
 insert row =
@@ -265,7 +232,7 @@ insert row =
 
 -- | Insert many rows into a table.
 insertMany :: (Table a) => [a] -> Query (Reference a)
-insertMany [] = [pgsq||]
+insertMany [] = Query B.empty []
 insertMany rows =
 	[pgsq| INSERT INTO ${insertTableName rows}
 	       VALUES ${map (surroundWithParens . insertEntity . unpackRow) rows}

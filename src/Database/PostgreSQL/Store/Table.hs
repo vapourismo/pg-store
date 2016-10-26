@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, TemplateHaskell, RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell, QuasiQuotes, RecordWildCards #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Table
@@ -10,10 +10,13 @@ module Database.PostgreSQL.Store.Table (
 	TableInformation (..),
 	Table (..),
 
-	-- * Helpers
+	-- * Template Haskell
 	TableOptions (..),
 	defaultTableOptions,
-	makeTable
+	makeTable,
+
+	createTable,
+	createTable_
 ) where
 
 import           Language.Haskell.TH
@@ -32,6 +35,7 @@ import           Database.PostgreSQL.Store.Columns
 import           Database.PostgreSQL.Store.Utilities
 import           Database.PostgreSQL.Store.Table.Class
 import           Database.PostgreSQL.Store.Query.Builder
+import           Database.PostgreSQL.Store.Query
 
 -- | Table field declaration
 data TableField = TableField Name Type
@@ -212,3 +216,37 @@ makeTable typeName options = do
 	concat <$> sequence [implementTable dec options,
 	                     implementResult dec,
 	                     implementQueryEntity dec]
+
+-- | Create a table using the given 'TableInformation'.
+createTable :: TableInformation -> Query ()
+createTable TableInformation {..} =
+	[pgsq| CREATE TABLE ${insertName tableName} ($columns) |]
+	where
+		genColumn name ColumnInformation {..} = do
+			insertName name
+			insertCode " "
+			insertCode columnTypeName
+
+			when columnAllowNull $
+				insertCode " NOT NULL"
+
+			case columnCheck of
+				Just genStmt -> do
+					insertCode " CHECK ("
+					insertCode (genStmt (buildQuery (insertName name)))
+					insertCode ")"
+
+				Nothing ->
+					pure ()
+
+		identColumn = do
+			insertName tableIdentColumn
+			insertCode " SERIAL PRIMARY KEY NOT NULL"
+
+		columns =
+			identColumn : map (uncurry genColumn) tableColumns
+
+-- | Create the given table.
+createTable_ :: (Table a) => proxy a -> Query ()
+createTable_ proxy =
+	createTable (tableInfo proxy)

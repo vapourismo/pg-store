@@ -44,6 +44,9 @@ module Database.PostgreSQL.Store (
 	defaultTableOptions,
 	makeTable,
 
+	createTable,
+	createTable_,
+
 	-- * Enums
 	createEnum,
 	createEnum_
