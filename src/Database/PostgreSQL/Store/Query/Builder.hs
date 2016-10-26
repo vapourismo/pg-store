@@ -73,7 +73,7 @@ insertCode otherCode =
 -- | Insert a quote.
 insertQuote :: B.ByteString -> QueryBuilder
 insertQuote contents =
-	insertCode (B.concatMap replaceDelim contents)
+	insertCode (B.concat [B.singleton 39, B.concatMap replaceDelim contents, B.singleton 39])
 	where
 		replaceDelim 39 = B.pack [39, 39]
 		replaceDelim x  = B.singleton x
