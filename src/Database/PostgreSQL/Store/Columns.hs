@@ -13,12 +13,7 @@ module Database.PostgreSQL.Store.Columns (
 	ColumnInformation (..),
 	defaultColumnInfo,
 
-	Column (..),
-
-	-- * Misc
-	EnumWrapper (..),
-	packEnumValue,
-	unpackEnumValue
+	Column (..)
 ) where
 
 import           Data.Int
@@ -453,40 +448,6 @@ instance Column BL.ByteString where
 
 	columnInfo _ =
 		columnInfo (Proxy :: Proxy B.ByteString)
-
--- | Wrapper for enumeration types.
-newtype EnumWrapper a = EnumWrapper { fromEnumWrapper :: a }
-
--- | Try to find the enum value based on the input string.
-toEnumValue :: (Enum a, Bounded a, Show a) => String -> Maybe a
-toEnumValue =
-	findValue [minBound .. maxBound]
-	where
-		findValue :: (Enum a, Show a) => [a] -> String -> Maybe a
-		findValue values value =
-			toEnum <$> elemIndex value (map show values)
-
--- | Unpack an instance of an "Enum".
-unpackEnumValue :: (Enum a, Bounded a, Show a) => Value -> Maybe a
-unpackEnumValue (Value _ dat) = toEnumValue (T.unpack (T.decodeUtf8 dat))
-unpackEnumValue	_             = Nothing
-
--- | Pack an instance of an "Enum".
-packEnumValue :: (Show a) => a -> Value
-packEnumValue value =
-	(pack (show value)) {valueType = invalidOid}
-
-instance (Enum a, Bounded a, Show a) => Column (EnumWrapper a) where
-	pack (EnumWrapper value) =
-		packEnumValue value
-
-	unpack value =
-		EnumWrapper <$> unpackEnumValue value
-
-	columnInfo _ =
-		defaultColumnInfo {
-			columnTypeName = "text"
-		}
 
 -- | Finish the parsing process.
 finishParser :: Result r -> Result r
