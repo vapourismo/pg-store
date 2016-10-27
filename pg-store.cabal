@@ -24,18 +24,17 @@ library
                     bytestring, blaze-builder, text, postgresql-libpq, attoparsec, mtl, time,
                     haskell-src-meta, aeson
   hs-source-dirs:   src
-  exposed-modules:  Database.PostgreSQL.Store.Table
-                    Database.PostgreSQL.Store.Table.Class
-                    Database.PostgreSQL.Store.Columns
-                    Database.PostgreSQL.Store.Query
-                    Database.PostgreSQL.Store.Query.Builder
-                    Database.PostgreSQL.Store.Query.TH
-                    Database.PostgreSQL.Store.Errand
-                    Database.PostgreSQL.Store.Result
-                    Database.PostgreSQL.Store.Enum
-                    Database.PostgreSQL.Store
-  other-modules:    Database.PostgreSQL.Store.OIDs
-                    Database.PostgreSQL.Store.Utilities
+--  exposed-modules:  Database.PostgreSQL.Store.Table
+--                    Database.PostgreSQL.Store.Table.Class
+--                    Database.PostgreSQL.Store.Columns
+--                    Database.PostgreSQL.Store.Query
+--                    Database.PostgreSQL.Store.Query.Builder
+--                    Database.PostgreSQL.Store.Query.TH
+--                    Database.PostgreSQL.Store.Errand
+--                    Database.PostgreSQL.Store.Result
+--                    Database.PostgreSQL.Store.Enum
+--  other-modules:    Database.PostgreSQL.Store.OIDs
+--                    Database.PostgreSQL.Store.Utilities
 
 -- test-suite tests
 --   type:             exitcode-stdio-1.0
