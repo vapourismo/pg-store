@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+
 -- |
 -- Module:     Database.PostgreSQL.Store.Result.Entity
 -- Copyright:  (c) Ole Krüger 2016
@@ -11,6 +13,7 @@ module Database.PostgreSQL.Store.Result.Entity (
 import           Control.Monad
 import           Control.Applicative
 
+import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Result.Parser
 
 
@@ -56,3 +59,9 @@ instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d, Result
 	parseEntity =
 		(,,,,,,,) <$> parseEntity <*> parseEntity <*> parseEntity <*> parseEntity <*> parseEntity
 		          <*> parseEntity <*> parseEntity <*> parseEntity
+
+instance ResultEntity Value where
+	parseEntity = parseColumn (const Just)
+
+instance ResultEntity TypedValue where
+	parseEntity = fetchColumn

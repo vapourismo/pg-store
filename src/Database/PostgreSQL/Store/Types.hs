@@ -5,15 +5,17 @@
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Types (
 	-- * General
-	Value,
-	TypedValue
+	Value (..),
+	TypedValue (..)
 ) where
 
 import qualified Data.ByteString           as B
 import qualified Database.PostgreSQL.LibPQ as P
 
 -- | Value of a cell in the result set
-type Value = Maybe B.ByteString
+data Value = Value B.ByteString | NoValue
+	deriving (Show, Eq, Ord)
 
 -- | Value and type 'Oid' of a cell in the result set
-type TypedValue = (P.Oid, Value)
+data TypedValue = TypedValue P.Oid Value
+	deriving (Show, Eq, Ord)

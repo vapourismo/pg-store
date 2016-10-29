@@ -63,7 +63,7 @@ parseColumn proc = RowParser $ do
 	case columns of
 		[] -> throwError (TooFewColumns columnNumber)
 
-		(typ, val) : rest ->
+		TypedValue typ val : rest ->
 			case proc typ val of
 				Nothing -> throwError (ParseError columnNumber typ val)
 				Just x  -> x <$ put (Row (columnNumber + 1) rest)
@@ -83,7 +83,6 @@ columnNumber =
 
 -- | Result set
 data ResultSet = ResultSet [P.Oid] [[Value]]
-	deriving (Show, Eq)
 
 -- | Extract a 'ResultSet' from the 'Result'.
 buildResultSet :: P.Result -> IO ResultSet
@@ -94,7 +93,11 @@ buildResultSet result = do
 	-- No need to check whether rows or columns are greater than 0, because [0 .. -1] is [].
 
 	ResultSet <$> forM [0 .. columns - 1] (P.ftype result)
-	          <*> forM [0 .. rows - 1] (forM [0 .. columns - 1] . P.getvalue' result)
+	          <*> forM [0 .. rows - 1] (forM [0 .. columns - 1] . getValue result)
+
+	where
+		getValue result row column =
+			maybe NoValue Value <$> P.getvalue' result row column
 
 -- | Error that occurs during result parsing
 data ResultParseError = ResultParseError P.Row RowParseError
@@ -104,7 +107,8 @@ data ResultParseError = ResultParseError P.Row RowParseError
 parseResultSet :: RowParser a -> ResultSet -> Except ResultParseError [a]
 parseResultSet parser (ResultSet types values) =
 	forM (zip values [0 .. P.toRow (length values - 1)]) $ \ (row, rowNumber) ->
-		withExcept (ResultParseError rowNumber) (parseRow parser (Row 0 (zip types row)))
+		withExcept (ResultParseError rowNumber) $
+			parseRow parser (Row 0 (zipWith TypedValue types row))
 
 -- | Parse the result.
 parseResult :: RowParser a -> P.Result -> ExceptT ResultParseError IO [a]
