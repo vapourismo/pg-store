@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances, DeriveFunctor #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Result.Entity
@@ -16,6 +16,7 @@ import           Control.Applicative
 import           Data.Int
 import           Data.Word
 import           Numeric.Natural
+import           Data.Bits
 
 import qualified Data.ByteString         as B
 import qualified Data.ByteString.Lazy    as BL
@@ -87,62 +88,53 @@ instance (ResultEntity a) => ResultEntity (Maybe a) where
 			NoValue -> pure Nothing
 			_       -> Just <$> parseEntity
 
--- | Parse the contents of a column (only if present).
-parseContents :: (B.ByteString -> Maybe a) -> RowParser a
-parseContents proc =
-	parseColumn $ \ (TypedValue _ value) ->
-		case value of
-			Value dat -> proc dat
-			NoValue   -> Nothing
-
 instance ResultEntity Bool where
 	parseEntity =
 		parseContents $ \ dat ->
 			Just (elem dat ["true", "TRUE", "t", "y", "yes", "YES", "on", "ON", "1"])
 
 -- | Parse a column using the given 'Parser'.
-parseColumnWith :: Parser a -> RowParser a
-parseColumnWith p = parseContents (maybeResult . parse p)
+parseContentsWith :: Parser a -> RowParser a
+parseContentsWith p = parseContents (maybeResult . parse p)
 
 instance ResultEntity Integer where
-	parseEntity = parseColumnWith (signed decimal)
+	parseEntity = parseContentsWith (signed decimal)
 
 instance ResultEntity Int where
-	parseEntity = parseColumnWith (signed decimal)
+	parseEntity = parseContentsWith (signed decimal)
 
 instance ResultEntity Int8 where
-	parseEntity = parseColumnWith (signed decimal)
+	parseEntity = parseContentsWith (signed decimal)
 
 instance ResultEntity Int16 where
-	parseEntity = parseColumnWith (signed decimal)
+	parseEntity = parseContentsWith (signed decimal)
 
 instance ResultEntity Int32 where
-	parseEntity = parseColumnWith (signed decimal)
+	parseEntity = parseContentsWith (signed decimal)
 
 instance ResultEntity Int64 where
-	parseEntity = parseColumnWith (signed decimal)
+	parseEntity = parseContentsWith (signed decimal)
 
 instance ResultEntity Natural where
-	parseEntity = parseColumnWith decimal
+	parseEntity = parseContentsWith decimal
 
 instance ResultEntity Word where
-	parseEntity = parseColumnWith decimal
+	parseEntity = parseContentsWith decimal
 
 instance ResultEntity Word8 where
-	parseEntity = parseColumnWith decimal
+	parseEntity = parseContentsWith decimal
 
 instance ResultEntity Word16 where
-	parseEntity = parseColumnWith decimal
+	parseEntity = parseContentsWith decimal
 
 instance ResultEntity Word32 where
-	parseEntity = parseColumnWith decimal
+	parseEntity = parseContentsWith decimal
 
 instance ResultEntity Word64 where
-	parseEntity = parseColumnWith decimal
+	parseEntity = parseContentsWith decimal
 
 instance ResultEntity String where
-	parseEntity =
-		T.unpack <$> parseEntity
+	parseEntity = T.unpack <$> parseEntity
 
 instance ResultEntity T.Text where
 	parseEntity =
@@ -152,10 +144,54 @@ instance ResultEntity TL.Text where
 	parseEntity =
 		parseContents (either (const Nothing) Just . TL.decodeUtf8' . BL.fromStrict)
 
+-- | 'bytea'
 instance ResultEntity B.ByteString where
-	parseEntity = parseContents Just
+	parseEntity =
+		parseContentsWith (hexFormat <|> escapedFormat)
+		where
+			isHexChar x =
+				(x >= 48 && x <= 57)     -- 0 - 9
+				|| (x >= 65 && x <= 70)  -- A - Z
+				|| (x >= 97 && x <= 102) -- a - z
 
+			hexCharToWord x
+				| x >= 48 && x <= 57  = x - 48
+				| x >= 65 && x <= 70  = x - 55
+				| x >= 97 && x <= 102 = x - 87
+				| otherwise           = 0
+
+			hexWord = do
+				a <- satisfy isHexChar
+				b <- satisfy isHexChar
+
+				pure (shiftL (hexCharToWord a) 4 .|. hexCharToWord b)
+
+			hexFormat = do
+				word8 92  -- \
+				word8 120 -- x
+				B.pack <$> many hexWord
+
+			isOctChar x = x >= 48 && x <= 55
+
+			octCharToWord x
+				| isOctChar x = x - 48
+				| otherwise   = 0
+
+			escapedWord = do
+				word8 92
+				a <- satisfy isOctChar
+				b <- satisfy isOctChar
+				c <- satisfy isOctChar
+
+				pure (shiftL (octCharToWord a) 6 .|. shiftL (octCharToWord b) 3 .|. c)
+
+			escapedBackslash = do
+				word8 92
+				word8 92
+
+			escapedFormat =
+				B.pack <$> many (escapedBackslash <|> escapedWord <|> anyWord8)
+
+-- | 'bytea'
 instance ResultEntity BL.ByteString where
-	parseEntity = parseContents (Just . BL.fromStrict)
-
--- TODO: Implement 'bytea' ByteArray
+	parseEntity = BL.fromStrict <$> parseEntity
