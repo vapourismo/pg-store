@@ -9,6 +9,7 @@ module Database.PostgreSQL.Store.Result.Parser (
 	-- * Row Parser
 	RowParser,
 	fetchColumn,
+	peekColumn,
 	parseColumn,
 	skipColumn,
 	columnNumber,
@@ -30,7 +31,7 @@ import           Database.PostgreSQL.Store.Types
 data RowParseError
 	= TooFewColumns P.Column
 		-- ^ Underlying 'RowParser' wants more columns than are currently present.
-	| ParseError P.Column P.Oid Value
+	| ParseError P.Column TypedValue
 		-- ^ A column value could not be parsed.
 	deriving (Show, Eq, Ord)
 
@@ -55,17 +56,25 @@ fetchColumn = RowParser $ do
 		[]            -> throwError (TooFewColumns columnNumber)
 		column : rest -> column <$ put (Row (columnNumber + 1) rest)
 
+-- | Fetch the 'TypedValue' associated with the current column without advancing the cursor.
+peekColumn :: RowParser TypedValue
+peekColumn = RowParser $ do
+	Row columnNumber columns <- get
+	case columns of
+		[]         -> throwError (TooFewColumns columnNumber)
+		column : _ -> pure column
+
 -- | Fetch a column and parse it. Using this function allows you to associate the column number and
 -- 'Oid' with the value that could not be parsed.
-parseColumn :: (P.Oid -> Value -> Maybe a) -> RowParser a
+parseColumn :: (TypedValue -> Maybe a) -> RowParser a
 parseColumn proc = RowParser $ do
 	Row columnNumber columns <- get
 	case columns of
 		[] -> throwError (TooFewColumns columnNumber)
 
-		TypedValue typ val : rest ->
-			case proc typ val of
-				Nothing -> throwError (ParseError columnNumber typ val)
+		column : rest ->
+			case proc column of
+				Nothing -> throwError (ParseError columnNumber column)
 				Just x  -> x <$ put (Row (columnNumber + 1) rest)
 
 -- | Point cursor to the next column.
