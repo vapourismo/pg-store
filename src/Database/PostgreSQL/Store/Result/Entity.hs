@@ -36,24 +36,29 @@ import           Database.PostgreSQL.Store.Result.Parser
 class ResultEntity a where
 	parseEntity :: RowParser a
 
+-- | 2 result entities in sequence
 instance (ResultEntity a, ResultEntity b) => ResultEntity (a, b) where
 	parseEntity =
 		liftA2 (,) parseEntity parseEntity
 
+-- | 3 result entities in sequence
 instance (ResultEntity a, ResultEntity b, ResultEntity c) => ResultEntity (a, b, c) where
 	parseEntity =
 		liftA3 (,,) parseEntity parseEntity parseEntity
 
+-- | 4 result entities in sequence
 instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d)
          => ResultEntity (a, b, c, d) where
 	parseEntity =
 		liftM4 (,,,) parseEntity parseEntity parseEntity parseEntity
 
+-- | 5 result entities in sequence
 instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d, ResultEntity e)
          => ResultEntity (a, b, c, d, e) where
 	parseEntity =
 		liftM5 (,,,,) parseEntity parseEntity parseEntity parseEntity parseEntity
 
+-- | 6 result entities in sequence
 instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d, ResultEntity e,
           ResultEntity f)
          => ResultEntity (a, b, c, d, e, f) where
@@ -61,6 +66,7 @@ instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d, Result
 		(,,,,,) <$> parseEntity <*> parseEntity <*> parseEntity <*> parseEntity <*> parseEntity
 		        <*> parseEntity
 
+-- | 7 result entities in sequence
 instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d, ResultEntity e,
           ResultEntity f, ResultEntity g)
          => ResultEntity (a, b, c, d, e, f, g) where
@@ -68,6 +74,7 @@ instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d, Result
 		(,,,,,,) <$> parseEntity <*> parseEntity <*> parseEntity <*> parseEntity <*> parseEntity
 		         <*> parseEntity <*> parseEntity
 
+-- | 8 result entities in sequence
 instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d, ResultEntity e,
           ResultEntity f, ResultEntity g, ResultEntity h)
          => ResultEntity (a, b, c, d, e, f, g, h) where
@@ -75,9 +82,11 @@ instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d, Result
 		(,,,,,,,) <$> parseEntity <*> parseEntity <*> parseEntity <*> parseEntity <*> parseEntity
 		          <*> parseEntity <*> parseEntity <*> parseEntity
 
+-- | Untyped column value
 instance ResultEntity Value where
 	parseEntity = parseColumn (\ (TypedValue _ value) -> Just value)
 
+-- | Typed column value
 instance ResultEntity TypedValue where
 	parseEntity = fetchColumn
 
@@ -88,6 +97,7 @@ instance (ResultEntity a) => ResultEntity (Maybe a) where
 			NoValue -> pure Nothing
 			_       -> Just <$> parseEntity
 
+-- | @boolean@ - everything that is not a valid boolean value is 'False'
 instance ResultEntity Bool where
 	parseEntity =
 		parseContents $ \ dat ->
@@ -97,54 +107,68 @@ instance ResultEntity Bool where
 parseContentsWith :: Parser a -> RowParser a
 parseContentsWith p = parseContents (maybeResult . parse p)
 
+-- | Any numeric type
 instance ResultEntity Integer where
 	parseEntity = parseContentsWith (signed decimal)
 
+-- | Any numeric type
 instance ResultEntity Int where
 	parseEntity = parseContentsWith (signed decimal)
 
+-- | Any numeric type
 instance ResultEntity Int8 where
 	parseEntity = parseContentsWith (signed decimal)
 
+-- | Any numeric type
 instance ResultEntity Int16 where
 	parseEntity = parseContentsWith (signed decimal)
 
+-- | Any numeric type
 instance ResultEntity Int32 where
 	parseEntity = parseContentsWith (signed decimal)
 
+-- | Any numeric type
 instance ResultEntity Int64 where
 	parseEntity = parseContentsWith (signed decimal)
 
+-- | Any unsigned numeric type
 instance ResultEntity Natural where
 	parseEntity = parseContentsWith decimal
 
+-- | Any unsigned numeric type
 instance ResultEntity Word where
 	parseEntity = parseContentsWith decimal
 
+-- | Any unsigned numeric type
 instance ResultEntity Word8 where
 	parseEntity = parseContentsWith decimal
 
+-- | Any unsigned numeric type
 instance ResultEntity Word16 where
 	parseEntity = parseContentsWith decimal
 
+-- | Any unsigned numeric type
 instance ResultEntity Word32 where
 	parseEntity = parseContentsWith decimal
 
+-- | Any unsigned numeric type
 instance ResultEntity Word64 where
 	parseEntity = parseContentsWith decimal
 
+-- | @char@, @varchar@ or @text@
 instance ResultEntity String where
 	parseEntity = T.unpack <$> parseEntity
 
+-- | @char@, @varchar@ or @text@
 instance ResultEntity T.Text where
 	parseEntity =
 		parseContents (either (const Nothing) Just . T.decodeUtf8')
-
+-- | @char@, @varchar@ or @text@
 instance ResultEntity TL.Text where
 	parseEntity =
 		parseContents (either (const Nothing) Just . TL.decodeUtf8' . BL.fromStrict)
 
--- | 'bytea'
+-- | @bytea@
 instance ResultEntity B.ByteString where
 	parseEntity =
 		parseContentsWith (hexFormat <|> escapedFormat)
@@ -192,6 +216,6 @@ instance ResultEntity B.ByteString where
 			escapedFormat =
 				B.pack <$> many (escapedBackslash <|> escapedWord <|> anyWord8)
 
--- | 'bytea'
+-- | @bytea@
 instance ResultEntity BL.ByteString where
 	parseEntity = BL.fromStrict <$> parseEntity
