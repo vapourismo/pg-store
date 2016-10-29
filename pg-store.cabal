@@ -24,7 +24,8 @@ library
                     bytestring, blaze-builder, text, postgresql-libpq, attoparsec, mtl, time,
                     haskell-src-meta, aeson
   hs-source-dirs:   src
-  exposed-modules:  Database.PostgreSQL.Store.ResultParser
+  exposed-modules:  Database.PostgreSQL.Store.Result.Parser
+                    Database.PostgreSQL.Store.Result.Entity
                     Database.PostgreSQL.Store.Types
   other-modules:    Database.PostgreSQL.Store.Utilities
 
