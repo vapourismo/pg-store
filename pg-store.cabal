@@ -25,6 +25,7 @@ library
                     haskell-src-meta, aeson
   hs-source-dirs:   src
   exposed-modules:  Database.PostgreSQL.Store.ResultParser
+                    Database.PostgreSQL.Store.Types
   other-modules:    Database.PostgreSQL.Store.Utilities
 
 -- test-suite tests

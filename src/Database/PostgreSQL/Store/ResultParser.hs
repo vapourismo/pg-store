@@ -1,14 +1,11 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, DefaultSignatures #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.ResultParser
--- Copyright:  (c) Ole Krüger 2015-2016
+-- Copyright:  (c) Ole Krüger 2016
 -- License:    BSD3
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.ResultParser (
-	-- * General
-	Value,
-
 	-- * Row Parser
 	RowParser,
 	fetchColumn,
@@ -25,15 +22,9 @@ import           Control.Monad.Except
 import           Control.Monad.State.Strict
 
 import           Data.Functor.Identity
-import qualified Data.ByteString           as B
 
 import qualified Database.PostgreSQL.LibPQ as P
-
--- | Value of a cell in the result set
-type Value = Maybe B.ByteString
-
--- | Value and type 'Oid' of a cell in the result set
-type TypedValue = (P.Oid, Value)
+import           Database.PostgreSQL.Store.Types
 
 -- | Errors that occur during row parsing
 data RowParseError
@@ -44,8 +35,7 @@ data RowParseError
 	deriving (Show, Eq, Ord)
 
 -- | State for 'RowParser'
-data Row =
-	Row P.Column [TypedValue]
+data Row = Row P.Column [TypedValue]
 
 -- | Row parser
 newtype RowParser a =
