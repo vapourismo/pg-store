@@ -1,4 +1,5 @@
-{-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances, DeriveFunctor #-}
+{-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances, DeriveFunctor,
+             DefaultSignatures #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Result.Entity
@@ -31,10 +32,14 @@ import           Data.Attoparsec.ByteString.Char8 (signed, decimal)
 
 import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Result.Parser
+import           Database.PostgreSQL.Store.Utilities
 
 -- | An entity whose underlying information spans zero or more columns
 class ResultEntity a where
 	parseEntity :: RowParser a
+
+	default parseEntity :: (Read a) => RowParser a
+	parseEntity = parseContents readByteString
 
 -- | 2 result entities in sequence
 instance (ResultEntity a, ResultEntity b) => ResultEntity (a, b) where
