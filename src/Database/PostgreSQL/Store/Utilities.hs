@@ -22,17 +22,17 @@ import qualified Data.Text.Encoding                 as T
 
 import           Text.Read (readMaybe)
 
--- | Show as "ByteString"
+-- | Show as 'ByteString'
 showByteString :: (Show a) => a -> B.ByteString
 showByteString =
 	B.toByteString . B.fromString . show
 
--- | Read as "ByteString"
+-- | Read as 'ByteString'
 readByteString :: (Read a) => B.ByteString -> Maybe a
 readByteString =
 	readMaybe . T.unpack . T.decodeUtf8
 
--- | Lift "ByteString".
+-- | Lift 'ByteString'.
 liftByteString :: B.ByteString -> Q Exp
 liftByteString bs =
 	[e| B.pack $(lift (B.unpack bs)) |]
