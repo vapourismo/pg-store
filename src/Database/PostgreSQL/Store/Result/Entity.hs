@@ -61,7 +61,14 @@ instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d, Result
 		          <*> parseEntity <*> parseEntity <*> parseEntity
 
 instance ResultEntity Value where
-	parseEntity = parseColumn (const Just)
+	parseEntity = parseColumn (\ (TypedValue _ value) -> Just value)
 
 instance ResultEntity TypedValue where
 	parseEntity = fetchColumn
+
+instance (ResultEntity a) => ResultEntity (Maybe a) where
+	parseEntity = do
+		TypedValue _ value <- peekColumn
+		case value of
+			NoValue -> pure Nothing
+			_       -> Just <$> parseEntity
