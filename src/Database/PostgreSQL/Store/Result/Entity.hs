@@ -142,8 +142,7 @@ instance ResultEntity Word64 where
 
 instance ResultEntity String where
 	parseEntity =
-		parseContents $ \ contents ->
-			T.unpack <$> either (const Nothing) Just (T.decodeUtf8' contents)
+		T.unpack <$> parseEntity
 
 instance ResultEntity T.Text where
 	parseEntity =
@@ -152,3 +151,11 @@ instance ResultEntity T.Text where
 instance ResultEntity TL.Text where
 	parseEntity =
 		parseContents (either (const Nothing) Just . TL.decodeUtf8' . BL.fromStrict)
+
+instance ResultEntity B.ByteString where
+	parseEntity = parseContents Just
+
+instance ResultEntity BL.ByteString where
+	parseEntity = parseContents (Just . BL.fromStrict)
+
+-- TODO: Implement 'bytea' ByteArray
