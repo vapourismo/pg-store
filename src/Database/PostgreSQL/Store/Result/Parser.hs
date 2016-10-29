@@ -13,6 +13,7 @@ module Database.PostgreSQL.Store.Result.Parser (
 	parseColumn,
 	skipColumn,
 	columnNumber,
+	parseContents,
 
 	-- * Result Parser
 	parseResult
@@ -23,6 +24,8 @@ import           Control.Monad.Except
 import           Control.Monad.State.Strict
 
 import           Data.Functor.Identity
+
+import qualified Data.ByteString           as B
 
 import qualified Database.PostgreSQL.LibPQ as P
 import           Database.PostgreSQL.Store.Types
@@ -84,6 +87,14 @@ skipColumn = RowParser $ do
 	case columns of
 		[]       -> throwError (TooFewColumns columnNumber)
 		_ : rest -> put (Row (columnNumber + 1) rest)
+
+-- | Parse the contents of a column (only if present).
+parseContents :: (B.ByteString -> Maybe a) -> RowParser a
+parseContents proc =
+	parseColumn $ \ (TypedValue _ value) ->
+		case value of
+			Value dat -> proc dat
+			NoValue   -> Nothing
 
 -- | Retrieve the current column number.
 columnNumber :: RowParser P.Column
