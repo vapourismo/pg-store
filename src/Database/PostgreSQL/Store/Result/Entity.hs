@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Result.Entity
@@ -13,9 +13,23 @@ module Database.PostgreSQL.Store.Result.Entity (
 import           Control.Monad
 import           Control.Applicative
 
+import           Data.Int
+import           Data.Word
+import           Numeric.Natural
+
+import qualified Data.ByteString         as B
+import qualified Data.ByteString.Lazy    as BL
+
+import qualified Data.Text               as T
+import qualified Data.Text.Encoding      as T
+import qualified Data.Text.Lazy          as TL
+import qualified Data.Text.Lazy.Encoding as TL
+
+import           Data.Attoparsec.ByteString
+import           Data.Attoparsec.ByteString.Char8 (signed, decimal)
+
 import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Result.Parser
-
 
 -- | An entity whose underlying information spans zero or more columns
 class ResultEntity a where
@@ -72,3 +86,69 @@ instance (ResultEntity a) => ResultEntity (Maybe a) where
 		case value of
 			NoValue -> pure Nothing
 			_       -> Just <$> parseEntity
+
+-- | Parse the contents of a column (only if present).
+parseContents :: (B.ByteString -> Maybe a) -> RowParser a
+parseContents proc =
+	parseColumn $ \ (TypedValue _ value) ->
+		case value of
+			Value dat -> proc dat
+			NoValue   -> Nothing
+
+instance ResultEntity Bool where
+	parseEntity =
+		parseContents $ \ dat ->
+			Just (elem dat ["true", "TRUE", "t", "y", "yes", "YES", "on", "ON", "1"])
+
+-- | Parse a column using the given 'Parser'.
+parseColumnWith :: Parser a -> RowParser a
+parseColumnWith p = parseContents (maybeResult . parse p)
+
+instance ResultEntity Integer where
+	parseEntity = parseColumnWith (signed decimal)
+
+instance ResultEntity Int where
+	parseEntity = parseColumnWith (signed decimal)
+
+instance ResultEntity Int8 where
+	parseEntity = parseColumnWith (signed decimal)
+
+instance ResultEntity Int16 where
+	parseEntity = parseColumnWith (signed decimal)
+
+instance ResultEntity Int32 where
+	parseEntity = parseColumnWith (signed decimal)
+
+instance ResultEntity Int64 where
+	parseEntity = parseColumnWith (signed decimal)
+
+instance ResultEntity Natural where
+	parseEntity = parseColumnWith decimal
+
+instance ResultEntity Word where
+	parseEntity = parseColumnWith decimal
+
+instance ResultEntity Word8 where
+	parseEntity = parseColumnWith decimal
+
+instance ResultEntity Word16 where
+	parseEntity = parseColumnWith decimal
+
+instance ResultEntity Word32 where
+	parseEntity = parseColumnWith decimal
+
+instance ResultEntity Word64 where
+	parseEntity = parseColumnWith decimal
+
+instance ResultEntity String where
+	parseEntity =
+		parseContents $ \ contents ->
+			T.unpack <$> either (const Nothing) Just (T.decodeUtf8' contents)
+
+instance ResultEntity T.Text where
+	parseEntity =
+		parseContents (either (const Nothing) Just . T.decodeUtf8')
+
+instance ResultEntity TL.Text where
+	parseEntity =
+		parseContents (either (const Nothing) Just . TL.decodeUtf8' . BL.fromStrict)
