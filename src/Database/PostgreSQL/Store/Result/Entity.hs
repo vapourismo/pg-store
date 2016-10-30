@@ -112,7 +112,11 @@ instance ResultEntity Bool where
 
 -- | Parse a column using the given 'Parser'.
 parseContentsWith :: Parser a -> RowParser a
-parseContentsWith p = parseContents (maybeResult . parse p)
+parseContentsWith p =
+	parseContents (maybeResult . endResult . parse p)
+	where
+		endResult (Partial f) = f B.empty
+		endResult x           = x
 
 -- | Any numeric type
 instance ResultEntity Integer where
