@@ -32,8 +32,8 @@ import           Data.Attoparsec.ByteString
 import           Data.Attoparsec.ByteString.Char8 (signed, decimal)
 
 import           Database.PostgreSQL.Store.Types
-import           Database.PostgreSQL.Store.Result.Parser
 import           Database.PostgreSQL.Store.Utilities
+import           Database.PostgreSQL.Store.Result.Parser
 
 -- | An entity whose underlying information spans zero or more columns
 class ResultEntity a where
