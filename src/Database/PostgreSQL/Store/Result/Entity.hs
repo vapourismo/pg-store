@@ -29,7 +29,7 @@ import qualified Data.Text.Lazy          as TL
 import qualified Data.Text.Lazy.Encoding as TL
 
 import           Data.Attoparsec.ByteString
-import           Data.Attoparsec.ByteString.Char8 (signed, decimal)
+import           Data.Attoparsec.ByteString.Char8 (signed, decimal, skipSpace)
 
 import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Utilities
@@ -174,6 +174,7 @@ instance ResultEntity String where
 instance ResultEntity T.Text where
 	parseEntity =
 		parseContents (either (const Nothing) Just . T.decodeUtf8')
+
 -- | @char@, @varchar@ or @text@
 instance ResultEntity TL.Text where
 	parseEntity =
@@ -196,6 +197,7 @@ instance ResultEntity B.ByteString where
 				| otherwise           = 0
 
 			hexWord = do
+				skipSpace
 				a <- satisfy isHexChar
 				b <- satisfy isHexChar
 
@@ -204,7 +206,7 @@ instance ResultEntity B.ByteString where
 			hexFormat = do
 				word8 92  -- \
 				word8 120 -- x
-				B.pack <$> many hexWord
+				B.pack <$> many hexWord <* skipSpace
 
 			isOctChar x = x >= 48 && x <= 55
 
