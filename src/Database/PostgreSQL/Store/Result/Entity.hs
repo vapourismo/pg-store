@@ -19,6 +19,8 @@ import           Data.Word
 import           Numeric.Natural
 import           Data.Bits
 
+import qualified Data.Aeson              as A
+
 import qualified Data.ByteString         as B
 import qualified Data.ByteString.Lazy    as BL
 
@@ -224,3 +226,6 @@ instance ResultEntity B.ByteString where
 -- | @bytea@
 instance ResultEntity BL.ByteString where
 	parseEntity = BL.fromStrict <$> parseEntity
+
+instance ResultEntity A.Value where
+	parseEntity = parseContents A.decodeStrict
