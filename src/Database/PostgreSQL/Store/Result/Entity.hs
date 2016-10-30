@@ -1,5 +1,4 @@
-{-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances, DeriveFunctor,
-             DefaultSignatures #-}
+{-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances, DefaultSignatures #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Result.Entity
