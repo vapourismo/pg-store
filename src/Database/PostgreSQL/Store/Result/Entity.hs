@@ -96,6 +96,7 @@ instance ResultEntity Value where
 instance ResultEntity TypedValue where
 	parseEntity = fetchColumn
 
+-- | A value which may normally not be @NULL@.
 instance (ResultEntity a) => ResultEntity (Maybe a) where
 	parseEntity = do
 		TypedValue _ value <- peekColumn
@@ -230,5 +231,6 @@ instance ResultEntity B.ByteString where
 instance ResultEntity BL.ByteString where
 	parseEntity = BL.fromStrict <$> parseEntity
 
+-- | @json@ or @jsonb@
 instance ResultEntity A.Value where
 	parseEntity = parseContents A.decodeStrict
