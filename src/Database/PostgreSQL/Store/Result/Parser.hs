@@ -91,10 +91,8 @@ skipColumn = RowParser $ do
 -- | Parse the contents of a column (only if present).
 parseContents :: (B.ByteString -> Maybe a) -> RowParser a
 parseContents proc =
-	parseColumn $ \ (TypedValue _ value) ->
-		case value of
-			Value dat -> proc dat
-			NoValue   -> Nothing
+	parseColumn $ \ (TypedValue _ mbValue) ->
+		mbValue >>= proc . valueData
 
 -- | Retrieve the current column number.
 columnNumber :: RowParser P.Column
@@ -102,7 +100,7 @@ columnNumber =
 	RowParser (gets (\ (Row columnNumber _) -> columnNumber))
 
 -- | Result set
-data ResultSet = ResultSet [P.Oid] [[Value]]
+data ResultSet = ResultSet [P.Oid] [[Maybe Value]]
 
 -- | Extract a 'ResultSet' from the 'Result'.
 buildResultSet :: P.Result -> IO ResultSet
@@ -117,7 +115,7 @@ buildResultSet result = do
 
 	where
 		getValue result row column =
-			maybe NoValue Value <$> P.getvalue' result row column
+			fmap Value <$> P.getvalue' result row column
 
 -- | Error that occurs during result parsing
 data ResultParseError = ResultParseError P.Row RowParseError

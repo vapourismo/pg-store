@@ -90,7 +90,7 @@ instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d, Result
 
 -- | Untyped column value
 instance ResultEntity Value where
-	parseEntity = parseColumn (\ (TypedValue _ value) -> Just value)
+	parseEntity = parseColumn (\ (TypedValue _ mbValue) -> mbValue)
 
 -- | Typed column value
 instance ResultEntity TypedValue where
@@ -101,10 +101,10 @@ instance (ResultEntity a) => ResultEntity (Maybe a) where
 	parseEntity = do
 		TypedValue _ value <- peekColumn
 		case value of
-			NoValue -> pure Nothing
+			Nothing -> pure Nothing
 			_       -> Just <$> parseEntity
 
--- | @boolean@ - everything that is not a valid boolean value is 'False'
+-- | @boolean@ - every value that is not a valid boolean is 'False'
 instance ResultEntity Bool where
 	parseEntity =
 		parseContents $ \ dat ->
