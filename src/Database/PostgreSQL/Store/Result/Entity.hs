@@ -37,6 +37,7 @@ import           Database.PostgreSQL.Store.Result.Parser
 
 -- | An entity whose underlying information spans zero or more columns
 class ResultEntity a where
+	-- | Build an instance of @a@.
 	parseEntity :: RowParser a
 
 	default parseEntity :: (Read a) => RowParser a
@@ -180,7 +181,7 @@ instance ResultEntity TL.Text where
 	parseEntity =
 		parseContents (either (const Nothing) Just . TL.decodeUtf8' . BL.fromStrict)
 
--- | @bytea@
+-- | @bytea@ - byte array in hex or escape format
 instance ResultEntity B.ByteString where
 	parseEntity =
 		parseContentsWith (hexFormat <|> escapedFormat)
@@ -229,7 +230,7 @@ instance ResultEntity B.ByteString where
 			escapedFormat =
 				B.pack <$> many (escapedBackslash <|> escapedWord <|> anyWord8)
 
--- | @bytea@
+-- | @bytea@ - byte array encoded in hex or escape format
 instance ResultEntity BL.ByteString where
 	parseEntity = BL.fromStrict <$> parseEntity
 

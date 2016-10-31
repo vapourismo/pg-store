@@ -8,6 +8,7 @@
 module Database.PostgreSQL.Store.Result.Parser (
 	-- * Row Parser
 	RowParser,
+	RowParseError (..),
 	fetchColumn,
 	peekColumn,
 	parseColumn,
@@ -16,6 +17,7 @@ module Database.PostgreSQL.Store.Result.Parser (
 	parseContents,
 
 	-- * Result Parser
+	ResultParseError (..),
 	parseResult
 ) where
 
@@ -68,7 +70,7 @@ peekColumn = RowParser $ do
 		column : _ -> pure column
 
 -- | Fetch a column and parse it. Using this function allows you to associate the column number and
--- 'Oid' with the value that could not be parsed.
+-- 'Oid' with the value that could not be parsed. See 'ParseError'.
 parseColumn :: (TypedValue -> Maybe a) -> RowParser a
 parseColumn proc = RowParser $ do
 	Row columnNumber columns <- get
