@@ -108,7 +108,7 @@ instance (ResultEntity a) => ResultEntity (Maybe a) where
 instance ResultEntity Bool where
 	parseEntity =
 		parseContents $ \ dat ->
-			Just (elem dat ["true", "TRUE", "t", "y", "yes", "YES", "on", "ON", "1"])
+			Just (elem dat ["t", "1", "true", "TRUE", "y", "yes", "YES", "on", "ON"])
 
 -- | Parse a column using the given 'Parser'.
 parseContentsWith :: Parser a -> RowParser a
