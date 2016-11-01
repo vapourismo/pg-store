@@ -120,18 +120,18 @@ buildResultSet result = do
 			fmap Value <$> P.getvalue' result row column
 
 -- | Error that occurs during result parsing
-data ResultParseError = ResultParseError P.Row RowParseError
+data ResultParseError = RowParseError P.Row RowParseError
 	deriving (Show, Eq, Ord)
 
 -- | Parse the entire result set.
-parseResultSet :: RowParser a -> ResultSet -> Except ResultParseError [a]
-parseResultSet parser (ResultSet types values) =
+parseResultSet :: ResultSet -> RowParser a -> Except ResultParseError [a]
+parseResultSet (ResultSet types values) parser =
 	forM (zip values [0 .. P.toRow (length values - 1)]) $ \ (row, rowNumber) ->
-		withExcept (ResultParseError rowNumber) $
+		withExcept (RowParseError rowNumber) $
 			parseRow parser (Row 0 (zipWith TypedValue types row))
 
 -- | Parse the result.
-parseResult :: RowParser a -> P.Result -> ExceptT ResultParseError IO [a]
-parseResult parser result = do
+parseResult :: P.Result -> RowParser a -> ExceptT ResultParseError IO [a]
+parseResult result parser = do
 	resultSet <- liftIO (buildResultSet result)
-	mapExceptT (pure . runIdentity) (parseResultSet parser resultSet)
+	mapExceptT (pure . runIdentity) (parseResultSet resultSet parser)
