@@ -8,6 +8,7 @@
 module Database.PostgreSQL.Store.Utilities (
 	showByteString,
 	readByteString,
+	buildByteString,
 	liftByteString
 ) where
 
@@ -31,6 +32,11 @@ showByteString =
 readByteString :: (Read a) => B.ByteString -> Maybe a
 readByteString =
 	readMaybe . T.unpack . T.decodeUtf8
+
+-- | UTF-8 correct alternative to 'fromString'.
+buildByteString :: String -> B.ByteString
+buildByteString =
+	B.toByteString . B.fromString
 
 -- | Lift 'ByteString'.
 liftByteString :: B.ByteString -> Q Exp

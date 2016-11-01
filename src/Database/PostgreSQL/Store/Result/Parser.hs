@@ -50,8 +50,8 @@ newtype RowParser a =
 
 -- | Parse a single row.
 parseRow :: RowParser a -> Row -> Except RowParseError a
-parseRow (RowParser parser) row =
-	evalStateT parser row
+parseRow (RowParser parser) =
+	evalStateT parser
 
 -- | Fetch the type 'Oid' and value of the current column.
 fetchColumn :: RowParser TypedValue
