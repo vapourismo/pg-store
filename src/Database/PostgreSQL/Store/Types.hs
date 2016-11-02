@@ -6,7 +6,8 @@
 module Database.PostgreSQL.Store.Types (
 	-- * General
 	Value (..),
-	TypedValue (..)
+	TypedValue (..),
+	Query (..)
 ) where
 
 import qualified Data.ByteString           as B
@@ -19,3 +20,9 @@ newtype Value = Value { valueData :: B.ByteString }
 -- | Value and type 'Oid' of a cell in the result set
 data TypedValue = TypedValue P.Oid (Maybe Value)
 	deriving (Show, Eq, Ord)
+
+-- | Query
+data Query = Query {
+	queryStatement :: B.ByteString,
+	queryParams    :: [TypedValue]
+} deriving (Show, Eq, Ord)

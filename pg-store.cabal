@@ -27,6 +27,7 @@ library
   exposed-modules:  Database.PostgreSQL.Store.Result.Parser
                     Database.PostgreSQL.Store.Result.Entity
                     Database.PostgreSQL.Store.Result
+                    Database.PostgreSQL.Store.Query.Builder
                     Database.PostgreSQL.Store.Types
   other-modules:    Database.PostgreSQL.Store.Utilities
 
