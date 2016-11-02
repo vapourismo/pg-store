@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances, DefaultSignatures,
-             TypeOperators, ScopedTypeVariables, ConstraintKinds, DataKinds, TypeFamilies #-}
+             TypeOperators, ScopedTypeVariables, ConstraintKinds, DataKinds, TypeFamilies,
+             UndecidableInstances #-}
 -- |
 -- Module:     Database.PostgreSQL.Store.Result.Entity
 -- Copyright:  (c) Ole Krüger 2016
@@ -22,7 +23,6 @@ module Database.PostgreSQL.Store.Result.Entity (
 import           GHC.Generics
 import           GHC.TypeLits
 
-import           Control.Monad
 import           Control.Applicative
 
 import           Data.Int
@@ -119,51 +119,32 @@ class ResultEntity a where
 	default parseEntity :: (EligibleDataType meta cons a) => RowParser a
 	parseEntity = parseGeneric
 
+instance {-# OVERLAPPABLE #-} (EligibleDataType meta cons a) => ResultEntity a where
+	parseEntity = parseGeneric
+
 -- | 2 result entities in sequence
-instance (ResultEntity a, ResultEntity b) => ResultEntity (a, b) where
-	parseEntity =
-		liftA2 (,) parseEntity parseEntity
+instance (ResultEntity a, ResultEntity b) => ResultEntity (a, b)
 
 -- | 3 result entities in sequence
-instance (ResultEntity a, ResultEntity b, ResultEntity c) => ResultEntity (a, b, c) where
-	parseEntity =
-		liftA3 (,,) parseEntity parseEntity parseEntity
+instance (ResultEntity a, ResultEntity b, ResultEntity c) => ResultEntity (a, b, c)
 
 -- | 4 result entities in sequence
 instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d)
-         => ResultEntity (a, b, c, d) where
-	parseEntity =
-		liftM4 (,,,) parseEntity parseEntity parseEntity parseEntity
+         => ResultEntity (a, b, c, d)
 
 -- | 5 result entities in sequence
 instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d, ResultEntity e)
-         => ResultEntity (a, b, c, d, e) where
-	parseEntity =
-		liftM5 (,,,,) parseEntity parseEntity parseEntity parseEntity parseEntity
+         => ResultEntity (a, b, c, d, e)
 
 -- | 6 result entities in sequence
 instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d, ResultEntity e,
           ResultEntity f)
-         => ResultEntity (a, b, c, d, e, f) where
-	parseEntity =
-		(,,,,,) <$> parseEntity <*> parseEntity <*> parseEntity <*> parseEntity <*> parseEntity
-		        <*> parseEntity
+         => ResultEntity (a, b, c, d, e, f)
 
 -- | 7 result entities in sequence
 instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d, ResultEntity e,
           ResultEntity f, ResultEntity g)
-         => ResultEntity (a, b, c, d, e, f, g) where
-	parseEntity =
-		(,,,,,,) <$> parseEntity <*> parseEntity <*> parseEntity <*> parseEntity <*> parseEntity
-		         <*> parseEntity <*> parseEntity
-
--- | 8 result entities in sequence
-instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d, ResultEntity e,
-          ResultEntity f, ResultEntity g, ResultEntity h)
-         => ResultEntity (a, b, c, d, e, f, g, h) where
-	parseEntity =
-		(,,,,,,,) <$> parseEntity <*> parseEntity <*> parseEntity <*> parseEntity <*> parseEntity
-		          <*> parseEntity <*> parseEntity <*> parseEntity
+         => ResultEntity (a, b, c, d, e, f, g)
 
 -- | Untyped column value
 instance ResultEntity Value where
