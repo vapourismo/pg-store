@@ -1,4 +1,4 @@
-{-# LANGUAGE RecordWildCards, TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings, RecordWildCards, TypeSynonymInstances, FlexibleInstances #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Query.Builder
@@ -11,6 +11,7 @@ module Database.PostgreSQL.Store.Query.Builder (
 	insertCode,
 	insertTypedValue,
 	insertValue,
+	insertValue',
 	insertQuote,
 	insertName,
 
@@ -56,6 +57,15 @@ insertTypedValue typedValue =
 insertValue :: Value -> QueryBuilder
 insertValue value =
 	insertTypedValue (TypedValue invalidOid (Just value))
+
+-- | Extension of 'insertValue' which will add a type hint to the parameter placeholder.
+insertValue' :: B.ByteString -> Value -> QueryBuilder
+insertValue' typ value = do
+	insertCode "("
+	insertValue value
+	insertCode " :: "
+	insertCode typ
+	insertCode ")"
 
 -- | Insert a quote into the code.
 insertQuote :: B.ByteString -> QueryBuilder
