@@ -103,7 +103,7 @@ type GenericResultEntity meta cons a = (Generic a, Rep a ~ D1 meta cons, GResult
 parseGeneric :: (GenericResultEntity meta cons a) => RowParser a
 parseGeneric = to . M1 <$> parseCons
 
--- | An entity whose underlying information spans zero or more columns
+-- | An entity whose underlying information can be extracted from zero or more columns.
 class ResultEntity a where
 	-- | Build an instance of @a@.
 	parseEntity :: RowParser a

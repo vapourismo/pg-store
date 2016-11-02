@@ -17,7 +17,7 @@ import qualified Database.PostgreSQL.LibPQ as P
 newtype Value = Value { valueData :: B.ByteString }
 	deriving (Show, Eq, Ord)
 
--- | Value and type 'Oid' of a cell in the result set
+-- | Value and type 'P.Oid' of a cell in the result set
 data TypedValue = TypedValue P.Oid (Maybe Value)
 	deriving (Show, Eq, Ord)
 
