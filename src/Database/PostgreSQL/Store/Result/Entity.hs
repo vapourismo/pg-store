@@ -11,7 +11,7 @@ module Database.PostgreSQL.Store.Result.Entity (
 	ResultEntity (..),
 
 	-- * Generic Parser
-	EligibleDataType,
+	GenericResultEntity,
 	parseGeneric,
 
 	-- * Helpers
@@ -54,10 +54,6 @@ import           Database.PostgreSQL.Store.Result.Parser
 class GResultSel sel where
 	parseSel :: RowParser (sel x)
 
--- | No selectors
-instance GResultSel U1 where
-	parseSel = pure U1
-
 -- | Single selector
 instance (ResultEntity a) => GResultSel (S1 meta (Rec0 a)) where
 	parseSel = M1 . K1 <$> parseEntity
@@ -65,7 +61,6 @@ instance (ResultEntity a) => GResultSel (S1 meta (Rec0 a)) where
 -- | Multiple selectors
 instance (GResultSel lhs, GResultSel rhs) => GResultSel (lhs :*: rhs) where
 	parseSel = (:*:) <$> parseSel <*> parseSel
-
 
 -- | @cons@ represents the constructors of a data type.
 class GResultCons cons where
@@ -82,7 +77,6 @@ instance (GResultEnum lhs, GResultEnum rhs) => GResultCons (lhs :+: rhs) where
 	parseCons =
 		parseContents (`lookup` enumValues)
 
-
 -- | @enum@ represents the constructors without selectors.
 class GResultEnum enum where
 	enumValues :: [(B.ByteString, enum x)]
@@ -98,28 +92,26 @@ instance (GResultEnum lhs, GResultEnum rhs) => GResultEnum (lhs :+: rhs) where
 		map (second L1) enumValues
 		++ map (second R1) enumValues
 
-
 -- | Constrain @a@ to be a data type that satisfies one of the following properties:
 --
---   * single constructor with 0 or more fields
+--   * single constructor with 1 or more fields
 --   * multiple constructors with no fields
 --
-type EligibleDataType meta cons a = (Generic a, Rep a ~ D1 meta cons, GResultCons cons)
+type GenericResultEntity meta cons a = (Generic a, Rep a ~ D1 meta cons, GResultCons cons)
 
 -- | 'RowParser' for a generic data type.
-parseGeneric :: (EligibleDataType meta cons a) => RowParser a
+parseGeneric :: (GenericResultEntity meta cons a) => RowParser a
 parseGeneric = to . M1 <$> parseCons
-
 
 -- | An entity whose underlying information spans zero or more columns
 class ResultEntity a where
 	-- | Build an instance of @a@.
 	parseEntity :: RowParser a
 
-	default parseEntity :: (EligibleDataType meta cons a) => RowParser a
+	default parseEntity :: (GenericResultEntity meta cons a) => RowParser a
 	parseEntity = parseGeneric
 
-instance {-# OVERLAPPABLE #-} (EligibleDataType meta cons a) => ResultEntity a where
+instance {-# OVERLAPPABLE #-} (GenericResultEntity meta cons a) => ResultEntity a where
 	parseEntity = parseGeneric
 
 -- | 2 result entities in sequence
