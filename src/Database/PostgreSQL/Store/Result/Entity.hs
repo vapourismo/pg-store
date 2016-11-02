@@ -111,6 +111,7 @@ class ResultEntity a where
 	default parseEntity :: (GenericResultEntity meta cons a) => RowParser a
 	parseEntity = parseGeneric
 
+-- | Generic instance
 instance {-# OVERLAPPABLE #-} (GenericResultEntity meta cons a) => ResultEntity a where
 	parseEntity = parseGeneric
 
@@ -216,16 +217,16 @@ instance ResultEntity Word32 where
 instance ResultEntity Word64 where
 	parseEntity = parseContentsWith decimal
 
--- | @char@, @varchar@ or @text@
+-- | @char@, @varchar@ or @text@ - UTF-8 encoded
 instance ResultEntity String where
 	parseEntity = T.unpack <$> parseEntity
 
--- | @char@, @varchar@ or @text@
+-- | @char@, @varchar@ or @text@ - UTF-8 encoded
 instance ResultEntity T.Text where
 	parseEntity =
 		parseContents (either (const Nothing) Just . T.decodeUtf8')
 
--- | @char@, @varchar@ or @text@
+-- | @char@, @varchar@ or @text@ - UTF-8 encoded
 instance ResultEntity TL.Text where
 	parseEntity =
 		parseContents (either (const Nothing) Just . TL.decodeUtf8' . BL.fromStrict)
