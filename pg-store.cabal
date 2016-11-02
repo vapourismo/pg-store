@@ -28,6 +28,7 @@ library
                     Database.PostgreSQL.Store.Result.Entity
                     Database.PostgreSQL.Store.Result
                     Database.PostgreSQL.Store.Query.Builder
+                    Database.PostgreSQL.Store.Query.Entity
                     Database.PostgreSQL.Store.Types
   other-modules:    Database.PostgreSQL.Store.Utilities
 

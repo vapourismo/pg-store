@@ -63,7 +63,7 @@ insertValue' :: B.ByteString -> Value -> QueryBuilder
 insertValue' typ value = do
 	insertCode "("
 	insertValue value
-	insertCode " :: "
+	insertCode "::"
 	insertCode typ
 	insertCode ")"
 
@@ -115,4 +115,9 @@ instance FromQueryBuilder B.ByteString where
 instance FromQueryBuilder (B.ByteString, [TypedValue]) where
 	buildQuery builder =
 		(code, values)
+		where BuilderState code _ values = execState builder (BuilderState B.empty 1 [])
+
+instance FromQueryBuilder Query where
+	buildQuery builder =
+		Query code values
 		where BuilderState code _ values = execState builder (BuilderState B.empty 1 [])
