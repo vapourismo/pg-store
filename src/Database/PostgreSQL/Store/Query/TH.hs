@@ -112,13 +112,13 @@ entityCodeSegment =
 			                         some (satisfy (notInClass "\"'{}"))])
 
 		bracedCode =
-			char '{' *> insideCode <* char '}'
+			char '{' *> fmap (\ code -> '{' : code ++ "}") insideCode <* char '}'
 
 		quoteCode delim = do
 			char delim
 			cnt <- many (choice [escapedDelim delim, notDelim delim])
 			char delim
-			pure (concat cnt)
+			pure (delim : concat cnt ++ [delim])
 
 		escapedDelim delim = do
 			char '\\'
