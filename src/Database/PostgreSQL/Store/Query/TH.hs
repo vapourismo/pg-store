@@ -26,8 +26,9 @@ import qualified Blaze.ByteString.Builder           as B
 import qualified Blaze.ByteString.Builder.Char.Utf8 as B
 import qualified Data.Text                          as T
 
-import           Database.PostgreSQL.Store.Query.Builder
 import           Database.PostgreSQL.Store.Utilities
+import           Database.PostgreSQL.Store.Query.Builder
+import           Database.PostgreSQL.Store.Query.Entity
 
 -- | Name
 valueName :: Parser String

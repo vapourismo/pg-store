@@ -132,6 +132,10 @@ instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d, QueryEntit
           QueryEntity g)
          => QueryEntity (a, b, c, d, e, f, g)
 
+-- | 'QueryBuilder'
+instance QueryEntity QueryBuilder where
+	insertEntity = id
+
 -- | Untyped value
 instance QueryEntity Value where
 	insertEntity = insertValue
