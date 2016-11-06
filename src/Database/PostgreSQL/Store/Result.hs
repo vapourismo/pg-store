@@ -25,13 +25,13 @@ import           Database.PostgreSQL.Store.Result.Entity
 
 import qualified Database.PostgreSQL.LibPQ as P
 
--- |
+-- | Error that occurs during result processing.
 data ResultProcessError
 	= ResultParseError ResultParseError
 	| UnsupportedStatus P.ExecStatus
 	deriving (Show, Eq)
 
--- |
+-- | Make sure the given 'P.Result' is valid and ready for processing.
 validateResult :: P.Result -> ExceptT ResultProcessError IO ()
 validateResult result = do
 	status <- liftIO (P.resultStatus result)
@@ -46,13 +46,13 @@ validateResult result = do
 		-- TODO: Handle 'NonfatalError'
 		-- TODO: Handle 'FatalError'
 
--- |
+-- | Process the 'P.Result' with a user-provided 'RowParser'.
 processResultWith :: P.Result -> RowParser a -> ExceptT ResultProcessError IO [a]
 processResultWith result parser = do
 	validateResult result
 	withExceptT ResultParseError (parseResult result parser)
 
--- |
+-- | Process the 'P.Result' with a 'RowParser' provided by the 'ResultEntity' instance.
 processResult :: (ResultEntity a) => P.Result -> ExceptT ResultProcessError IO [a]
 processResult result =
 	processResultWith result parseEntity
