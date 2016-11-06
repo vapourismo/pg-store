@@ -51,12 +51,12 @@ data QuerySegment
 	| QueryEntityCode String
 	| QueryQuote Char String
 	| QueryOther String
-	-- | QueryTable String
-	-- | QueryTableProxy String
-	-- | QuerySelector String
-	-- | QuerySelectorProxy String
-	-- | QueryIdentifier String
-	-- | QueryIdentifierProxy String
+	-- QueryTable String
+	-- QueryTableProxy String
+	-- QuerySelector String
+	-- QuerySelectorProxy String
+	-- QueryIdentifier String
+	-- QueryIdentifierProxy String
 	deriving (Show, Eq, Ord)
 
 -- -- | Table
