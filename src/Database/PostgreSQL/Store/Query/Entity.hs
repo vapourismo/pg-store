@@ -26,6 +26,7 @@ import           Data.Proxy
 
 import           Data.Int
 import           Data.Word
+import           Data.Scientific
 import           Numeric
 import           Numeric.Natural
 
@@ -161,65 +162,83 @@ instance QueryEntity Bool where
 -- | Insert a numeric value.
 insertNumericValue :: (Show a) => a -> QueryBuilder
 insertNumericValue x =
-	insertTypedValue (TypedValue (Oid 1700) (Just (Value (showByteString x))))
+	insertTypedValue_ (Oid 1700) (showByteString x)
 
--- | Any numeric
+-- | Any integer
 instance QueryEntity Integer where
 	insertEntity = insertNumericValue
 
--- | Any numeric
+-- | Any integer
 instance QueryEntity Int where
 	insertEntity = insertNumericValue
 
--- | Any numeric
+-- | Any integer
 instance QueryEntity Int8 where
 	insertEntity = insertNumericValue
 
--- | Any numeric
+-- | Any integer
 instance QueryEntity Int16 where
 	insertEntity = insertNumericValue
 
--- | Any numeric
+-- | Any integer
 instance QueryEntity Int32 where
 	insertEntity = insertNumericValue
 
--- | Any numeric
+-- | Any integer
 instance QueryEntity Int64 where
 	insertEntity = insertNumericValue
 
--- | Any numeric
+-- | Any unsigned integer
 instance QueryEntity Natural where
 	insertEntity = insertNumericValue
 
--- | Any numeric
+-- | Any unsigned integer
 instance QueryEntity Word where
 	insertEntity = insertNumericValue
 
--- | Any numeric
+-- | Any unsigned integer
 instance QueryEntity Word8 where
 	insertEntity = insertNumericValue
 
--- | Any numeric
+-- | Any unsigned integer
 instance QueryEntity Word16 where
 	insertEntity = insertNumericValue
 
--- | Any numeric
+-- | Any unsigned integer
 instance QueryEntity Word32 where
 	insertEntity = insertNumericValue
 
--- | Any numeric
+-- | Any unsigned integer
 instance QueryEntity Word64 where
 	insertEntity = insertNumericValue
+
+-- | Any floating-point number
+instance QueryEntity Double where
+	insertEntity = insertNumericValue
+
+-- | Any floating-point number
+instance QueryEntity Float where
+	insertEntity = insertNumericValue
+
+-- | Simplified version of 'insertTypedValue'
+insertTypedValue_ :: Oid -> B.ByteString -> QueryBuilder
+insertTypedValue_ typ val =
+	insertTypedValue (TypedValue typ (Just (Value val)))
+
+-- | Any numeric type
+instance QueryEntity Scientific where
+	insertEntity x =
+		insertTypedValue_ (Oid 1700) (buildByteString (formatScientific Fixed Nothing x))
 
 -- | @char@, @varchar@ or @text@ - UTF-8 encoded
 instance QueryEntity String where
 	insertEntity value =
-		insertTypedValue (TypedValue (Oid 25) (Just (Value (buildByteString value))))
+		insertTypedValue_ (Oid 25) (buildByteString value)
 
 -- | @char@, @varchar@ or @text@ - UTF-8 encoded
 instance QueryEntity T.Text where
 	insertEntity value =
-		insertTypedValue (TypedValue (Oid 25) (Just (Value (T.encodeUtf8 value))))
+		insertTypedValue_ (Oid 25) (T.encodeUtf8 value)
 
 -- | @char@, @varchar@ or @text@ - UTF-8 encoded
 instance QueryEntity TL.Text where
@@ -229,7 +248,7 @@ instance QueryEntity TL.Text where
 -- | @bytea@ - byte array encoded in hex format
 instance QueryEntity B.ByteString where
 	insertEntity value =
-		insertTypedValue (TypedValue (Oid 17) (Just (Value dat)))
+		insertTypedValue_ (Oid 17) dat
 		where
 			dat = B.append "\\x" (B.concatMap showHex' value)
 
@@ -247,4 +266,4 @@ instance QueryEntity BL.ByteString where
 -- | @json@ or @jsonb@
 instance QueryEntity A.Value where
 	insertEntity value =
-		insertTypedValue (TypedValue (Oid 114) (Just (Value (BL.toStrict (A.encode value)))))
+		insertTypedValue_ (Oid 114) (BL.toStrict (A.encode value))
