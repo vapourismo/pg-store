@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, FlexibleInstances, TypeOperators, DataKinds, ScopedTypeVariables,
-             ConstraintKinds, TypeFamilies, DefaultSignatures, UndecidableInstances #-}
+             ConstraintKinds, DefaultSignatures, UndecidableInstances, FlexibleContexts #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Query.Entity
@@ -11,13 +11,13 @@ module Database.PostgreSQL.Store.Query.Entity (
 	QueryEntity (..),
 
 	-- * Generic Builder
-	GenericQueryEntity,
 	insertGeneric,
 
 	-- * Helpers
 	GQuerySel (..),
 	GQueryEnum (..),
-	GQueryCons (..)
+	GQueryCons (..),
+	GQueryEntity (..),
 ) where
 
 import           GHC.Generics
@@ -46,68 +46,76 @@ import           Database.PostgreSQL.Store.Query.Builder
 
 -- | @sel@ represents the selectors of a constructor.
 class GQuerySel sel where
-	insertSel :: sel x -> QueryBuilder
+	gInsertSel :: sel x -> QueryBuilder
 
 -- | Single selector
 instance (QueryEntity a) => GQuerySel (S1 meta (Rec0 a)) where
-	insertSel (M1 (K1 x)) = insertEntity x
+	gInsertSel (M1 (K1 x)) = insertEntity x
 
 -- | Multiple selectors
 instance (GQuerySel lhs, GQuerySel rhs) => GQuerySel (lhs :*: rhs) where
-	insertSel (lhs :*: rhs) = do
-		insertSel lhs
+	gInsertSel (lhs :*: rhs) = do
+		gInsertSel lhs
 		insertCode ","
-		insertSel rhs
+		gInsertSel rhs
 
 -- | @cons@ represents the constructors of a data type.
 class GQueryCons cons where
-	insertCons :: cons x -> QueryBuilder
+	gInsertCons :: cons x -> QueryBuilder
 
 -- | Single constructor
 instance (GQuerySel sel) => GQueryCons (C1 meta sel) where
-	insertCons (M1 sel) = insertSel sel
+	gInsertCons (M1 sel) = gInsertSel sel
 
 -- | Multiple constructors; each constructor must qualify as an enum value and can't have any
 --   fields.
 instance (GQueryEnum lhs, GQueryEnum rhs) => GQueryCons (lhs :+: rhs) where
-	insertCons (L1 lhs) = insertQuote (enumValue lhs)
-	insertCons (R1 rhs) = insertQuote (enumValue rhs)
+	gInsertCons (L1 lhs) = insertQuote (gEnumValue lhs)
+	gInsertCons (R1 rhs) = insertQuote (gEnumValue rhs)
 
 -- | @enum@ represents the constructors without selectors.
 class GQueryEnum enum where
-	enumValue :: enum x -> B.ByteString
+	gEnumValue :: enum x -> B.ByteString
 
 -- | Single constructor
 instance (KnownSymbol name) => GQueryEnum (C1 ('MetaCons name meta1 meta2) U1) where
-	enumValue _ =
+	gEnumValue _ =
 		buildByteString (symbolVal (Proxy :: Proxy name))
 
 -- | Multiple constructors
 instance (GQueryEnum lhs, GQueryEnum rhs) => GQueryEnum (lhs :+: rhs) where
-	enumValue (L1 lhs) = enumValue lhs
-	enumValue (R1 rhs) = enumValue rhs
+	gEnumValue (L1 lhs) = gEnumValue lhs
+	gEnumValue (R1 rhs) = gEnumValue rhs
 
--- | Constrain @a@ to be a data type that satisfies one of the following properties:
---
---   * single constructor with 1 or more fields
---   * multiple constructors with no fields
---
-type GenericQueryEntity meta cons a = (Generic a, Rep a ~ D1 meta cons, GQueryCons cons)
+-- | @dat@ is the representation for a data type.
+class GQueryEntity dat where
+	gInsertEntity :: dat x -> QueryBuilder
 
--- | Insert a generic data type.
-insertGeneric :: (GenericQueryEntity meta cons a) => a -> QueryBuilder
-insertGeneric x = insertCons (unM1 (from x))
+-- | Datatype that qualifies for generic building.
+instance (GQueryCons cons) => GQueryEntity (D1 meta cons) where
+	gInsertEntity (M1 x) = gInsertCons x
+
+-- | Builder for a generic data type
+insertGeneric :: (Generic a, GQueryEntity (Rep a)) => a -> QueryBuilder
+insertGeneric x = gInsertEntity (from x)
 
 -- | An entity that can be inserted into the query.
+--
+-- If @a@ is a data type that matches one of the following criteria, then you may provide an empty
+-- instance or skip defining the instance.
+--
+--  * single constructor with 1 or more records
+--  * multiple constructors with no records
+--
 class QueryEntity a where
 	-- | Insert @a@ into the query.
 	insertEntity :: a -> QueryBuilder
 
-	default insertEntity :: (GenericQueryEntity meta cons a) => a -> QueryBuilder
+	default insertEntity :: (Generic a, GQueryEntity (Rep a)) => a -> QueryBuilder
 	insertEntity = insertGeneric
 
--- | Generic instance
-instance {-# OVERLAPPABLE #-} (GenericQueryEntity meta cons a) => QueryEntity a
+-- | Generic instance - See 'QueryEntity' documentation
+instance {-# OVERLAPPABLE #-} (Generic a, GQueryEntity (Rep a)) => QueryEntity a
 
 -- | 2 query entities in sequence
 instance (QueryEntity a, QueryEntity b) => QueryEntity (a, b)
