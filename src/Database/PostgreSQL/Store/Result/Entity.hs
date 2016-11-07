@@ -28,6 +28,7 @@ import           Control.Applicative
 import           Data.Int
 import           Data.Word
 import           Data.Bits
+import           Data.Scientific (Scientific)
 import           Numeric.Natural
 
 import           Data.Proxy
@@ -44,7 +45,7 @@ import qualified Data.Text.Lazy          as TL
 import qualified Data.Text.Lazy.Encoding as TL
 
 import           Data.Attoparsec.ByteString
-import           Data.Attoparsec.ByteString.Char8 (signed, decimal, skipSpace)
+import           Data.Attoparsec.ByteString.Char8 (signed, decimal, skipSpace, double, scientific)
 
 import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Utilities
@@ -170,53 +171,65 @@ parseContentsWith p =
 		endResult (Partial f) = f B.empty
 		endResult x           = x
 
--- | Any numeric type
+-- | Any integer type
 instance ResultEntity Integer where
 	parseEntity = parseContentsWith (signed decimal)
 
--- | Any numeric type
+-- | Any integer type
 instance ResultEntity Int where
 	parseEntity = parseContentsWith (signed decimal)
 
--- | Any numeric type
+-- | Any integer type
 instance ResultEntity Int8 where
 	parseEntity = parseContentsWith (signed decimal)
 
--- | Any numeric type
+-- | Any integer type
 instance ResultEntity Int16 where
 	parseEntity = parseContentsWith (signed decimal)
 
--- | Any numeric type
+-- | Any integer type
 instance ResultEntity Int32 where
 	parseEntity = parseContentsWith (signed decimal)
 
--- | Any numeric type
+-- | Any integer type
 instance ResultEntity Int64 where
 	parseEntity = parseContentsWith (signed decimal)
 
--- | Any unsigned numeric type
+-- | Any unsigned integer type
 instance ResultEntity Natural where
 	parseEntity = parseContentsWith decimal
 
--- | Any unsigned numeric type
+-- | Any unsigned integer type
 instance ResultEntity Word where
 	parseEntity = parseContentsWith decimal
 
--- | Any unsigned numeric type
+-- | Any unsigned integer type
 instance ResultEntity Word8 where
 	parseEntity = parseContentsWith decimal
 
--- | Any unsigned numeric type
+-- | Any unsigned integer type
 instance ResultEntity Word16 where
 	parseEntity = parseContentsWith decimal
 
--- | Any unsigned numeric type
+-- | Any unsigned integer type
 instance ResultEntity Word32 where
 	parseEntity = parseContentsWith decimal
 
--- | Any unsigned numeric type
+-- | Any unsigned integer type
 instance ResultEntity Word64 where
 	parseEntity = parseContentsWith decimal
+
+-- | Any floating-point numeric type
+instance ResultEntity Double where
+	parseEntity = parseContentsWith double
+
+-- | Any floating-point numeric type
+instance ResultEntity Float where
+	parseEntity = (realToFrac :: Double -> Float) <$> parseEntity
+
+-- | Any numeric type
+instance ResultEntity Scientific where
+	parseEntity = parseContentsWith scientific
 
 -- | @char@, @varchar@ or @text@ - UTF-8 encoded
 instance ResultEntity String where

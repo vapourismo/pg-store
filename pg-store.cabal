@@ -22,7 +22,7 @@ library
   build-depends:    base >= 4.9 && < 5,
                     template-haskell >= 2.11 && < 3,
                     bytestring, blaze-builder, text, postgresql-libpq, attoparsec, mtl, time,
-                    haskell-src-meta, aeson
+                    haskell-src-meta, aeson, scientific
   hs-source-dirs:   src
   exposed-modules:  Database.PostgreSQL.Store.Result.Parser
                     Database.PostgreSQL.Store.Result.Entity
