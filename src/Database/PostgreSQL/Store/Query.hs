@@ -6,6 +6,7 @@
 --
 -- This module acts solely as a re-export unit.
 module Database.PostgreSQL.Store.Query (
+	-- * Exported modules
 	module Database.PostgreSQL.Store.Query.Builder,
 	module Database.PostgreSQL.Store.Query.Entity,
 	module Database.PostgreSQL.Store.Query.TH
