@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances, DefaultSignatures,
-             TypeOperators, ScopedTypeVariables, ConstraintKinds, DataKinds, TypeFamilies,
-             UndecidableInstances #-}
+             TypeOperators, ScopedTypeVariables, DataKinds, UndecidableInstances,
+             FlexibleContexts #-}
 -- |
 -- Module:     Database.PostgreSQL.Store.Result.Entity
 -- Copyright:  (c) Ole Krüger 2016
@@ -11,13 +11,13 @@ module Database.PostgreSQL.Store.Result.Entity (
 	ResultEntity (..),
 
 	-- * Generic Parser
-	GenericResultEntity,
 	parseGeneric,
 
 	-- * Helpers
 	GResultSel (..),
 	GResultEnum (..),
-	GResultCons (..)
+	GResultCons (..),
+	GResultEntity (..)
 ) where
 
 import           GHC.Generics
@@ -52,67 +52,75 @@ import           Database.PostgreSQL.Store.Result.Parser
 
 -- | @sel@ represents the selectors of a constructor.
 class GResultSel sel where
-	parseSel :: RowParser (sel x)
+	gParseSel :: RowParser (sel x)
 
 -- | Single selector
 instance (ResultEntity a) => GResultSel (S1 meta (Rec0 a)) where
-	parseSel = M1 . K1 <$> parseEntity
+	gParseSel = M1 . K1 <$> parseEntity
 
 -- | Multiple selectors
 instance (GResultSel lhs, GResultSel rhs) => GResultSel (lhs :*: rhs) where
-	parseSel = (:*:) <$> parseSel <*> parseSel
+	gParseSel = (:*:) <$> gParseSel <*> gParseSel
 
 -- | @cons@ represents the constructors of a data type.
 class GResultCons cons where
-	parseCons :: RowParser (cons x)
+	gParseCons :: RowParser (cons x)
 
 -- | Single constructor
 instance (GResultSel sel) => GResultCons (C1 meta sel) where
-	parseCons = M1 <$> parseSel
+	gParseCons = M1 <$> gParseSel
 
 -- | Multiple constructors; each constructor must qualify as an enum value and can't have any
 --   fields - the constructor that will be chosen is determined using a single column, which
 --   contains the name of the constructor.
 instance (GResultEnum lhs, GResultEnum rhs) => GResultCons (lhs :+: rhs) where
-	parseCons =
-		parseContents (`lookup` enumValues)
+	gParseCons =
+		parseContents (`lookup` gEnumValues)
 
 -- | @enum@ represents the constructors without selectors.
 class GResultEnum enum where
-	enumValues :: [(B.ByteString, enum x)]
+	gEnumValues :: [(B.ByteString, enum x)]
 
 -- | Single constructor
 instance (KnownSymbol name) => GResultEnum (C1 ('MetaCons name meta1 meta2) U1) where
-	enumValues =
+	gEnumValues =
 		[(buildByteString (symbolVal (Proxy :: Proxy name)), M1 U1)]
 
 -- | Multiple constructors
 instance (GResultEnum lhs, GResultEnum rhs) => GResultEnum (lhs :+: rhs) where
-	enumValues =
-		map (second L1) enumValues
-		++ map (second R1) enumValues
+	gEnumValues =
+		map (second L1) gEnumValues
+		++ map (second R1) gEnumValues
 
--- | Constrain @a@ to be a data type that satisfies one of the following properties:
---
---   * single constructor with 1 or more fields
---   * multiple constructors with no fields
---
-type GenericResultEntity meta cons a = (Generic a, Rep a ~ D1 meta cons, GResultCons cons)
+-- | @dat@ is the representation of a data type.
+class GResultEntity dat where
+	gParseEntity :: RowParser (dat x)
 
--- | 'RowParser' for a generic data type.
-parseGeneric :: (GenericResultEntity meta cons a) => RowParser a
-parseGeneric = to . M1 <$> parseCons
+-- | Datatype that qualifies for generic parsing.
+instance (GResultCons cons) => GResultEntity (D1 meta cons) where
+	gParseEntity = M1 <$> gParseCons
+
+-- | Parser for a generic data type
+parseGeneric :: (Generic a, GResultEntity (Rep a)) => RowParser a
+parseGeneric = to <$> gParseEntity
 
 -- | An entity whose underlying information can be extracted from zero or more columns.
+--
+-- If @a@ is a data type that matches one of the following criteria, then you may provide an empty
+-- instance or skip defining the instance.
+--
+--  * single constructor with 1 or more records
+--  * multiple constructors with no records
+--
 class ResultEntity a where
 	-- | Build an instance of @a@.
 	parseEntity :: RowParser a
 
-	default parseEntity :: (GenericResultEntity meta cons a) => RowParser a
+	default parseEntity :: (Generic a, GResultEntity (Rep a)) => RowParser a
 	parseEntity = parseGeneric
 
--- | Generic instance
-instance {-# OVERLAPPABLE #-} (GenericResultEntity meta cons a) => ResultEntity a
+-- | Generic instance - See 'ResultEntity' documentation
+instance {-# OVERLAPPABLE #-} (Generic a, GResultEntity (Rep a)) => ResultEntity a
 
 -- | 2 result entities in sequence
 instance (ResultEntity a, ResultEntity b) => ResultEntity (a, b)
