@@ -107,8 +107,7 @@ class QueryEntity a where
 	insertEntity = insertGeneric
 
 -- | Generic instance
-instance {-# OVERLAPPABLE #-} (GenericQueryEntity meta cons a) => QueryEntity a where
-	insertEntity = insertGeneric
+instance {-# OVERLAPPABLE #-} (GenericQueryEntity meta cons a) => QueryEntity a
 
 -- | 2 query entities in sequence
 instance (QueryEntity a, QueryEntity b) => QueryEntity (a, b)
@@ -120,17 +119,13 @@ instance (QueryEntity a, QueryEntity b, QueryEntity c) => QueryEntity (a, b, c)
 instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d) => QueryEntity (a, b, c, d)
 
 -- | 5 query entities in sequence
-instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d, QueryEntity e)
-         => QueryEntity (a, b, c, d, e)
+instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d, QueryEntity e) => QueryEntity (a, b, c, d, e)
 
 -- | 6 query entities in sequence
-instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d, QueryEntity e, QueryEntity f)
-         => QueryEntity (a, b, c, d, e, f)
+instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d, QueryEntity e, QueryEntity f) => QueryEntity (a, b, c, d, e, f)
 
 -- | 7 query entities in sequence
-instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d, QueryEntity e, QueryEntity f,
-          QueryEntity g)
-         => QueryEntity (a, b, c, d, e, f, g)
+instance (QueryEntity a, QueryEntity b, QueryEntity c, QueryEntity d, QueryEntity e, QueryEntity f, QueryEntity g) => QueryEntity (a, b, c, d, e, f, g)
 
 -- | 'QueryBuilder'
 instance QueryEntity QueryBuilder where

@@ -112,8 +112,7 @@ class ResultEntity a where
 	parseEntity = parseGeneric
 
 -- | Generic instance
-instance {-# OVERLAPPABLE #-} (GenericResultEntity meta cons a) => ResultEntity a where
-	parseEntity = parseGeneric
+instance {-# OVERLAPPABLE #-} (GenericResultEntity meta cons a) => ResultEntity a
 
 -- | 2 result entities in sequence
 instance (ResultEntity a, ResultEntity b) => ResultEntity (a, b)
@@ -122,22 +121,16 @@ instance (ResultEntity a, ResultEntity b) => ResultEntity (a, b)
 instance (ResultEntity a, ResultEntity b, ResultEntity c) => ResultEntity (a, b, c)
 
 -- | 4 result entities in sequence
-instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d)
-         => ResultEntity (a, b, c, d)
+instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d) => ResultEntity (a, b, c, d)
 
 -- | 5 result entities in sequence
-instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d, ResultEntity e)
-         => ResultEntity (a, b, c, d, e)
+instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d, ResultEntity e) => ResultEntity (a, b, c, d, e)
 
 -- | 6 result entities in sequence
-instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d, ResultEntity e,
-          ResultEntity f)
-         => ResultEntity (a, b, c, d, e, f)
+instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d, ResultEntity e, ResultEntity f) => ResultEntity (a, b, c, d, e, f)
 
 -- | 7 result entities in sequence
-instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d, ResultEntity e,
-          ResultEntity f, ResultEntity g)
-         => ResultEntity (a, b, c, d, e, f, g)
+instance (ResultEntity a, ResultEntity b, ResultEntity c, ResultEntity d, ResultEntity e, ResultEntity f, ResultEntity g) => ResultEntity (a, b, c, d, e, f, g)
 
 -- | Untyped column value
 instance ResultEntity Value where
