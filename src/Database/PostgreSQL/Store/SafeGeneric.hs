@@ -24,7 +24,8 @@ class ApprovedGenericDataType
 
 instance ApprovedGenericDataType
 
--- | Check the fields(s) that belong to the sole constructor of a data type.
+-- | Check the fields(s) that belong to the sole constructor of a data type. There must be one or
+-- more fields.
 type family SafeGenericRecord org (sel :: * -> *) where
 	-- Single field
 	SafeGenericRecord org (S1 meta (Rec0 a)) =
@@ -48,7 +49,8 @@ type family SafeGenericRecord org (sel :: * -> *) where
 		           ':<>: 'Text " has a constructor with an invalid selector"
 		           ':$$: 'ShowType other)
 
--- | Check the constructor(s) of a data type that has multiple constructors.
+-- | Check the constructor(s) of a data type that has multiple constructors. Each constructor must
+-- have no fields.
 type family SafeGenericEnum org (cons :: * -> *) where
 	-- Constructor without record selector
 	SafeGenericEnum org (C1 meta U1) =
@@ -72,7 +74,9 @@ type family SafeGenericEnum org (cons :: * -> *) where
 		           ':<>: 'Text " has an invalid constructor"
 		           ':$$: 'ShowType other)
 
--- | Check the type representation.
+-- | Check the type representation. If the data type has a single constructor, further checking of
+-- the constructor selectors is delegated to 'SafeGenericRecord'. In case multiple constructors are
+-- present, each constructor is validated by 'SafeGenericEnum'.
 type family SafeGenericData org (dat :: * -> *) where
 	-- Single constructor
 	SafeGenericData org (D1 meta1 (C1 meta2 sel)) =
@@ -104,8 +108,8 @@ type family SafeGenericData org (dat :: * -> *) where
 
 -- | Make sure the given type @a@ and matches one of the following criteria:
 --
---  * single constructor with 1 or more records
---  * multiple constructors with no records
+--  * single constructor with 1 or more fields
+--  * multiple constructors with no fields
 --
 -- Also the constraints @Generic a@ and @con (Rep a)@ must hold true.
 --
