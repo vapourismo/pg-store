@@ -49,6 +49,7 @@ import           Data.Attoparsec.ByteString.Char8 (signed, decimal, skipSpace, d
 
 import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Utilities
+import           Database.PostgreSQL.Store.SafeGeneric
 import           Database.PostgreSQL.Store.Result.Parser
 
 -- | @sel@ represents the selectors of a constructor.
@@ -102,7 +103,7 @@ instance (GResultCons cons) => GResultEntity (D1 meta cons) where
 	gParseEntity = M1 <$> gParseCons
 
 -- | Parser for a generic data type
-parseGeneric :: (Generic a, GResultEntity (Rep a)) => RowParser a
+parseGeneric :: (SafeGeneric GResultEntity a) => RowParser a
 parseGeneric = to <$> gParseEntity
 
 -- | An entity whose underlying information can be extracted from zero or more columns.
@@ -117,11 +118,11 @@ class ResultEntity a where
 	-- | Build an instance of @a@.
 	parseEntity :: RowParser a
 
-	default parseEntity :: (Generic a, GResultEntity (Rep a)) => RowParser a
+	default parseEntity :: (SafeGeneric GResultEntity a) => RowParser a
 	parseEntity = parseGeneric
 
 -- | Generic instance - See 'ResultEntity' documentation
-instance {-# OVERLAPPABLE #-} (Generic a, GResultEntity (Rep a)) => ResultEntity a
+instance {-# OVERLAPPABLE #-} (SafeGeneric GResultEntity a) => ResultEntity a
 
 -- | 2 result entities in sequence
 instance (ResultEntity a, ResultEntity b) => ResultEntity (a, b)

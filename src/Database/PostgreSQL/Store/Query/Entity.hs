@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings, FlexibleInstances, TypeOperators, DataKinds, ScopedTypeVariables,
-             ConstraintKinds, DefaultSignatures, UndecidableInstances, FlexibleContexts #-}
+             ConstraintKinds, DefaultSignatures, UndecidableInstances, FlexibleContexts,
+             TypeFamilies #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Query.Entity
@@ -43,6 +44,7 @@ import           Database.PostgreSQL.LibPQ (Oid (..), invalidOid)
 
 import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Utilities
+import           Database.PostgreSQL.Store.SafeGeneric
 import           Database.PostgreSQL.Store.Query.Builder
 
 -- | @sel@ represents the selectors of a constructor.
@@ -97,7 +99,7 @@ instance (GQueryCons cons) => GQueryEntity (D1 meta cons) where
 	gInsertEntity (M1 x) = gInsertCons x
 
 -- | Builder for a generic data type
-insertGeneric :: (Generic a, GQueryEntity (Rep a)) => a -> QueryBuilder
+insertGeneric :: (SafeGeneric GQueryEntity a) => a -> QueryBuilder
 insertGeneric x = gInsertEntity (from x)
 
 -- | An entity that can be inserted into the query.
@@ -112,11 +114,11 @@ class QueryEntity a where
 	-- | Insert @a@ into the query.
 	insertEntity :: a -> QueryBuilder
 
-	default insertEntity :: (Generic a, GQueryEntity (Rep a)) => a -> QueryBuilder
+	default insertEntity :: (SafeGeneric GQueryEntity a) => a -> QueryBuilder
 	insertEntity = insertGeneric
 
 -- | Generic instance - See 'QueryEntity' documentation
-instance {-# OVERLAPPABLE #-} (Generic a, GQueryEntity (Rep a)) => QueryEntity a
+instance {-# OVERLAPPABLE #-} (SafeGeneric GQueryEntity a) => QueryEntity a
 
 -- | 2 query entities in sequence
 instance (QueryEntity a, QueryEntity b) => QueryEntity (a, b)
