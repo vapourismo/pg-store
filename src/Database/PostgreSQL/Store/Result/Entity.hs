@@ -14,9 +14,8 @@ module Database.PostgreSQL.Store.Result.Entity (
 	parseGeneric,
 
 	-- * Helpers
-	GResultSel (..),
+	GResultRecord (..),
 	GResultEnum (..),
-	GResultCons (..),
 	GResultEntity (..)
 ) where
 
@@ -53,31 +52,16 @@ import           Database.PostgreSQL.Store.SafeGeneric
 import           Database.PostgreSQL.Store.Result.Parser
 
 -- | @sel@ represents the selectors of a constructor.
-class GResultSel sel where
-	gParseSel :: RowParser (sel x)
+class GResultRecord sel where
+	gParseRecord :: RowParser (sel x)
 
 -- | Single selector
-instance (ResultEntity a) => GResultSel (S1 meta (Rec0 a)) where
-	gParseSel = M1 . K1 <$> parseEntity
+instance (ResultEntity a) => GResultRecord (S1 meta (Rec0 a)) where
+	gParseRecord = M1 . K1 <$> parseEntity
 
 -- | Multiple selectors
-instance (GResultSel lhs, GResultSel rhs) => GResultSel (lhs :*: rhs) where
-	gParseSel = (:*:) <$> gParseSel <*> gParseSel
-
--- | @cons@ represents the constructors of a data type.
-class GResultCons cons where
-	gParseCons :: RowParser (cons x)
-
--- | Single constructor
-instance (GResultSel sel) => GResultCons (C1 meta sel) where
-	gParseCons = M1 <$> gParseSel
-
--- | Multiple constructors; each constructor must qualify as an enum value and can't have any
---   fields - the constructor that will be chosen is determined using a single column, which
---   contains the name of the constructor.
-instance (GResultEnum lhs, GResultEnum rhs) => GResultCons (lhs :+: rhs) where
-	gParseCons =
-		parseContents (`lookup` gEnumValues)
+instance (GResultRecord lhs, GResultRecord rhs) => GResultRecord (lhs :*: rhs) where
+	gParseRecord = (:*:) <$> gParseRecord <*> gParseRecord
 
 -- | @enum@ represents the constructors without selectors.
 class GResultEnum enum where
@@ -98,9 +82,13 @@ instance (GResultEnum lhs, GResultEnum rhs) => GResultEnum (lhs :+: rhs) where
 class GResultEntity dat where
 	gParseEntity :: RowParser (dat x)
 
--- | Datatype that qualifies for generic parsing.
-instance (GResultCons cons) => GResultEntity (D1 meta cons) where
-	gParseEntity = M1 <$> gParseCons
+-- | Record data type
+instance (GResultRecord sel) => GResultEntity (D1 meta1 (C1 meta2 sel)) where
+	gParseEntity = M1 . M1 <$> gParseRecord
+
+-- | Enum data type
+instance (GResultEnum lhs, GResultEnum rhs) => GResultEntity (D1 meta (lhs :+: rhs)) where
+	gParseEntity = M1 <$> parseContents (`lookup` gEnumValues)
 
 -- | Parser for a generic data type
 parseGeneric :: (SafeGeneric GResultEntity a) => RowParser a
