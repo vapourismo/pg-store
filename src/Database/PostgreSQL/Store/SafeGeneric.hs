@@ -12,11 +12,8 @@ module Database.PostgreSQL.Store.SafeGeneric (
 	SafeGeneric,
 
 	-- * Helpers
-	ApprovedGenericDataType,
-
-	SafeGenericSel,
-	SafeGenericEnumCons,
-	SafeGenericCons,
+	SafeGenericRecord,
+	SafeGenericEnum,
 	SafeGenericData
 ) where
 
@@ -28,71 +25,48 @@ class ApprovedGenericDataType
 instance ApprovedGenericDataType
 
 -- | Check the fields(s) that belong to the sole constructor of a data type.
-type family SafeGenericSel org (sel :: * -> *) where
-	-- No fields is invalid
-	SafeGenericSel org U1 =
+type family SafeGenericRecord org (sel :: * -> *) where
+	-- Single field
+	SafeGenericRecord org (S1 meta (Rec0 a)) =
+		ApprovedGenericDataType
+
+	-- Multiple fields
+	SafeGenericRecord org (lhs :*: rhs) =
+		(SafeGenericRecord org lhs, SafeGenericRecord org rhs)
+
+	-- Missing field(s)
+	SafeGenericRecord org U1 =
 		TypeError ('Text "Given type "
 		           ':<>: 'ShowType org
 		           ':<>: 'Text " has one constructor, therefore that constructor must have \
 		                       \at least one field")
 
-	-- Single field
-	SafeGenericSel org (S1 meta (Rec0 a)) =
-		ApprovedGenericDataType
-
-	-- Multiple fields
-	SafeGenericSel org (lhs :*: rhs) =
-		(SafeGenericSel org lhs, SafeGenericSel org rhs)
-
 	-- Something else
-	SafeGenericSel org other =
+	SafeGenericRecord org other =
 		TypeError ('Text "Given type "
 		           ':<>: 'ShowType org
 		           ':<>: 'Text " has a constructor with an invalid selector"
 		           ':$$: 'ShowType other)
 
 -- | Check the constructor(s) of a data type that has multiple constructors.
-type family SafeGenericEnumCons org (cons :: * -> *) where
+type family SafeGenericEnum org (cons :: * -> *) where
 	-- Constructor without record selector
-	SafeGenericEnumCons org (C1 meta U1) =
+	SafeGenericEnum org (C1 meta U1) =
 		ApprovedGenericDataType
 
 	-- Constructor with a record selector is invalid
-	SafeGenericEnumCons org (C1 meta1 (S1 meta2 rec)) =
+	SafeGenericEnum org (C1 meta1 (S1 meta2 rec)) =
 		TypeError ('Text "Given type "
 		           ':<>: 'ShowType org
 		           ':<>: 'Text " has multiple constructors, therefore these constructors must have \
 		                       \no fields")
 
 	-- More constructors
-	SafeGenericEnumCons org (lhs :+: rhs) =
-		(SafeGenericEnumCons org lhs, SafeGenericEnumCons org rhs)
+	SafeGenericEnum org (lhs :+: rhs) =
+		(SafeGenericEnum org lhs, SafeGenericEnum org rhs)
 
 	-- Something else
-	SafeGenericEnumCons org other =
-		TypeError ('Text "Given type "
-		           ':<>: 'ShowType org
-		           ':<>: 'Text " has an invalid constructor"
-		           ':$$: 'ShowType other)
-
--- | Check the constructor(s) of a data type.
-type family SafeGenericCons org (cons :: * -> *) where
-	-- No constructor
-	SafeGenericCons org V1 =
-		TypeError ('Text "Given type "
-		           ':<>: 'ShowType org
-		           ':<>: 'Text " must have a constructor")
-
-	-- Single constructor
-	SafeGenericCons org (C1 meta sel) =
-		SafeGenericSel org sel
-
-	-- Multiple constructors
-	SafeGenericCons org (lhs :+: rhs) =
-		(SafeGenericEnumCons org lhs, SafeGenericEnumCons org rhs)
-
-	-- Something else
-	SafeGenericCons org other =
+	SafeGenericEnum org other =
 		TypeError ('Text "Given type "
 		           ':<>: 'ShowType org
 		           ':<>: 'Text " has an invalid constructor"
@@ -100,17 +74,32 @@ type family SafeGenericCons org (cons :: * -> *) where
 
 -- | Check the type representation.
 type family SafeGenericData org (dat :: * -> *) where
-	-- Data type
-	SafeGenericData org (D1 meta cons) =
-		SafeGenericCons org cons
+	-- Single constructor
+	SafeGenericData org (D1 meta1 (C1 meta2 sel)) =
+		SafeGenericRecord org sel
+
+	-- Multiple constructors
+	SafeGenericData org (D1 meta (lhs :+: rhs)) =
+		(SafeGenericEnum org lhs, SafeGenericEnum org rhs)
+
+	-- Missing constructor(s)
+	SafeGenericData org (D1 meta V1) =
+		TypeError ('Text "Given type "
+		           ':<>: 'ShowType org
+		           ':<>: 'Text " must have a constructor")
+
+	-- Data type with constructor(s) that does not match the given patterns
+	SafeGenericData org (D1 meta other) =
+		TypeError ('Text "Given type "
+		           ':<>: 'ShowType org
+		           ':<>: 'Text " has an invalid constructor"
+		           ':$$: 'ShowType other)
 
 	-- Something else
 	SafeGenericData org other =
 		TypeError ('Text "Given type "
 		           ':<>: 'ShowType org
-		           ':<>: 'Text " is not a data type or does not implement the "
-		           ':<>: 'ShowType Generic
-		           ':<>: 'Text " type class"
+		           ':<>: 'Text " is not a valid data type"
 		           ':$$: 'ShowType other)
 
 -- | Make sure the given type @a@ and matches one of the following criteria:
