@@ -15,9 +15,8 @@ module Database.PostgreSQL.Store.Query.Entity (
 	insertGeneric,
 
 	-- * Helpers
-	GQuerySel (..),
+	GQueryRecord (..),
 	GQueryEnum (..),
-	GQueryCons (..),
 	GQueryEntity (..),
 ) where
 
@@ -48,33 +47,19 @@ import           Database.PostgreSQL.Store.SafeGeneric
 import           Database.PostgreSQL.Store.Query.Builder
 
 -- | @sel@ represents the selectors of a constructor.
-class GQuerySel sel where
-	gInsertSel :: sel x -> QueryBuilder
+class GQueryRecord sel where
+	gInsertRecord :: sel x -> QueryBuilder
 
 -- | Single selector
-instance (QueryEntity a) => GQuerySel (S1 meta (Rec0 a)) where
-	gInsertSel (M1 (K1 x)) = insertEntity x
+instance (QueryEntity a) => GQueryRecord (S1 meta (Rec0 a)) where
+	gInsertRecord (M1 (K1 x)) = insertEntity x
 
 -- | Multiple selectors
-instance (GQuerySel lhs, GQuerySel rhs) => GQuerySel (lhs :*: rhs) where
-	gInsertSel (lhs :*: rhs) = do
-		gInsertSel lhs
+instance (GQueryRecord lhs, GQueryRecord rhs) => GQueryRecord (lhs :*: rhs) where
+	gInsertRecord (lhs :*: rhs) = do
+		gInsertRecord lhs
 		insertCode ","
-		gInsertSel rhs
-
--- | @cons@ represents the constructors of a data type.
-class GQueryCons cons where
-	gInsertCons :: cons x -> QueryBuilder
-
--- | Single constructor
-instance (GQuerySel sel) => GQueryCons (C1 meta sel) where
-	gInsertCons (M1 sel) = gInsertSel sel
-
--- | Multiple constructors; each constructor must qualify as an enum value and can't have any
---   fields.
-instance (GQueryEnum lhs, GQueryEnum rhs) => GQueryCons (lhs :+: rhs) where
-	gInsertCons (L1 lhs) = insertQuote (gEnumValue lhs)
-	gInsertCons (R1 rhs) = insertQuote (gEnumValue rhs)
+		gInsertRecord rhs
 
 -- | @enum@ represents the constructors without selectors.
 class GQueryEnum enum where
@@ -94,9 +79,16 @@ instance (GQueryEnum lhs, GQueryEnum rhs) => GQueryEnum (lhs :+: rhs) where
 class GQueryEntity dat where
 	gInsertEntity :: dat x -> QueryBuilder
 
--- | Datatype that qualifies for generic building.
-instance (GQueryCons cons) => GQueryEntity (D1 meta cons) where
-	gInsertEntity (M1 x) = gInsertCons x
+-- |
+instance (GQueryRecord sel) => GQueryEntity (D1 meta1 (C1 meta2 sel)) where
+	gInsertEntity (M1 (M1 x)) = gInsertRecord x
+
+-- |
+instance (GQueryEnum lhs, GQueryEnum rhs) => GQueryEntity (D1 meta (lhs :+: rhs)) where
+	gInsertEntity (M1 x) =
+		case x of
+			L1 lhs -> insertQuote (gEnumValue lhs)
+			R1 rhs -> insertQuote (gEnumValue rhs)
 
 -- | Builder for a generic data type
 insertGeneric :: (SafeGeneric GQueryEntity a) => a -> QueryBuilder
