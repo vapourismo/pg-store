@@ -9,23 +9,28 @@ module Database.PostgreSQL.Store.Result.Parser (
 	-- * Row Parser
 	RowParser,
 	RowParseError (..),
+
+	rowNumber,
+	columnNumber,
+
 	fetchColumn,
 	peekColumn,
 	parseColumn,
-	skipColumn,
-	columnNumber,
+
+	peekContents,
+	fetchContents,
 	parseContents,
 
+	skipColumn,
+
 	-- * Result Parser
-	ResultParseError (..),
 	parseResult
 ) where
 
 import           Control.Monad
 import           Control.Monad.Except
+import           Control.Monad.Reader
 import           Control.Monad.State.Strict
-
-import           Data.Functor.Identity
 
 import qualified Data.ByteString           as B
 
@@ -34,104 +39,108 @@ import           Database.PostgreSQL.Store.Types
 
 -- | Errors that occur during row parsing
 data RowParseError
-	= TooFewColumns P.Column
+	= TooFewColumns P.Column P.Row
 		-- ^ Underlying 'RowParser' wants more columns than are currently present.
-	| ParseError P.Column TypedValue
+	| ParseError P.Column P.Row TypedValue
 		-- ^ A column value could not be parsed.
 	deriving (Show, Eq, Ord)
 
--- | State for 'RowParser'
-data Row = Row P.Column [TypedValue]
+-- |
+data ResultInfo = ResultInfo P.Result P.Column
+
+-- |
+data RowInfo = RowInfo ResultInfo P.Row
 
 -- | Row parser
 newtype RowParser a =
-	RowParser (StateT Row (Except RowParseError) a)
+	RowParser (ReaderT RowInfo (StateT P.Column (ExceptT RowParseError IO)) a)
 	deriving (Functor, Applicative, Monad, MonadError RowParseError)
 
 -- | Parse a single row.
-parseRow :: RowParser a -> Row -> Except RowParseError a
-parseRow (RowParser parser) =
-	evalStateT parser
+parseRow :: RowParser a -> RowInfo -> ExceptT RowParseError IO a
+parseRow (RowParser parser) rowInfo =
+	evalStateT (runReaderT parser rowInfo) (P.Col 0)
 
--- | Fetch the type 'Oid' and value of the current column.
-fetchColumn :: RowParser TypedValue
-fetchColumn = RowParser $ do
-	Row columnNumber columns <- get
-	case columns of
-		[]            -> throwError (TooFewColumns columnNumber)
-		column : rest -> column <$ put (Row (columnNumber + 1) rest)
-
--- | Fetch the 'TypedValue' associated with the current column without advancing the cursor.
-peekColumn :: RowParser TypedValue
-peekColumn = RowParser $ do
-	Row columnNumber columns <- get
-	case columns of
-		[]         -> throwError (TooFewColumns columnNumber)
-		column : _ -> pure column
-
--- | Fetch a column and parse it. Using this function allows you to associate the column number and
--- 'Oid' with the value that could not be parsed. See 'ParseError'.
-parseColumn :: (TypedValue -> Maybe a) -> RowParser a
-parseColumn proc = RowParser $ do
-	Row columnNumber columns <- get
-	case columns of
-		[] -> throwError (TooFewColumns columnNumber)
-
-		column : rest ->
-			case proc column of
-				Nothing -> throwError (ParseError columnNumber column)
-				Just x  -> x <$ put (Row (columnNumber + 1) rest)
-
--- | Point cursor to the next column.
-skipColumn :: RowParser ()
-skipColumn = RowParser $ do
-	Row columnNumber columns <- get
-	case columns of
-		[]       -> throwError (TooFewColumns columnNumber)
-		_ : rest -> put (Row (columnNumber + 1) rest)
-
--- | Parse the contents of a column (only if present).
-parseContents :: (B.ByteString -> Maybe a) -> RowParser a
-parseContents proc =
-	parseColumn $ \ (TypedValue _ mbValue) ->
-		mbValue >>= proc . valueData
+-- | Retrieve the current row number.
+rowNumber :: RowParser P.Row
+rowNumber = RowParser (asks (\ (RowInfo _ row) -> row))
 
 -- | Retrieve the current column number.
 columnNumber :: RowParser P.Column
-columnNumber =
-	RowParser (gets (\ (Row columnNumber _) -> columnNumber))
+columnNumber = RowParser get
 
--- | Result set
-data ResultSet = ResultSet [P.Oid] [[Maybe Value]]
+-- | Advance to next column without checking.
+nextColumn :: RowParser ()
+nextColumn =
+	RowParser (modify (+ 1))
 
--- | Extract a 'ResultSet' from the 'Result'.
-buildResultSet :: P.Result -> IO ResultSet
-buildResultSet result = do
-	rows <- P.ntuples result
-	columns <- P.nfields result
+-- | Do something with the underlying result, row number and column number.
+withColumn :: (P.Result -> P.Row -> P.Column -> RowParser a) -> RowParser a
+withColumn action = do
+	(RowInfo (ResultInfo result numColumns) row, col) <- RowParser ((,) <$> ask <*> get)
 
-	-- No need to check whether rows or columns are greater than 0, because [0 .. -1] is [].
+	if col < numColumns then
+		action result row col
+	else
+		throwError (TooFewColumns col row)
 
-	ResultSet <$> forM [0 .. columns - 1] (P.ftype result)
-	          <*> forM [0 .. rows - 1] (forM [0 .. columns - 1] . getValue result)
+-- | Fetch the 'TypedValue' associated with the current cell without advancing the cursor.
+peekColumn :: RowParser TypedValue
+peekColumn =
+	withColumn $ \ result row col -> RowParser $ liftIO $
+		TypedValue <$> P.ftype result col
+		           <*> fmap (fmap Value) (P.getvalue' result row col)
 
-	where
-		getValue result row column =
-			fmap Value <$> P.getvalue' result row column
+-- | Fetch the type 'Oid' and value of the current cell. Also advances the cell cursor to the next
+-- column.
+fetchColumn :: RowParser TypedValue
+fetchColumn =
+	peekColumn <* nextColumn
 
--- | Error that occurs during result parsing
-data ResultParseError = RowParseError P.Row RowParseError
-	deriving (Show, Eq, Ord)
+-- | Fetch a column and parse it. Returning 'Nothing' from the provided parser function will cause
+-- a 'ParseError' to be raised. Advances the cell cursor to the next column.
+parseColumn :: (TypedValue -> Maybe a) -> RowParser a
+parseColumn proc = do
+	typedValue <- peekColumn
+	case proc typedValue of
+		Just x  -> x <$ nextColumn
+		Nothing -> (ParseError <$> columnNumber <*> rowNumber <*> pure typedValue) >>= throwError
 
--- | Parse the entire result set.
-parseResultSet :: ResultSet -> RowParser a -> Except ResultParseError [a]
-parseResultSet (ResultSet types values) parser =
-	forM (zip values [0 .. P.toRow (length values - 1)]) $ \ (row, rowNumber) ->
-		withExcept (RowParseError rowNumber) $
-			parseRow parser (Row 0 (zipWith TypedValue types row))
+-- | Fetch the cell's contents without moving the cell cursor.
+peekContents :: RowParser (Maybe B.ByteString)
+peekContents =
+	withColumn (\ result row col -> RowParser (liftIO (P.getvalue' result row col)))
+
+-- | Like 'peekContents' but moves the cell cursor to the next column.
+fetchContents :: RowParser (Maybe B.ByteString)
+fetchContents =
+	peekContents <* nextColumn
+
+-- | Parse the contents of a column (only if present). Returning 'Nothing' from the provided parser
+-- function will raise a 'ParserError'. When the cell is @NULL@, a 'ParserError' is raised aswell.
+parseContents :: (B.ByteString -> Maybe a) -> RowParser a
+parseContents proc = do
+	value <- peekContents
+	case value >>= proc of
+		Just x  -> x <$ nextColumn
+		Nothing -> (ParseError <$> columnNumber <*> rowNumber <*> peekColumn) >>= throwError
+
+-- | Point cursor to the next column.
+skipColumn :: RowParser ()
+skipColumn = do
+	(RowInfo (ResultInfo _ numColumns) row, col) <- RowParser ((,) <$> ask <*> get)
+
+	if col < numColumns then
+		nextColumn
+	else
+		throwError (TooFewColumns col row)
 
 -- | Parse the result.
-parseResult :: P.Result -> RowParser a -> ExceptT ResultParseError IO [a]
+parseResult :: P.Result -> RowParser a -> ExceptT RowParseError IO [a]
 parseResult result parser = do
-	resultSet <- liftIO (buildResultSet result)
-	mapExceptT (pure . runIdentity) (parseResultSet resultSet parser)
+	(resultInfo, numRows) <- liftIO $ do
+		numColumns <- P.nfields result
+		numRows <- P.ntuples result
+		pure (ResultInfo result numColumns, numRows)
+
+	forM [0 .. numRows - 1] (parseRow parser . RowInfo resultInfo)
