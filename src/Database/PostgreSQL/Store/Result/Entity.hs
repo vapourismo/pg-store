@@ -1,6 +1,14 @@
-{-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances, DefaultSignatures,
-             TypeOperators, ScopedTypeVariables, DataKinds, UndecidableInstances,
-             FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings,
+             DataKinds,
+             DefaultSignatures,
+             FlexibleContexts,
+             FlexibleInstances,
+             ScopedTypeVariables,
+             TypeFamilies,
+             TypeOperators,
+             TypeSynonymInstances,
+             UndecidableInstances
+#-}
 -- |
 -- Module:     Database.PostgreSQL.Store.Result.Entity
 -- Copyright:  (c) Ole Krüger 2016
@@ -48,51 +56,45 @@ import           Data.Attoparsec.ByteString.Char8 (signed, decimal, skipSpace, d
 
 import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Utilities
-import           Database.PostgreSQL.Store.SafeGeneric
+import           Database.PostgreSQL.Store.GenericEntity
 import           Database.PostgreSQL.Store.Result.Parser
 
--- | @sel@ represents the selectors of a constructor.
-class GResultRecord sel where
-	gParseRecord :: RowParser (sel x)
+-- | Declares the 'RowParser' for a record.
+class GResultRecord (rec :: KRecord) where
+	gParseRecord :: RowParser (Record rec)
 
--- | Single selector
-instance (ResultEntity a) => GResultRecord (S1 meta (Rec0 a)) where
-	gParseRecord = M1 . K1 <$> parseEntity
+instance (ResultEntity typ) => GResultRecord ('TSingle meta typ) where
+	gParseRecord = Single <$> parseEntity
 
--- | Multiple selectors
-instance (GResultRecord lhs, GResultRecord rhs) => GResultRecord (lhs :*: rhs) where
-	gParseRecord = (:*:) <$> gParseRecord <*> gParseRecord
+instance (GResultRecord lhs, GResultRecord rhs) => GResultRecord ('TCombine lhs rhs) where
+	gParseRecord = Combine <$> gParseRecord <*> gParseRecord
 
--- | @enum@ represents the constructors without selectors.
-class GResultEnum enum where
-	gEnumValues :: [(B.ByteString, enum x)]
+-- | Declares the value list of an enumeration.
+class GResultEnum (enum :: KFlatSum) where
+	gEnumValues :: [(B.ByteString, FlatSum enum)]
 
--- | Single constructor
-instance (KnownSymbol name) => GResultEnum (C1 ('MetaCons name meta1 meta2) U1) where
+instance (KnownSymbol name) => GResultEnum ('TValue ('MetaCons name f r)) where
+	gEnumValues = [(buildByteString (symbolVal (Proxy :: Proxy name)), Unit)]
+
+instance (GResultEnum lhs, GResultEnum rhs) => GResultEnum ('TChoose lhs rhs) where
 	gEnumValues =
-		[(buildByteString (symbolVal (Proxy :: Proxy name)), M1 U1)]
+		map (second ChooseLeft) gEnumValues
+		++ map (second ChooseRight) gEnumValues
 
--- | Multiple constructors
-instance (GResultEnum lhs, GResultEnum rhs) => GResultEnum (lhs :+: rhs) where
-	gEnumValues =
-		map (second L1) gEnumValues
-		++ map (second R1) gEnumValues
+-- | Declares the 'RowParser' for a data type.
+class GResultEntity (dat :: KDataType) where
+	gParseEntity :: RowParser (DataType dat)
 
--- | @dat@ is the representation of a data type.
-class GResultEntity dat where
-	gParseEntity :: RowParser (dat x)
+instance (GResultRecord rec) => GResultEntity ('TRecord d c rec) where
+	gParseEntity = Record <$> gParseRecord
 
--- | Record data type
-instance (GResultRecord sel) => GResultEntity (D1 meta1 (C1 meta2 sel)) where
-	gParseEntity = M1 . M1 <$> gParseRecord
+instance (GResultEnum enum) => GResultEntity ('TFlatSum d enum) where
+	gParseEntity = FlatSum <$> parseContents (`lookup` gEnumValues)
 
--- | Enum data type
-instance (GResultEnum lhs, GResultEnum rhs) => GResultEntity (D1 meta (lhs :+: rhs)) where
-	gParseEntity = M1 <$> parseContents (`lookup` gEnumValues)
-
--- | Parser for a generic data type
-parseGeneric :: (SafeGeneric GResultEntity a) => RowParser a
-parseGeneric = to <$> gParseEntity
+-- | Generic 'RowParser'.
+parseGeneric :: (GenericEntity a, GResultEntity (AnalyzeEntity a)) => RowParser a
+parseGeneric =
+	toGenericEntity <$> gParseEntity
 
 -- | An entity whose underlying information can be extracted from zero or more columns.
 --
@@ -106,11 +108,11 @@ class ResultEntity a where
 	-- | Build an instance of @a@.
 	parseEntity :: RowParser a
 
-	default parseEntity :: (SafeGeneric GResultEntity a) => RowParser a
+	default parseEntity :: (GenericEntity a, GResultEntity (AnalyzeEntity a)) => RowParser a
 	parseEntity = parseGeneric
 
 -- | Generic instance - See 'ResultEntity' documentation
-instance {-# OVERLAPPABLE #-} (SafeGeneric GResultEntity a) => ResultEntity a
+instance {-# OVERLAPPABLE #-} (GenericEntity a, GResultEntity (AnalyzeEntity a)) => ResultEntity a
 
 -- | 2 result entities in sequence
 instance (ResultEntity a, ResultEntity b) => ResultEntity (a, b)
