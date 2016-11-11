@@ -43,56 +43,47 @@ import           Database.PostgreSQL.LibPQ (Oid (..), invalidOid)
 
 import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Utilities
-import           Database.PostgreSQL.Store.SafeGeneric
+import           Database.PostgreSQL.Store.GenericEntity
 import           Database.PostgreSQL.Store.Query.Builder
 
--- | @sel@ represents the selectors of a constructor.
-class GQueryRecord sel where
-	gInsertRecord :: sel x -> QueryBuilder
+-- | Insert methods for records
+class GQueryRecord (rec :: KRecord) where
+	gInsertRecord :: Record rec -> QueryBuilder
 
--- | Single selector
-instance (QueryEntity a) => GQueryRecord (S1 meta (Rec0 a)) where
-	gInsertRecord (M1 (K1 x)) = insertEntity x
+instance (QueryEntity typ) => GQueryRecord ('TSingle meta typ) where
+	gInsertRecord (Single x) = insertEntity x
 
--- | Multiple selectors
-instance (GQueryRecord lhs, GQueryRecord rhs) => GQueryRecord (lhs :*: rhs) where
-	gInsertRecord (lhs :*: rhs) = do
+instance (GQueryRecord lhs, GQueryRecord rhs) => GQueryRecord ('TCombine lhs rhs) where
+	gInsertRecord (Combine lhs rhs) = do
 		gInsertRecord lhs
 		insertCode ","
 		gInsertRecord rhs
 
--- | @enum@ represents the constructors without selectors.
-class GQueryEnum enum where
-	gEnumValue :: enum x -> B.ByteString
+-- | Insert methods for enumerations
+class GQueryEnum (enum :: KFlatSum) where
+	gInsertEnum :: FlatSum enum -> QueryBuilder
 
--- | Single constructor
-instance (KnownSymbol name) => GQueryEnum (C1 ('MetaCons name meta1 meta2) U1) where
-	gEnumValue _ =
-		buildByteString (symbolVal (Proxy :: Proxy name))
+instance (KnownSymbol name) => GQueryEnum ('TValue ('MetaCons name f r)) where
+	gInsertEnum Unit =
+		insertQuote (buildByteString (symbolVal (Proxy :: Proxy name)))
 
--- | Multiple constructors
-instance (GQueryEnum lhs, GQueryEnum rhs) => GQueryEnum (lhs :+: rhs) where
-	gEnumValue (L1 lhs) = gEnumValue lhs
-	gEnumValue (R1 rhs) = gEnumValue rhs
+instance (GQueryEnum lhs, GQueryEnum rhs) => GQueryEnum ('TChoose lhs rhs) where
+	gInsertEnum (ChooseLeft lhs)  = gInsertEnum lhs
+	gInsertEnum (ChooseRight rhs) = gInsertEnum rhs
 
--- | @dat@ is the representation for a data type.
-class GQueryEntity dat where
-	gInsertEntity :: dat x -> QueryBuilder
+-- | Insert methods for generic entities
+class GQueryEntity (dat :: KDataType) where
+	gInsertEntity :: DataType dat -> QueryBuilder
 
--- |
-instance (GQueryRecord sel) => GQueryEntity (D1 meta1 (C1 meta2 sel)) where
-	gInsertEntity (M1 (M1 x)) = gInsertRecord x
+instance (GQueryRecord rec) => GQueryEntity ('TRecord d c rec) where
+	gInsertEntity (Record x) = gInsertRecord x
 
--- |
-instance (GQueryEnum lhs, GQueryEnum rhs) => GQueryEntity (D1 meta (lhs :+: rhs)) where
-	gInsertEntity (M1 x) =
-		case x of
-			L1 lhs -> insertQuote (gEnumValue lhs)
-			R1 rhs -> insertQuote (gEnumValue rhs)
+instance (GQueryEnum enum) => GQueryEntity ('TFlatSum d enum) where
+	gInsertEntity (FlatSum x) = gInsertEnum x
 
--- | Builder for a generic data type
-insertGeneric :: (SafeGeneric GQueryEntity a) => a -> QueryBuilder
-insertGeneric x = gInsertEntity (from x)
+-- | Insert generic entity into the query.
+insertGeneric :: (GenericEntity a, GQueryEntity (AnalyzeEntity a)) => a -> QueryBuilder
+insertGeneric x = gInsertEntity (fromGenericEntity x)
 
 -- | An entity that can be inserted into the query.
 --
@@ -106,11 +97,11 @@ class QueryEntity a where
 	-- | Insert @a@ into the query.
 	insertEntity :: a -> QueryBuilder
 
-	default insertEntity :: (SafeGeneric GQueryEntity a) => a -> QueryBuilder
+	default insertEntity :: (GenericEntity a, GQueryEntity (AnalyzeEntity a)) => a -> QueryBuilder
 	insertEntity = insertGeneric
 
 -- | Generic instance - See 'QueryEntity' documentation
-instance {-# OVERLAPPABLE #-} (SafeGeneric GQueryEntity a) => QueryEntity a
+instance {-# OVERLAPPABLE #-} (GenericEntity a, GQueryEntity (AnalyzeEntity a)) => QueryEntity a
 
 -- | 2 query entities in sequence
 instance (QueryEntity a, QueryEntity b) => QueryEntity (a, b)
