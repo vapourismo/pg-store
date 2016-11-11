@@ -5,9 +5,9 @@
              FlexibleContexts,
              FlexibleInstances,
              ScopedTypeVariables,
-             TypeFamilies
+             TypeFamilies,
              TypeOperators,
-             UndecidableInstances,
+             UndecidableInstances
 #-}
 
 -- |
