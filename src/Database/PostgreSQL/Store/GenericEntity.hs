@@ -15,7 +15,36 @@
 -- Copyright:  (c) Ole Krüger 2016
 -- License:    BSD3
 -- Maintainer: Ole Krüger <ole@vprsm.de>
-module Database.PostgreSQL.Store.GenericEntity where
+module Database.PostgreSQL.Store.GenericEntity (
+	-- * Generic Entity
+	EntityRep,
+	GenericEntity,
+
+	toGenericEntity,
+	fromGenericEntity,
+
+
+	-- * Type-Level Information
+	KRecord (..),
+	KFlatSum (..),
+	KDataType (..),
+
+	-- * Mapper classes
+	CRecord (..),
+	CFlatSum (..),
+	CDataType (..),
+
+	Record (..),
+	FlatSum (..),
+	DataType (..),
+
+	-- * Analyzers
+	AnalyzeRecordRep,
+	AnalyzeFlatSumRep,
+	AnalyzeDataType,
+
+	AnalyzeEntity
+) where
 
 import GHC.Generics
 import GHC.TypeLits
@@ -25,11 +54,11 @@ import Data.Kind
 -- | Information about a record
 data KRecord
 	= TCombine KRecord KRecord
-		-- ^ Combine two records into a new one
+		-- ^ Combination of two records
 	| TSingle Meta Type
 		-- ^ Single element with meta information and type
 
--- | Declare mappings between a 'Generic' representation and our 'KRecord'-based representation.
+-- | Mappings between a 'Generic' representation and our 'KRecord'-based representation
 class CRecord (rec :: KRecord) where
 	-- | 'Generic' representation
 	type RecordRep rec :: * -> *
@@ -55,7 +84,7 @@ instance CRecord ('TSingle meta typ) where
 
 deriving instance (Show typ) => Show (Record ('TSingle meta typ))
 
--- | Combination of multiple records
+-- | Combination of records
 instance (CRecord lhs, CRecord rhs) => CRecord ('TCombine lhs rhs) where
 	type RecordRep ('TCombine lhs rhs) = RecordRep lhs :*: RecordRep rhs
 
@@ -67,7 +96,8 @@ instance (CRecord lhs, CRecord rhs) => CRecord ('TCombine lhs rhs) where
 
 deriving instance (Show (Record lhs), Show (Record rhs)) => Show (Record ('TCombine lhs rhs))
 
--- | Check that the sole constructor of a data type has multiple fields.
+-- | Analyze the 'Generic' representation of the selectors. Make sure it has 1 or more fields. Then
+-- transform it into a 'KRecord'.
 type family AnalyzeRecordRep org (sel :: * -> *) :: KRecord where
 	-- Single field
 	AnalyzeRecordRep org (S1 meta (Rec0 typ)) =
@@ -91,26 +121,25 @@ type family AnalyzeRecordRep org (sel :: * -> *) :: KRecord where
 		           ':<>: 'Text " has a constructor with an invalid selector"
 		           ':$$: 'ShowType other)
 
--- | Type-level information for the constructors of an enumeration type (flat sum type)
+-- | Information about the constructors of an enumeration
 data KFlatSum
 	= TChoose KFlatSum KFlatSum
-		-- ^ Combination of multiple values
+		-- ^ Combination of values
 	| TValue Meta
 		-- ^ Single value of the enumeration
 
--- | Declare the means to convert between the 'Generic' representation of a sum of constructors and
--- our data-kind-infused representation.
+-- | Mappings between a 'Generic' representation and our 'KFlatSum'-based representation
 class CFlatSum (enum :: KFlatSum) where
 	-- | 'Generic' representation
 	type FlatSumRep enum :: * -> *
 
-	-- | Entity representation
+	-- | 'KFlatSum'-based representation
 	data FlatSum enum
 
-	-- | From 'Generic' representation to our representation
+	-- | From 'Generic' representation
 	toFlatSum :: FlatSumRep enum x -> FlatSum enum
 
-	-- | From our representation to the 'Generic' representation
+	-- | To 'Generic' representation
 	fromFlatSum :: FlatSum enum -> FlatSumRep enum x
 
 -- | Single constructor
@@ -139,7 +168,8 @@ instance (CFlatSum lhs, CFlatSum rhs) => CFlatSum ('TChoose lhs rhs) where
 
 deriving instance (Show (FlatSum lhs), Show (FlatSum rhs)) => Show (FlatSum ('TChoose lhs rhs))
 
--- | Check that the constructors of a data type have no fields.
+-- | Analyze the 'Generic' representation of constructors. Make sure every constructor has zero
+-- fields. Then transform it into a 'KFlatSum'.
 type family AnalyzeFlatSumRep org (cons :: * -> *) :: KFlatSum where
 	-- Constructor without record selector
 	AnalyzeFlatSumRep org (C1 meta U1) =
@@ -163,29 +193,28 @@ type family AnalyzeFlatSumRep org (cons :: * -> *) :: KFlatSum where
 		           ':<>: 'Text " has an invalid constructor"
 		           ':$$: 'ShowType other)
 
--- | Type-level information for a data type that is either an enumeration or a record
+-- | Information about a data type
 data KDataType
 	= TRecord Meta Meta KRecord
 		-- ^ Record
 	| TFlatSum Meta KFlatSum
 		-- ^ Enumeration
 
--- | Declare the means to convert between the 'Generic' representation of a data type and our
--- data-kind-infused representation.
+-- | Mappings between a 'Generic' representation and our 'KDataType'-based representation
 class CDataType (dat :: KDataType) where
 	-- | 'Generic' representation
 	type GDataTypeRep dat :: * -> *
 
-	-- | Entity representation
+	-- | 'KDataType'-based representation
 	data DataType dat
 
-	-- | From 'Generic' representation to our representation
+	-- | From 'Generic' representation
 	toDataType :: GDataTypeRep dat x -> DataType dat
 
-	-- | From our representation to the 'Generic' representation
+	-- | To 'Generic' representation
 	fromDataType :: DataType dat -> GDataTypeRep dat x
 
--- | Data type with a single constructor
+-- | With single constructor
 instance (CRecord rec) => CDataType ('TRecord d c rec) where
 	type GDataTypeRep ('TRecord d c rec) = D1 d (C1 c (RecordRep rec))
 
@@ -197,7 +226,7 @@ instance (CRecord rec) => CDataType ('TRecord d c rec) where
 
 deriving instance (Show (Record rec)) => Show (DataType ('TRecord d c rec))
 
--- | Data type with multiple constructors
+-- | With multiple constructors
 instance (CFlatSum enum) => CDataType ('TFlatSum d enum) where
 	type GDataTypeRep ('TFlatSum d enum) = D1 d (FlatSumRep enum)
 
@@ -209,7 +238,9 @@ instance (CFlatSum enum) => CDataType ('TFlatSum d enum) where
 
 deriving instance (Show (FlatSum enum)) => Show (DataType ('TFlatSum d enum))
 
--- | Check if the data type is either a record or an enumeration.
+-- | Analyze the 'Generic' representation of a data type. If only one constructor exists, further
+-- analyzing is delegated to 'AnalyzeRecordRep'. When two or more exist, analyzing is performed by
+-- 'AnalyzeFlatSumRep'. The results are gather in a 'KDataType' instance.
 type family AnalyzeDataType org (dat :: * -> *) :: KDataType where
 	-- Single constructor
 	AnalyzeDataType org (D1 meta1 (C1 meta2 sel)) =
@@ -239,11 +270,10 @@ type family AnalyzeDataType org (dat :: * -> *) :: KDataType where
 		           ':<>: 'Text " is not a valid data type"
 		           ':$$: 'ShowType other)
 
--- | Analyze the 'Generic' representation of a type to figure out our type-level information
+-- | Analyze the 'Generic' representation of a type, in order to generate its 'KDataType' instance.
 type AnalyzeEntity a = AnalyzeDataType a (Rep a)
 
--- | Analyze the 'Generic' representation of a type to figure out how our data-kind-infused
--- representation will look like.
+-- | Analyze the 'Generic' representation of a type to figure out which 'DataType' it needs.
 type EntityRep a = DataType (AnalyzeEntity a)
 
 -- | Make sure @a@ has a safe generic representation. Types that qualify implement 'Generic' and
