@@ -32,6 +32,5 @@ library
                     Database.PostgreSQL.Store.Query.TH
                     Database.PostgreSQL.Store.Query
                     Database.PostgreSQL.Store.Types
-                    Database.PostgreSQL.Store.SafeGeneric
                     Database.PostgreSQL.Store.GenericEntity
   other-modules:    Database.PostgreSQL.Store.Utilities
