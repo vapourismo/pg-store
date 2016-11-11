@@ -1,6 +1,14 @@
-{-# LANGUAGE OverloadedStrings, FlexibleInstances, TypeOperators, DataKinds, ScopedTypeVariables,
-             ConstraintKinds, DefaultSignatures, UndecidableInstances, FlexibleContexts,
-             TypeFamilies #-}
+{-# LANGUAGE OverloadedStrings,
+             ConstraintKinds,
+             DataKinds,
+             DefaultSignatures,
+             FlexibleContexts,
+             FlexibleInstances,
+             ScopedTypeVariables,
+             TypeFamilies
+             TypeOperators,
+             UndecidableInstances,
+#-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Query.Entity
