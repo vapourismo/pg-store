@@ -14,6 +14,7 @@ module Database.PostgreSQL.Store.Result.Parser (
 
 	rowNumber,
 	columnNumber,
+	columnsLeft,
 
 	fetchColumn,
 	peekColumn,
@@ -80,6 +81,13 @@ rowNumber = RowParser (asks (\ (RowInput _ row) -> row))
 -- | Retrieve the current column number.
 columnNumber :: RowParser P.Column
 columnNumber = RowParser get
+
+-- | Retrieve the number of columns left.
+columnsLeft :: RowParser P.Column
+columnsLeft = RowParser $ do
+	RowInput (ResultInfo _ numCols) _ <- ask
+	curCol <- get
+	pure (numCols - curCol)
 
 -- | Advance to next column without checking.
 nextColumn :: RowParser ()
