@@ -15,12 +15,15 @@ module Database.PostgreSQL.Store.Query.Builder (
 	insertQuote,
 	insertName,
 
+	insertCommaSeperated,
+
 	-- * Generalized Building
 	FromQueryBuilder (..)
 ) where
 
 import           Control.Monad.State.Strict
 
+import           Data.List
 import qualified Data.ByteString           as B
 
 import           Database.PostgreSQL.LibPQ (invalidOid)
@@ -76,6 +79,11 @@ insertQuote contents =
 	where
 		replaceDelim 39 = B.pack [39, 39]
 		replaceDelim x  = B.singleton x
+
+-- | Join several builders into a comma-seperated list.
+insertCommaSeperated :: [QueryBuilder] -> QueryBuilder
+insertCommaSeperated bs =
+	sequence_ (intersperse (insertCode ",") bs)
 
 -- | Insert a name into the code. It will be surrounded by double quotes if necessary.
 insertName :: B.ByteString -> QueryBuilder
