@@ -58,7 +58,7 @@ import           Data.Attoparsec.ByteString.Char8 (signed, decimal, skipSpace, d
 
 import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Utilities
-import           Database.PostgreSQL.Store.GenericEntity
+import           Database.PostgreSQL.Store.Generics
 import           Database.PostgreSQL.Store.Query.Builder
 import           Database.PostgreSQL.Store.Result.Parser
 

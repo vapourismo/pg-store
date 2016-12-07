@@ -30,6 +30,6 @@ library
                     Database.PostgreSQL.Store.Query.TH
                     Database.PostgreSQL.Store.Query
                     Database.PostgreSQL.Store.Types
-                    Database.PostgreSQL.Store.GenericEntity
+                    Database.PostgreSQL.Store.Generics
                     Database.PostgreSQL.Store.Entity
   other-modules:    Database.PostgreSQL.Store.Utilities

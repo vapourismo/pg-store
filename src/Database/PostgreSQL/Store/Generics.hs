@@ -11,11 +11,11 @@
 #-}
 
 -- |
--- Module:     Database.PostgreSQL.Store.GenericEntity
+-- Module:     Database.PostgreSQL.Store.Generics
 -- Copyright:  (c) Ole Krüger 2016
 -- License:    BSD3
 -- Maintainer: Ole Krüger <ole@vprsm.de>
-module Database.PostgreSQL.Store.GenericEntity (
+module Database.PostgreSQL.Store.Generics (
 	-- * Generic Entity
 	EntityRep,
 	GenericEntity,
