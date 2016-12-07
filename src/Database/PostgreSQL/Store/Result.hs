@@ -6,7 +6,7 @@
 module Database.PostgreSQL.Store.Result (
 	-- * Exported modules
 	module Database.PostgreSQL.Store.Result.Parser,
-	module Database.PostgreSQL.Store.Result.Entity,
+	module Database.PostgreSQL.Store.Entity,
 
 	-- * Processor
 	ResultProcessError,
@@ -17,7 +17,7 @@ module Database.PostgreSQL.Store.Result (
 import           Control.Monad.Except
 
 import           Database.PostgreSQL.Store.Result.Parser
-import           Database.PostgreSQL.Store.Result.Entity
+import           Database.PostgreSQL.Store.Entity
 
 import qualified Database.PostgreSQL.LibPQ as P
 
@@ -49,6 +49,6 @@ processResultWith result parser = do
 	withExceptT ResultError (parseResult result parser)
 
 -- | Process the 'P.Result' with a 'RowParser' provided by the 'ResultEntity' instance.
-processResult :: (ResultEntity a) => P.Result -> ExceptT ResultProcessError IO [a]
+processResult :: (Entity a) => P.Result -> ExceptT ResultProcessError IO [a]
 processResult result =
 	processResultWith result parseEntity

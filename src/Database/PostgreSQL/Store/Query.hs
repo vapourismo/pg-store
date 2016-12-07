@@ -8,10 +8,10 @@
 module Database.PostgreSQL.Store.Query (
 	-- * Exported modules
 	module Database.PostgreSQL.Store.Query.Builder,
-	module Database.PostgreSQL.Store.Query.Entity,
-	module Database.PostgreSQL.Store.Query.TH
+	module Database.PostgreSQL.Store.Query.TH,
+	module Database.PostgreSQL.Store.Entity
 ) where
 
+import Database.PostgreSQL.Store.Entity
 import Database.PostgreSQL.Store.Query.Builder
-import Database.PostgreSQL.Store.Query.Entity
 import Database.PostgreSQL.Store.Query.TH
