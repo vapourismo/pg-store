@@ -17,7 +17,7 @@
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Generics (
 	-- * Generic Entity
-	EntityRep,
+	EntityDataType,
 	GenericEntity,
 
 	toGenericEntity,
@@ -30,9 +30,9 @@ module Database.PostgreSQL.Store.Generics (
 	KDataType (..),
 
 	-- * Mapper classes
-	CRecord (..),
-	CFlatSum (..),
-	CDataType (..),
+	GRecord (..),
+	GFlatSum (..),
+	GDataType (..),
 
 	Record (..),
 	FlatSum (..),
@@ -59,7 +59,7 @@ data KRecord
 		-- ^ Single element with meta information and type
 
 -- | Mappings between a 'Generic' representation and our 'KRecord'-based representation
-class CRecord (rec :: KRecord) where
+class GRecord (rec :: KRecord) where
 	-- | 'Generic' representation
 	type RecordRep rec :: * -> *
 
@@ -73,7 +73,7 @@ class CRecord (rec :: KRecord) where
 	fromRecord :: Record rec -> RecordRep rec x
 
 -- | Single record
-instance CRecord ('TSingle meta typ) where
+instance GRecord ('TSingle meta typ) where
 	type RecordRep ('TSingle meta typ) = S1 meta (Rec0 typ)
 
 	data Record ('TSingle meta typ) = Single typ
@@ -85,7 +85,7 @@ instance CRecord ('TSingle meta typ) where
 deriving instance (Show typ) => Show (Record ('TSingle meta typ))
 
 -- | Combination of records
-instance (CRecord lhs, CRecord rhs) => CRecord ('TCombine lhs rhs) where
+instance (GRecord lhs, GRecord rhs) => GRecord ('TCombine lhs rhs) where
 	type RecordRep ('TCombine lhs rhs) = RecordRep lhs :*: RecordRep rhs
 
 	data Record ('TCombine lhs rhs) = Combine (Record lhs) (Record rhs)
@@ -129,7 +129,7 @@ data KFlatSum
 		-- ^ Single value of the enumeration
 
 -- | Mappings between a 'Generic' representation and our 'KFlatSum'-based representation
-class CFlatSum (enum :: KFlatSum) where
+class GFlatSum (enum :: KFlatSum) where
 	-- | 'Generic' representation
 	type FlatSumRep enum :: * -> *
 
@@ -143,7 +143,7 @@ class CFlatSum (enum :: KFlatSum) where
 	fromFlatSum :: FlatSum enum -> FlatSumRep enum x
 
 -- | Single constructor
-instance CFlatSum ('TValue meta) where
+instance GFlatSum ('TValue meta) where
 	type FlatSumRep ('TValue meta) = C1 meta U1
 
 	data FlatSum ('TValue meta) = Unit
@@ -155,7 +155,7 @@ instance CFlatSum ('TValue meta) where
 deriving instance Show (FlatSum ('TValue meta))
 
 -- | Combination of multiple constructors
-instance (CFlatSum lhs, CFlatSum rhs) => CFlatSum ('TChoose lhs rhs) where
+instance (GFlatSum lhs, GFlatSum rhs) => GFlatSum ('TChoose lhs rhs) where
 	type FlatSumRep ('TChoose lhs rhs) = FlatSumRep lhs :+: FlatSumRep rhs
 
 	data FlatSum ('TChoose lhs rhs) = ChooseLeft (FlatSum lhs) | ChooseRight (FlatSum rhs)
@@ -208,22 +208,22 @@ data KDataType
 		-- ^ Enumeration
 
 -- | Mappings between a 'Generic' representation and our 'KDataType'-based representation
-class CDataType (dat :: KDataType) where
+class GDataType (dat :: KDataType) where
 	-- | 'Generic' representation
-	type GDataTypeRep dat :: * -> *
+	type DataTypeRep dat :: * -> *
 
 	-- | 'KDataType'-based representation
 	data DataType dat
 
 	-- | From 'Generic' representation
-	toDataType :: GDataTypeRep dat x -> DataType dat
+	toDataType :: DataTypeRep dat x -> DataType dat
 
 	-- | To 'Generic' representation
-	fromDataType :: DataType dat -> GDataTypeRep dat x
+	fromDataType :: DataType dat -> DataTypeRep dat x
 
 -- | With single constructor
-instance (CRecord rec) => CDataType ('TRecord d c rec) where
-	type GDataTypeRep ('TRecord d c rec) = D1 d (C1 c (RecordRep rec))
+instance (GRecord rec) => GDataType ('TRecord d c rec) where
+	type DataTypeRep ('TRecord d c rec) = D1 d (C1 c (RecordRep rec))
 
 	data DataType ('TRecord d c rec) = Record (Record rec)
 
@@ -234,8 +234,8 @@ instance (CRecord rec) => CDataType ('TRecord d c rec) where
 deriving instance (Show (Record rec)) => Show (DataType ('TRecord d c rec))
 
 -- | With multiple constructors
-instance (CFlatSum enum) => CDataType ('TFlatSum d enum) where
-	type GDataTypeRep ('TFlatSum d enum) = D1 d (FlatSumRep enum)
+instance (GFlatSum enum) => GDataType ('TFlatSum d enum) where
+	type DataTypeRep ('TFlatSum d enum) = D1 d (FlatSumRep enum)
 
 	data DataType ('TFlatSum d enum) = FlatSum (FlatSum enum)
 
@@ -281,7 +281,7 @@ type family AnalyzeDataType org (dat :: * -> *) :: KDataType where
 type AnalyzeEntity a = AnalyzeDataType a (Rep a)
 
 -- | Analyze the 'Generic' representation of a type to figure out which 'DataType' it needs.
-type EntityRep a = DataType (AnalyzeEntity a)
+type EntityDataType a = DataType (AnalyzeEntity a)
 
 -- | Make sure @a@ has a safe generic representation. Types that qualify implement 'Generic' and
 -- fulfill one of the following criteria:
@@ -292,13 +292,15 @@ type EntityRep a = DataType (AnalyzeEntity a)
 -- This constraint is mostly utilized to give the user more information about why their type has
 -- been rejected.
 type GenericEntity a = (Generic a,
-                        CDataType (AnalyzeEntity a),
-                        GDataTypeRep (AnalyzeEntity a) ~ Rep a)
+                        GDataType (AnalyzeEntity a),
+                        DataTypeRep (AnalyzeEntity a) ~ Rep a)
 
 -- | Convert to entity representation.
-fromGenericEntity :: (GenericEntity a) => a -> EntityRep a
-fromGenericEntity x = toDataType (from x)
+fromGenericEntity :: (GenericEntity a) => a -> EntityDataType a
+fromGenericEntity =
+	toDataType . from
 
 -- | Build from entity representation.
-toGenericEntity :: (GenericEntity a) => EntityRep a -> a
-toGenericEntity x = to (fromDataType x)
+toGenericEntity :: (GenericEntity a) => EntityDataType a -> a
+toGenericEntity =
+	to . fromDataType
