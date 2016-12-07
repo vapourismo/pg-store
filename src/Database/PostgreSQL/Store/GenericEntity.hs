@@ -182,6 +182,13 @@ type family AnalyzeFlatSumRep org (cons :: * -> *) :: KFlatSum where
 		           ':<>: 'Text " has multiple constructors, therefore these constructors must have \
 		                       \no fields")
 
+	-- Constructor with a record selector is invalid
+	AnalyzeFlatSumRep org (C1 meta1 (lhs :*: rhs)) =
+		TypeError ('Text "Given type "
+		           ':<>: 'ShowType org
+		           ':<>: 'Text " has multiple constructors, therefore these constructors must have \
+		                       \no fields")
+
 	-- More constructors
 	AnalyzeFlatSumRep org (lhs :+: rhs) =
 		'TChoose (AnalyzeFlatSumRep org lhs) (AnalyzeFlatSumRep org rhs)
