@@ -5,7 +5,7 @@
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Result (
 	-- * Exported modules
-	module Database.PostgreSQL.Store.Result.Parser,
+	module Database.PostgreSQL.Store.RowParser,
 	module Database.PostgreSQL.Store.Entity,
 
 	-- * Processor
@@ -16,7 +16,7 @@ module Database.PostgreSQL.Store.Result (
 
 import           Control.Monad.Except
 
-import           Database.PostgreSQL.Store.Result.Parser
+import           Database.PostgreSQL.Store.RowParser
 import           Database.PostgreSQL.Store.Entity
 
 import qualified Database.PostgreSQL.LibPQ as P

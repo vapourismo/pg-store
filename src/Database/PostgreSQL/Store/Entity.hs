@@ -60,7 +60,7 @@ import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Utilities
 import           Database.PostgreSQL.Store.Generics
 import           Database.PostgreSQL.Store.Query.Builder
-import           Database.PostgreSQL.Store.Result.Parser
+import           Database.PostgreSQL.Store.RowParser
 
 import           Database.PostgreSQL.LibPQ (Oid (..), invalidOid)
 

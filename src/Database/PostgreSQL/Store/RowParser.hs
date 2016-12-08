@@ -1,11 +1,11 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- |
--- Module:     Database.PostgreSQL.Store.Result.Parser
+-- Module:     Database.PostgreSQL.Store.RowParser
 -- Copyright:  (c) Ole Krüger 2016
 -- License:    BSD3
 -- Maintainer: Ole Krüger <ole@vprsm.de>
-module Database.PostgreSQL.Store.Result.Parser (
+module Database.PostgreSQL.Store.RowParser (
 	-- * Row Parser
 	RowParser,
 	RowErrorLocation (..),
