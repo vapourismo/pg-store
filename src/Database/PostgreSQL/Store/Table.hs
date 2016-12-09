@@ -59,11 +59,11 @@ import qualified Data.ByteString as B
 import           Database.PostgreSQL.Store.Query
 import           Database.PostgreSQL.Store.Utilities
 
--- |
+-- | Description of a column type
 data ColumnType = ColumnType {
-	colDescTypeName :: B.ByteString,
-	colDescNotNull  :: Bool,
-	colDescCheck    :: Maybe (B.ByteString -> QueryBuilder)
+	colTypeTypeName :: B.ByteString,
+	colTypeNotNull  :: Bool,
+	colTypeCheck    :: Maybe (B.ByteString -> QueryBuilder)
 }
 
 -- | Classify a type which can be used as a column in a table.
@@ -74,7 +74,7 @@ class (Entity a) => ColumnEntity a where
 instance (ColumnEntity a) => ColumnEntity (Maybe a) where
 	describeColumnType _ =
 		(describeColumnType (Proxy :: Proxy a)) {
-			colDescNotNull = False
+			colTypeNotNull = False
 		}
 
 instance ColumnEntity Int where
@@ -85,21 +85,21 @@ instance ColumnEntity String where
 	describeColumnType _ =
 		ColumnType "text" True Nothing
 
--- |
+-- | Type-level description of a record
 data KColumns
 	= TCombine KColumns KColumns
 	| TSelector Symbol Type
 
--- |
+-- | Desciption of a column
 data Column = Column {
 	colName :: B.ByteString,
-	colDesc :: ColumnType
+	colType :: ColumnType
 }
 
--- |
-class GColumns (sel :: KColumns) where
-	-- |
-	gDescribeColumns :: proxy sel -> [Column]
+-- | Provide the means to demote 'KColumns' to a value.
+class GColumns (rec :: KColumns) where
+	-- | Instantiate singleton
+	gDescribeColumns :: proxy rec -> [Column]
 
 instance (KnownSymbol name, ColumnEntity typ) => GColumns ('TSelector name typ) where
 	gDescribeColumns _ =
@@ -111,14 +111,14 @@ instance (GColumns lhs, GColumns rhs) => GColumns ('TCombine lhs rhs) where
 		gDescribeColumns (Proxy :: Proxy lhs)
 		++ gDescribeColumns (Proxy :: Proxy rhs)
 
--- |
-type family AnalyzeRecordRep org (sel :: * -> *) :: KColumns where
+-- | Check the 'Generic' representation of a record in order to generate an instance of 'KColumns'.
+type family AnalyzeRecordRep org (rec :: * -> *) :: KColumns where
 	-- Single record field
 	AnalyzeRecordRep org (S1 ('MetaSel ('Just name) m1 m2 m3) (Rec0 typ)) =
 		'TSelector name typ
 
 	-- Non-record field
-	AnalyzeRecordRep org (S1 ('MetaSel 'Nothing m1 m2 m3) (Rec0 typ)) =
+	AnalyzeRecordRep org (S1 ('MetaSel 'Nothing m1 m2 m3) a) =
 		TypeError ('Text "Given type "
 		           ':<>: 'ShowType org
 		           ':<>: 'Text " must have a single record constructor")
@@ -141,15 +141,15 @@ type family AnalyzeRecordRep org (sel :: * -> *) :: KColumns where
 		           ':<>: 'Text " has a constructor with an invalid selector"
 		           ':$$: 'ShowType other)
 
--- |
+-- | Type-level description of a table
 data KTable = TTable Symbol KColumns
 
--- |
+-- | Description of a table
 data Table = Table B.ByteString [Column]
 
--- |
+-- | Provide the means to demote 'KTable' to a value.
 class GTable (tbl :: KTable) where
-	-- |
+	-- | Instantiate singleton
 	gDescribeTable :: proxy tbl -> Table
 
 instance (KnownSymbol name, GColumns cols) => GTable ('TTable name cols) where
@@ -157,7 +157,7 @@ instance (KnownSymbol name, GColumns cols) => GTable ('TTable name cols) where
 		Table (buildByteString (symbolVal (Proxy :: Proxy name)))
 		      (gDescribeColumns (Proxy :: Proxy cols))
 
--- |
+-- | Check the 'Generic' representation of a data type in order to generate an instance of 'KTable'.
 type family AnalyzeTableRep org (dat :: * -> *) :: KTable where
 	-- Single constructor
 	AnalyzeTableRep org (D1 meta1 (C1 ('MetaCons name f 'True) sel)) =
@@ -176,26 +176,26 @@ type family AnalyzeTableRep org (dat :: * -> *) :: KTable where
 		           ':<>: 'Text " is not a valid data type"
 		           ':$$: 'ShowType other)
 
--- |
+-- | Analyzes a type in order to retrieve its 'KTable' representation.
 type AnalyzeTable a = AnalyzeTableRep a (Rep a)
 
--- |
+-- | Constraint for generic tables
 type GenericTable a = (Generic a, GTable (AnalyzeTable a))
 
--- |
+-- | Fetch the table description for a generic table type.
 describeGenericTable :: (GenericTable a) => proxy a -> Table
 describeGenericTable proxy =
 	gDescribeTable ((const Proxy :: proxy a -> Proxy (AnalyzeTable a)) proxy)
 
--- |
+-- | Classify a type which can be used as a table.
 class TableEntity a where
-	-- |
-	describeTable :: proxy a -> Table
+	-- | Describe the table type.
+	describeTableType :: proxy a -> Table
 
-	default describeTable :: (GenericTable a) => proxy a -> Table
-	describeTable = describeGenericTable
+	default describeTableType :: (GenericTable a) => proxy a -> Table
+	describeTableType = describeGenericTable
 
--- |
+-- | Build SQL code which describes the column.
 buildColumn :: Column -> QueryBuilder
 buildColumn (Column name (ColumnType typeName notNull mbCheck)) = do
 	insertName name
@@ -211,7 +211,7 @@ buildColumn (Column name (ColumnType typeName notNull mbCheck)) = do
 
 		Nothing -> pure ()
 
--- |
+-- | Build the SQL code which describes and creates the table.
 buildTableSchema :: Table -> QueryBuilder
 buildTableSchema (Table name cols) =
 	[pgsq| CREATE TABLE IF NOT EXISTS ${insertName name} ($colsDesc) |]
