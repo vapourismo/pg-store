@@ -145,7 +145,10 @@ type family AnalyzeRecordRep org (rec :: * -> *) :: KColumns where
 data KTable = TTable Symbol KColumns
 
 -- | Description of a table
-data Table = Table B.ByteString [Column]
+data Table = Table {
+	tableName :: B.ByteString,
+	tableCols :: [Column]
+}
 
 -- | Provide the means to demote 'KTable' to a value.
 class GTable (tbl :: KTable) where
