@@ -40,7 +40,7 @@ import qualified Data.ByteString           as B
 import qualified Database.PostgreSQL.LibPQ as P
 import           Database.PostgreSQL.Store.Types
 
--- |
+-- | Location of an error
 data RowErrorLocation = RowErrorLocation P.Column P.Row
 	deriving (Show, Eq, Ord)
 
@@ -54,15 +54,17 @@ data RowErrorDetail
 		-- ^ The contents of a column could not be parsed.
 	deriving (Show, Eq, Ord)
 
--- |
+-- | An error that occured when parsing a row.
 data RowError = RowError RowErrorLocation RowErrorDetail
 	deriving (Show, Eq, Ord)
 
--- |
-data ResultInfo = ResultInfo P.Result P.Column
+-- | Static result information
+data ResultInfo = ResultInfo P.Result -- Result to operate on
+                             P.Column -- Total number of columns
 
--- |
-data RowInput = RowInput ResultInfo P.Row
+-- | Static row information
+data RowInput = RowInput ResultInfo -- Result info
+                         P.Row      -- Current row to operate on
 
 -- | Row parser
 newtype RowParser a =
