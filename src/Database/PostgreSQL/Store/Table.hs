@@ -61,9 +61,14 @@ import           Database.PostgreSQL.Store.Utilities
 
 -- | Description of a column type
 data ColumnType = ColumnType {
-	colTypeTypeName :: B.ByteString,
-	colTypeNotNull  :: Bool,
-	colTypeCheck    :: Maybe (B.ByteString -> QueryBuilder)
+	-- | Type name
+	colTypeName :: B.ByteString,
+
+	-- | @NOT NULL@ constraint present?
+	colTypeNotNull :: Bool,
+
+	-- | Produce a check statement body when given a column name
+	colTypeCheck :: Maybe (B.ByteString -> QueryBuilder)
 }
 
 -- | Classify a type which can be used as a column in a table.
@@ -92,7 +97,10 @@ data KColumns
 
 -- | Desciption of a column
 data Column = Column {
+	-- | Column name
 	colName :: B.ByteString,
+
+	-- | Column type
 	colType :: ColumnType
 }
 
@@ -146,7 +154,10 @@ data KTable = TTable Symbol KColumns
 
 -- | Description of a table
 data Table = Table {
+	-- | Table name
 	tableName :: B.ByteString,
+
+	-- | Table columns
 	tableCols :: [Column]
 }
 
