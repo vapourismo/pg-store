@@ -73,7 +73,7 @@ data ColumnType = ColumnType {
 
 -- | Classify a type which can be used as a column in a table.
 class (Entity a) => ColumnEntity a where
-	-- |
+	-- | Describe the column type
 	describeColumnType :: proxy a -> ColumnType
 
 instance (ColumnEntity a) => ColumnEntity (Maybe a) where
