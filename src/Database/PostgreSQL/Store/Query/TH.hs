@@ -52,17 +52,17 @@ data QuerySegment
 	| QueryEntityCode String
 	| QueryQuote Char String
 	| QueryOther String
-	-- QueryTable String
+	| QueryTable String
 	| QuerySelector String
 	| QuerySelectorAlias String String
 	-- QueryIdentifier String
 	deriving (Show, Eq, Ord)
 
--- -- | Table
--- tableSegment :: Parser QuerySegment
--- tableSegment = do
--- 	char '@'
--- 	QueryTable <$> qualifiedTypeName
+-- | Table
+tableSegment :: Parser QuerySegment
+tableSegment = do
+	char '@'
+	QueryTable <$> qualifiedTypeName
 
 -- | Selector
 selectorSegment :: Parser QuerySegment
@@ -70,7 +70,7 @@ selectorSegment = do
 	char '#'
 	QuerySelector <$> qualifiedTypeName
 
--- |
+-- | Selector alias
 selectorAliasSegment :: Parser QuerySegment
 selectorAliasSegment = do
 	char '#'
@@ -133,7 +133,7 @@ quoteSegment delim = do
 -- | Uninterpreted segment
 otherSegment :: Parser QuerySegment
 otherSegment =
-	QueryOther <$> some (satisfy (notInClass "\"'#$"))
+	QueryOther <$> some (satisfy (notInClass "\"'@#$"))
 	-- QueryOther <$> some (satisfy (notInClass "\"'@&#$"))
 
 -- | Segment that is part of the query
@@ -141,7 +141,7 @@ querySegment :: Parser QuerySegment
 querySegment =
 	choice [quoteSegment '\'',
 	        quoteSegment '"',
-	        -- tableSegment,
+	        tableSegment,
 	        selectorAliasSegment,
 	        selectorSegment,
 	        -- identifierSegment,
@@ -158,12 +158,12 @@ packCode code =
 translateSegment :: QuerySegment -> Q Exp
 translateSegment segment =
 	case segment of
-		-- QueryTable stringName -> do
-		-- 	mbTypeName <- lookupTypeName stringName
-		-- 	case mbTypeName of
-		-- 		Nothing -> fail ("'" ++ stringName ++ "' does not refer to a type")
-		-- 		Just typ ->
-		-- 			[e| insertTableName (Proxy :: Proxy $(conT typ)) |]
+		QueryTable stringName -> do
+			mbTypeName <- lookupTypeName stringName
+			case mbTypeName of
+				Nothing -> fail ("'" ++ stringName ++ "' does not refer to a type")
+				Just typ ->
+					[e| insertName (tableName (describeTableType (Proxy :: Proxy $(conT typ)))) |]
 
 		QuerySelector stringName -> do
 			mbTypeName <- lookupTypeName stringName
