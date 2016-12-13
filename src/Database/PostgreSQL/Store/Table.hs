@@ -188,8 +188,9 @@ buildColumn (Column name (ColumnType typeName notNull mbCheck)) = do
 
 	case mbCheck of
 		Just gen -> do
-			insertCode " "
+			insertCode " CHECK("
 			gen name
+			insertCode ")"
 
 		Nothing -> pure ()
 
