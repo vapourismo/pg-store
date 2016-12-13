@@ -28,6 +28,9 @@ module Database.PostgreSQL.Store.Table (
 	TableEntity (..),
 	buildTableSchema,
 
+	expandColumns,
+	expandColumnsOn,
+
 	GenericTable,
 	describeGenericTable,
 
@@ -54,7 +57,7 @@ import           Data.Proxy
 
 import qualified Data.ByteString as B
 
-import           Database.PostgreSQL.Store.Query
+import           Database.PostgreSQL.Store.Query.Builder
 import           Database.PostgreSQL.Store.Utilities
 import           Database.PostgreSQL.Store.ColumnEntity
 
@@ -196,7 +199,29 @@ buildColumn (Column name (ColumnType typeName notNull mbCheck)) = do
 
 -- | Build the SQL code which describes and creates the table.
 buildTableSchema :: Table -> QueryBuilder
-buildTableSchema (Table name cols) =
-	[pgsq| CREATE TABLE IF NOT EXISTS ${insertName name} ($colsDesc) |]
+buildTableSchema (Table name cols) = do
+	insertCode "CREATE TABLE IF NOT EXISTS "
+	insertName name
+	insertCode "("
+	insertCommaSeperated (map buildColumn cols)
+	insertCode ")"
+
+-- | Insert a comma-seperated list of the fully qualified column names of a table.
+expandColumns :: Table -> QueryBuilder
+expandColumns (Table name cols) =
+	insertCommaSeperated (map insertColumn cols)
 	where
-		colsDesc = insertCommaSeperated (map buildColumn cols)
+		insertColumn (Column colName _) = do
+			insertName name
+			insertCode "."
+			insertName colName
+
+-- | Similar to 'expandColumns', but instead it expands the column names on an alias.
+expandColumnsOn :: Table -> B.ByteString -> QueryBuilder
+expandColumnsOn (Table _ cols) name =
+	insertCommaSeperated (map insertColumn cols)
+	where
+		insertColumn (Column colName _) = do
+			insertName name
+			insertCode "."
+			insertName colName

@@ -17,8 +17,8 @@ import           Language.Haskell.Meta.Parse
 
 import           Control.Applicative
 
--- import           Data.List
--- import           Data.Proxy
+import           Data.List
+import           Data.Proxy
 import           Data.Char
 import           Data.Attoparsec.Text
 import qualified Data.ByteString                    as B
@@ -28,6 +28,7 @@ import qualified Data.Text                          as T
 
 import           Database.PostgreSQL.Store.Utilities
 import           Database.PostgreSQL.Store.Entity
+import           Database.PostgreSQL.Store.Table
 import           Database.PostgreSQL.Store.Query.Builder
 
 -- | Name
@@ -35,15 +36,15 @@ valueName :: Parser String
 valueName =
 	(:) <$> (letter <|> char '_') <*> many (satisfy isAlphaNum <|> char '_' <|> char '\'')
 
--- -- | Type name
--- typeName :: Parser String
--- typeName =
--- 	(:) <$> satisfy isUpper <*> many (satisfy isAlphaNum <|> char '_' <|> char '\'')
+-- | Type name
+typeName :: Parser String
+typeName =
+	(:) <$> satisfy isUpper <*> many (satisfy isAlphaNum <|> char '_' <|> char '\'')
 
--- -- | Qualified type name
--- qualifiedTypeName :: Parser String
--- qualifiedTypeName =
--- 	intercalate "." <$> sepBy1 typeName (char '.')
+-- | Qualified type name
+qualifiedTypeName :: Parser String
+qualifiedTypeName =
+	intercalate "." <$> sepBy1 typeName (char '.')
 
 -- | Query segment
 data QuerySegment
@@ -53,7 +54,8 @@ data QuerySegment
 	| QueryOther String
 	-- QueryTable String
 	-- QueryTableProxy String
-	-- QuerySelector String
+	| QuerySelector String
+	| QuerySelectorAlias String String
 	-- QuerySelectorProxy String
 	-- QueryIdentifier String
 	-- QueryIdentifierProxy String
@@ -71,13 +73,22 @@ data QuerySegment
 -- 	char '@'
 -- 	QueryTableProxy <$> valueName
 
--- -- | Segment
--- selectorSegment :: Parser QuerySegment
--- selectorSegment = do
--- 	char '#'
--- 	QuerySelector <$> qualifiedTypeName
+-- | Selector
+selectorSegment :: Parser QuerySegment
+selectorSegment = do
+	char '#'
+	QuerySelector <$> qualifiedTypeName
 
--- -- | Segment proxy
+-- |
+selectorAliasSegment :: Parser QuerySegment
+selectorAliasSegment = do
+	char '#'
+	QuerySelectorAlias <$> qualifiedTypeName
+	                   <*  char '('
+	                   <*> valueName
+	                   <*  char ')'
+
+-- -- | Selector proxy
 -- selectorProxySegment :: Parser QuerySegment
 -- selectorProxySegment = do
 -- 	char '#'
@@ -143,7 +154,7 @@ quoteSegment delim = do
 -- | Uninterpreted segment
 otherSegment :: Parser QuerySegment
 otherSegment =
-	QueryOther <$> some (satisfy (notInClass "\"'$"))
+	QueryOther <$> some (satisfy (notInClass "\"'#$"))
 	-- QueryOther <$> some (satisfy (notInClass "\"'@&#$"))
 
 -- | Segment that is part of the query
@@ -153,7 +164,8 @@ querySegment =
 	        quoteSegment '"',
 	        -- tableSegment,
 	        -- tableProxySegment,
-	        -- selectorSegment,
+	        selectorAliasSegment,
+	        selectorSegment,
 	        -- selectorProxySegment,
 	        -- identifierSegment,
 	        -- identifierProxySegment,
@@ -184,19 +196,27 @@ translateSegment segment =
 		-- 		Just name ->
 		-- 			[e| insertTableName ((const Proxy :: a -> Proxy a) $(varE name)) |]
 
-		-- QuerySelector stringName -> do
-		-- 	mbTypeName <- lookupTypeName stringName
-		-- 	case mbTypeName of
-		-- 		Nothing -> fail ("'" ++ stringName ++ "' does not refer to a type")
-		-- 		Just typ ->
-		-- 			[e| insertTableColumnNames (Proxy :: Proxy $(conT typ)) |]
+		QuerySelector stringName -> do
+			mbTypeName <- lookupTypeName stringName
+			case mbTypeName of
+				Nothing -> fail ("'" ++ stringName ++ "' does not refer to a type")
+				Just typ ->
+					[e| expandColumns (describeTableType (Proxy :: Proxy $(conT typ))) |]
+
+		QuerySelectorAlias stringName aliasName -> do
+			mbTypeName <- lookupTypeName stringName
+			case mbTypeName of
+				Nothing -> fail ("'" ++ stringName ++ "' does not refer to a type")
+				Just typ ->
+					[e| expandColumnsOn (describeTableType (Proxy :: Proxy $(conT typ)))
+					                    $(liftByteString (buildByteString aliasName)) |]
 
 		-- QuerySelectorProxy stringName -> do
 		-- 	mbTypeName <- lookupValueName stringName
 		-- 	case mbTypeName of
 		-- 		Nothing -> fail ("'" ++ stringName ++ "' does not refer to a value")
 		-- 		Just name ->
-		-- 			[e| insertTableColumnNames ((const Proxy :: a -> Proxy a) $(varE name)) |]
+		-- 			[e| expandColumns (describeTableType ((const Proxy :: a -> Proxy a) $(varE name))) |]
 
 		-- QueryIdentifier stringName -> do
 		-- 	mbTypeName <- lookupTypeName stringName
