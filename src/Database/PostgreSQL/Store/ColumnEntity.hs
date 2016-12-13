@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, FlexibleInstances, ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings, FlexibleInstances, ScopedTypeVariables, GeneralizedNewtypeDeriving #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.ColumnEntity
@@ -11,9 +11,21 @@ module Database.PostgreSQL.Store.ColumnEntity (
 ) where
 
 import           Data.Proxy
-import qualified Data.ByteString as B
+
+import           Data.Int
+import           Data.Word
+import           Data.Scientific
+import           Numeric.Natural
+
+import qualified Data.Aeson           as A
+
+import qualified Data.ByteString      as B
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.Text            as T
+import qualified Data.Text.Lazy       as TL
 
 import           Database.PostgreSQL.Store.Entity
+import           Database.PostgreSQL.Store.Utilities
 import           Database.PostgreSQL.Store.Query.Builder
 
 -- | Description of a column type
@@ -39,10 +51,148 @@ instance (ColumnEntity a) => ColumnEntity (Maybe a) where
 			colTypeNotNull = False
 		}
 
-instance ColumnEntity Int where
+newtype PGInt2 = PGInt2 Int16
+	deriving (Show, Read, Eq, Ord, Enum, Bounded, Integral, Num, Real)
+
+instance Entity PGInt2 where
+	insertEntity (PGInt2 x) =
+		insertEntity x
+
+	parseEntity =
+		PGInt2 <$> parseEntity
+
+instance ColumnEntity PGInt2 where
+	describeColumnType _ =
+		ColumnType "int2" True Nothing
+
+newtype PGInt4 = PGInt4 Int32
+	deriving (Show, Read, Eq, Ord, Enum, Bounded, Integral, Num, Real)
+
+instance Entity PGInt4 where
+	insertEntity (PGInt4 x) =
+		insertEntity x
+
+	parseEntity =
+		PGInt4 <$> parseEntity
+
+instance ColumnEntity PGInt4 where
+	describeColumnType _ =
+		ColumnType "int4" True Nothing
+
+newtype PGInt8 = PGInt8 Int64
+	deriving (Show, Read, Eq, Ord, Enum, Bounded, Integral, Num, Real)
+
+instance Entity PGInt8 where
+	insertEntity (PGInt8 x) =
+		insertEntity x
+
+	parseEntity =
+		PGInt8 <$> parseEntity
+
+instance ColumnEntity PGInt8 where
 	describeColumnType _ =
 		ColumnType "int8" True Nothing
+
+-- |
+selectBestColumnType :: (Show a, Num a, Ord a, Bounded a) => proxy a -> ColumnType
+selectBestColumnType proxy
+	| -32768 <= lower && upper <= 32767 =
+		ColumnType "int2" True Nothing
+	| -2147483648 <= lower && upper <= 2147483647 =
+		ColumnType "int4" True Nothing
+	| -9223372036854775808 <= lower && upper <= 9223372036854775807 =
+		ColumnType "int8" True Nothing
+	| otherwise =
+		ColumnType (buildByteString ("numeric(" ++ show digits ++ ",0)")) True Nothing
+	where
+		upper = (const maxBound :: (Bounded a) => proxy a -> a) proxy
+		lower = (const minBound :: (Bounded a) => proxy a -> a) proxy
+		digits = max (length (show upper)) (length (show lower))
+
+instance ColumnEntity Bool where
+	describeColumnType _ =
+		ColumnType "bool" True Nothing
+
+instance ColumnEntity Integer where
+	describeColumnType _ =
+		ColumnType "numeric" True Nothing
+
+instance ColumnEntity Int where
+	describeColumnType _ =
+		selectBestColumnType (Proxy :: Proxy Int)
+
+instance ColumnEntity Int8 where
+	describeColumnType _ =
+		selectBestColumnType (Proxy :: Proxy Int8)
+
+instance ColumnEntity Int16 where
+	describeColumnType _ =
+		selectBestColumnType (Proxy :: Proxy Int16)
+
+instance ColumnEntity Int32 where
+	describeColumnType _ =
+		selectBestColumnType (Proxy :: Proxy Int32)
+
+instance ColumnEntity Int64 where
+	describeColumnType _ =
+		selectBestColumnType (Proxy :: Proxy Int64)
+
+instance ColumnEntity Natural where
+	describeColumnType _ =
+		ColumnType "numeric" True Nothing
+
+instance ColumnEntity Word where
+	describeColumnType _ =
+		selectBestColumnType (Proxy :: Proxy Word)
+
+instance ColumnEntity Word8 where
+	describeColumnType _ =
+		selectBestColumnType (Proxy :: Proxy Word8)
+
+instance ColumnEntity Word16 where
+	describeColumnType _ =
+		selectBestColumnType (Proxy :: Proxy Word16)
+
+instance ColumnEntity Word32 where
+	describeColumnType _ =
+		selectBestColumnType (Proxy :: Proxy Word32)
+
+instance ColumnEntity Word64 where
+	describeColumnType _ =
+		selectBestColumnType (Proxy :: Proxy Word64)
+
+instance ColumnEntity Float where
+	describeColumnType _ =
+		ColumnType "real" True Nothing
+
+instance ColumnEntity Double where
+	describeColumnType _ =
+		ColumnType "double precision" True Nothing
+
+instance ColumnEntity Scientific where
+	describeColumnType _ =
+		ColumnType "numeric" True Nothing
 
 instance ColumnEntity String where
 	describeColumnType _ =
 		ColumnType "text" True Nothing
+
+instance ColumnEntity T.Text where
+	describeColumnType _ =
+		ColumnType "text" True Nothing
+
+instance ColumnEntity TL.Text where
+	describeColumnType _ =
+		ColumnType "text" True Nothing
+
+instance ColumnEntity B.ByteString where
+	describeColumnType _ =
+		ColumnType "bytea" True Nothing
+
+instance ColumnEntity BL.ByteString where
+	describeColumnType _ =
+		ColumnType "bytea" True Nothing
+
+instance ColumnEntity A.Value where
+	describeColumnType _ =
+		ColumnType "json" True Nothing
