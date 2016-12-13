@@ -53,12 +53,9 @@ data QuerySegment
 	| QueryQuote Char String
 	| QueryOther String
 	-- QueryTable String
-	-- QueryTableProxy String
 	| QuerySelector String
 	| QuerySelectorAlias String String
-	-- QuerySelectorProxy String
 	-- QueryIdentifier String
-	-- QueryIdentifierProxy String
 	deriving (Show, Eq, Ord)
 
 -- -- | Table
@@ -66,12 +63,6 @@ data QuerySegment
 -- tableSegment = do
 -- 	char '@'
 -- 	QueryTable <$> qualifiedTypeName
-
--- -- | Table proxy
--- tableProxySegment :: Parser QuerySegment
--- tableProxySegment = do
--- 	char '@'
--- 	QueryTableProxy <$> valueName
 
 -- | Selector
 selectorSegment :: Parser QuerySegment
@@ -88,23 +79,11 @@ selectorAliasSegment = do
 	                   <*> valueName
 	                   <*  char ')'
 
--- -- | Selector proxy
--- selectorProxySegment :: Parser QuerySegment
--- selectorProxySegment = do
--- 	char '#'
--- 	QuerySelectorProxy <$> valueName
-
 -- -- | Identifier
 -- identifierSegment :: Parser QuerySegment
 -- identifierSegment = do
 -- 	char '&'
 -- 	QueryIdentifier <$> qualifiedTypeName
-
--- -- | Identifier proxy
--- identifierProxySegment :: Parser QuerySegment
--- identifierProxySegment = do
--- 	char '&'
--- 	QueryIdentifierProxy <$> valueName
 
 -- | Entity
 entityNameSegment :: Parser QuerySegment
@@ -163,12 +142,9 @@ querySegment =
 	choice [quoteSegment '\'',
 	        quoteSegment '"',
 	        -- tableSegment,
-	        -- tableProxySegment,
 	        selectorAliasSegment,
 	        selectorSegment,
-	        -- selectorProxySegment,
 	        -- identifierSegment,
-	        -- identifierProxySegment,
 	        entityCodeSegment,
 	        entityNameSegment,
 	        otherSegment]
@@ -189,13 +165,6 @@ translateSegment segment =
 		-- 		Just typ ->
 		-- 			[e| insertTableName (Proxy :: Proxy $(conT typ)) |]
 
-		-- QueryTableProxy stringName -> do
-		-- 	mbTypeName <- lookupValueName stringName
-		-- 	case mbTypeName of
-		-- 		Nothing -> fail ("'" ++ stringName ++ "' does not refer to a value")
-		-- 		Just name ->
-		-- 			[e| insertTableName ((const Proxy :: a -> Proxy a) $(varE name)) |]
-
 		QuerySelector stringName -> do
 			mbTypeName <- lookupTypeName stringName
 			case mbTypeName of
@@ -211,26 +180,12 @@ translateSegment segment =
 					[e| expandColumnsOn (describeTableType (Proxy :: Proxy $(conT typ)))
 					                    $(liftByteString (buildByteString aliasName)) |]
 
-		-- QuerySelectorProxy stringName -> do
-		-- 	mbTypeName <- lookupValueName stringName
-		-- 	case mbTypeName of
-		-- 		Nothing -> fail ("'" ++ stringName ++ "' does not refer to a value")
-		-- 		Just name ->
-		-- 			[e| expandColumns (describeTableType ((const Proxy :: a -> Proxy a) $(varE name))) |]
-
 		-- QueryIdentifier stringName -> do
 		-- 	mbTypeName <- lookupTypeName stringName
 		-- 	case mbTypeName of
 		-- 		Nothing -> fail ("'" ++ stringName ++ "' does not refer to a type")
 		-- 		Just typ ->
 		-- 			[e| insertTableIdentColumnName (Proxy :: Proxy $(conT typ)) |]
-
-		-- QueryIdentifierProxy stringName -> do
-		-- 	mbTypeName <- lookupValueName stringName
-		-- 	case mbTypeName of
-		-- 		Nothing -> fail ("'" ++ stringName ++ "' does not refer to a value")
-		-- 		Just name ->
-		-- 			[e| insertTableIdentColumnName ((const Proxy :: a -> Proxy a) $(varE name)) |]
 
 		QueryEntity stringName -> do
 			mbValueName <- lookupValueName stringName
