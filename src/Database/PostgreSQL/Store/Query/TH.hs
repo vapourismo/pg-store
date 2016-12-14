@@ -94,16 +94,16 @@ entityNameSegment = do
 -- | Entity code
 entityCodeSegment :: Parser QuerySegment
 entityCodeSegment =
-	QueryEntityCode <$> (string "${" *> insideCode <* char '}')
+	QueryEntityCode <$> (string "$(" *> insideCode <* char ')')
 	where
 		insideCode =
 			concat <$> many (choice [bracedCode,
 			                         quoteCode '\'',
 			                         quoteCode '\"',
-			                         some (satisfy (notInClass "\"'{}"))])
+			                         some (satisfy (notInClass "\"'()"))])
 
 		bracedCode =
-			char '{' *> fmap (\ code -> '{' : code ++ "}") insideCode <* char '}'
+			char '(' *> fmap (\ code -> '(' : code ++ ")") insideCode <* char ')'
 
 		quoteCode delim = do
 			char delim
