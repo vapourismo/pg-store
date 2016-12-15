@@ -118,48 +118,38 @@ instance ColumnEntity Integer where
 		ColumnType "numeric" True Nothing
 
 instance ColumnEntity Int where
-	describeColumnType _ =
-		selectBestColumnType (Proxy :: Proxy Int)
+	describeColumnType = selectBestColumnType
 
 instance ColumnEntity Int8 where
-	describeColumnType _ =
-		selectBestColumnType (Proxy :: Proxy Int8)
+	describeColumnType = selectBestColumnType
 
 instance ColumnEntity Int16 where
-	describeColumnType _ =
-		selectBestColumnType (Proxy :: Proxy Int16)
+	describeColumnType = selectBestColumnType
 
 instance ColumnEntity Int32 where
-	describeColumnType _ =
-		selectBestColumnType (Proxy :: Proxy Int32)
+	describeColumnType = selectBestColumnType
 
 instance ColumnEntity Int64 where
-	describeColumnType _ =
-		selectBestColumnType (Proxy :: Proxy Int64)
+	describeColumnType = selectBestColumnType
 
 instance ColumnEntity Natural where
 	describeColumnType _ =
 		ColumnType "numeric" True Nothing
 
 instance ColumnEntity Word where
-	describeColumnType _ =
-		selectBestColumnType (Proxy :: Proxy Word)
+	describeColumnType = selectBestColumnType
 
 instance ColumnEntity Word8 where
-	describeColumnType _ =
-		selectBestColumnType (Proxy :: Proxy Word8)
+	describeColumnType = selectBestColumnType
 
 instance ColumnEntity Word16 where
-	describeColumnType _ =
-		selectBestColumnType (Proxy :: Proxy Word16)
+	describeColumnType = selectBestColumnType
 
 instance ColumnEntity Word32 where
-	describeColumnType _ =
-		selectBestColumnType (Proxy :: Proxy Word32)
+	describeColumnType = selectBestColumnType
 
 instance ColumnEntity Word64 where
-	describeColumnType _ =
-		selectBestColumnType (Proxy :: Proxy Word64)
+	describeColumnType = selectBestColumnType
 
 instance ColumnEntity Float where
 	describeColumnType _ =
