@@ -93,7 +93,7 @@ instance ColumnEntity PGInt8 where
 	describeColumnType _ =
 		ColumnType "int8" True Nothing
 
--- |
+-- | Select a type which can contain the given numeric type.
 selectBestColumnType :: (Show a, Num a, Ord a, Bounded a) => proxy a -> ColumnType
 selectBestColumnType proxy
 	| -32768 <= lower && upper <= 32767 =
