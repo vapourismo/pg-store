@@ -24,7 +24,9 @@ import qualified Database.PostgreSQL.LibPQ as P
 -- | Error that occurs during result processing.
 data ResultProcessError
 	= ResultError RowError
+		-- ^ An error occured during parsing of the result.
 	| UnsupportedStatus P.ExecStatus
+		-- ^ 'P.Result' has an unsupported result status.
 	deriving (Show, Eq)
 
 -- | Make sure the given 'P.Result' is valid and ready for processing.
