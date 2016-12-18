@@ -23,7 +23,7 @@ import qualified Database.PostgreSQL.LibPQ as P
 
 -- | Error that occurs during result processing.
 data ResultProcessError
-	= ResultError RowError
+	= ParseError RowError
 		-- ^ An error occured during parsing of the result.
 	| UnsupportedStatus P.ExecStatus
 		-- ^ 'P.Result' has an unsupported result status.
@@ -48,7 +48,7 @@ validateResult result = do
 processResultWith :: P.Result -> RowParser a -> ExceptT ResultProcessError IO [a]
 processResultWith result parser = do
 	validateResult result
-	withExceptT ResultError (parseResult result parser)
+	withExceptT ParseError (parseResult result parser)
 
 -- | Process the 'P.Result' with a 'RowParser' provided by the 'ResultEntity' instance.
 processResult :: (Entity a) => P.Result -> ExceptT ResultProcessError IO [a]
