@@ -28,8 +28,11 @@ module Database.PostgreSQL.Store.Table (
 	TableEntity (..),
 	buildTableSchema,
 
-	expandColumns,
-	expandColumnsOn,
+	insertColumns,
+	insertColumnsOn,
+
+	insert,
+	insertMany,
 
 	GenericTable,
 	describeGenericTable,
@@ -57,9 +60,11 @@ import           Data.Proxy
 
 import qualified Data.ByteString as B
 
-import           Database.PostgreSQL.Store.Query.Builder
+import           Database.PostgreSQL.Store.Types
+import           Database.PostgreSQL.Store.Entity
 import           Database.PostgreSQL.Store.Utilities
 import           Database.PostgreSQL.Store.ColumnEntity
+import           Database.PostgreSQL.Store.Query.Builder
 
 -- | Type-level description of a record
 data KColumns
@@ -173,7 +178,7 @@ describeGenericTable proxy =
 	gDescribeTable ((const Proxy :: proxy a -> Proxy (AnalyzeTable a)) proxy)
 
 -- | Classify a type which can be used as a table.
-class TableEntity a where
+class (Entity a) => TableEntity a where
 	-- | Describe the table type.
 	describeTableType :: proxy a -> Table
 
@@ -225,3 +230,40 @@ insertColumnsOn (Table _ cols) name =
 			insertName name
 			insertCode "."
 			insertName colName
+
+-- | Insert a row into a 'Table'.
+insert :: (TableEntity a) => a -> Query ()
+insert row =
+	buildQuery $ do
+		insertCode "INSERT INTO "
+		insertName name
+		insertCode "("
+		insertCommaSeperated (map (\ (Column colName _) -> insertName colName) cols)
+		insertCode ") VALUES ("
+		insertEntity row
+		insertCode ")"
+
+	where
+		Table name cols =
+			describeTableType ((const Proxy :: a -> Proxy a) row)
+
+-- | Insert many rows into a 'Table'.
+insertMany :: (TableEntity a) => [a] -> Query Int
+insertMany [] =
+	buildQuery (insertCode "SELECT 0")
+insertMany rows =
+	buildQuery $ do
+		insertCode "INSERT INTO "
+		insertName name
+		insertCode "("
+		insertCommaSeperated (map (\ (Column colName _) -> insertName colName) cols)
+		insertCode ") VALUES "
+		insertCommaSeperated $ flip map rows $ \ row -> do
+			insertCode "("
+			insertEntity row
+			insertCode ")"
+		insertCode " RETURNING 1"
+
+	where
+		Table name cols =
+			describeTableType ((const Proxy :: [a] -> Proxy a) rows)
