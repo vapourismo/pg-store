@@ -207,8 +207,8 @@ buildTableSchema (Table name cols) = do
 	insertCode ")"
 
 -- | Insert a comma-seperated list of the fully qualified column names of a table.
-expandColumns :: Table -> QueryBuilder
-expandColumns (Table name cols) =
+insertColumns :: Table -> QueryBuilder
+insertColumns (Table name cols) =
 	insertCommaSeperated (map insertColumn cols)
 	where
 		insertColumn (Column colName _) = do
@@ -216,9 +216,9 @@ expandColumns (Table name cols) =
 			insertCode "."
 			insertName colName
 
--- | Similar to 'expandColumns', but instead it expands the column names on an alias.
-expandColumnsOn :: Table -> B.ByteString -> QueryBuilder
-expandColumnsOn (Table _ cols) name =
+-- | Similar to 'insertColumns', but instead it expands the column names on an alias.
+insertColumnsOn :: Table -> B.ByteString -> QueryBuilder
+insertColumnsOn (Table _ cols) name =
 	insertCommaSeperated (map insertColumn cols)
 	where
 		insertColumn (Column colName _) = do

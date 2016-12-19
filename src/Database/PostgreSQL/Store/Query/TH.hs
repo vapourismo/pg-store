@@ -170,14 +170,14 @@ translateSegment segment =
 			case mbTypeName of
 				Nothing -> fail ("'" ++ stringName ++ "' does not refer to a type")
 				Just typ ->
-					[e| expandColumns (describeTableType (Proxy :: Proxy $(conT typ))) |]
+					[e| insertColumns (describeTableType (Proxy :: Proxy $(conT typ))) |]
 
 		QuerySelectorAlias stringName aliasName -> do
 			mbTypeName <- lookupTypeName stringName
 			case mbTypeName of
 				Nothing -> fail ("'" ++ stringName ++ "' does not refer to a type")
 				Just typ ->
-					[e| expandColumnsOn (describeTableType (Proxy :: Proxy $(conT typ)))
+					[e| insertColumnsOn (describeTableType (Proxy :: Proxy $(conT typ)))
 					                    $(liftByteString (buildByteString aliasName)) |]
 
 		-- QueryIdentifier stringName -> do
