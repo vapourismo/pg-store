@@ -125,7 +125,7 @@ instance FromQueryBuilder (B.ByteString, [TypedValue]) where
 		(code, values)
 		where BuilderState code _ values = execState builder (BuilderState B.empty 1 [])
 
-instance FromQueryBuilder Query where
+instance FromQueryBuilder (Query a) where
 	buildQuery builder =
 		Query code values
 		where BuilderState code _ values = execState builder (BuilderState B.empty 1 [])

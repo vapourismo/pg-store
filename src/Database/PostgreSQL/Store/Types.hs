@@ -22,7 +22,7 @@ data TypedValue = TypedValue P.Oid (Maybe Value)
 	deriving (Show, Eq, Ord)
 
 -- | Query
-data Query = Query {
+data Query a = Query {
 	queryStatement :: B.ByteString,
 	queryParams    :: [TypedValue]
 } deriving (Show, Eq, Ord)
