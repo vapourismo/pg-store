@@ -25,7 +25,7 @@ library
                     haskell-src-meta, aeson, scientific
   hs-source-dirs:   src
   exposed-modules:  Database.PostgreSQL.Store.RowParser
-                    Database.PostgreSQL.Store.Result
+                    Database.PostgreSQL.Store.Errand
                     Database.PostgreSQL.Store.Query.Builder
                     Database.PostgreSQL.Store.Query.TH
                     Database.PostgreSQL.Store.Query
