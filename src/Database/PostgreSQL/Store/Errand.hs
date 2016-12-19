@@ -15,21 +15,27 @@ module Database.PostgreSQL.Store.Errand (
 
 	execute,
 	query,
-	queryWith
+	queryWith,
+
+	insert,
+	insertMany
 ) where
 
 import           Control.Monad.Trans
 import           Control.Monad.Except
 import           Control.Monad.Reader
 
+import           Data.Proxy
 import           Data.Maybe
 import qualified Data.ByteString           as B
 
 import qualified Database.PostgreSQL.LibPQ as P
 
 import           Database.PostgreSQL.Store.Types
-import           Database.PostgreSQL.Store.RowParser
+import           Database.PostgreSQL.Store.Table
 import           Database.PostgreSQL.Store.Entity
+import           Database.PostgreSQL.Store.RowParser
+import           Database.PostgreSQL.Store.Query.Builder
 
 -- | Error during errand
 data ErrandError
@@ -118,3 +124,40 @@ queryWith :: Query a -> RowParser a -> Errand [a]
 queryWith qry parser = do
 	result <- execute qry
 	Errand (lift (withExceptT ParseError (parseResult result parser)))
+
+-- | Insert a row into a 'Table'.
+insert :: (TableEntity a) => a -> Errand ()
+insert row = do
+	execute $ buildQuery $ do
+		insertCode "INSERT INTO "
+		insertName name
+		insertCode "("
+		insertCommaSeperated (map (\ (Column colName _) -> insertName colName) cols)
+		insertCode ") VALUES ("
+		insertEntity row
+		insertCode ")"
+	pure ()
+	where
+		Table name cols =
+			describeTableType ((const Proxy :: a -> Proxy a) row)
+
+-- | Insert many rows into a 'Table'.
+insertMany :: (TableEntity a) => [a] -> Errand Int
+insertMany [] = pure 0
+insertMany rows =
+	length <$> queryWith (buildQuery qry) (pure ())
+	where
+		Table name cols =
+			describeTableType ((const Proxy :: [a] -> Proxy a) rows)
+
+		qry = do
+			insertCode "INSERT INTO "
+			insertName name
+			insertCode "("
+			insertCommaSeperated (map (\ (Column colName _) -> insertName colName) cols)
+			insertCode ") VALUES "
+			insertCommaSeperated $ flip map rows $ \ row -> do
+				insertCode "("
+				insertEntity row
+				insertCode ")"
+			insertCode " RETURNING 1"

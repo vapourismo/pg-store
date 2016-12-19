@@ -31,9 +31,6 @@ module Database.PostgreSQL.Store.Table (
 	insertColumns,
 	insertColumnsOn,
 
-	insert,
-	insertMany,
-
 	GenericTable,
 	describeGenericTable,
 
@@ -60,7 +57,6 @@ import           Data.Proxy
 
 import qualified Data.ByteString as B
 
-import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Entity
 import           Database.PostgreSQL.Store.Utilities
 import           Database.PostgreSQL.Store.ColumnEntity
@@ -230,40 +226,3 @@ insertColumnsOn (Table _ cols) name =
 			insertName name
 			insertCode "."
 			insertName colName
-
--- | Insert a row into a 'Table'.
-insert :: (TableEntity a) => a -> Query ()
-insert row =
-	buildQuery $ do
-		insertCode "INSERT INTO "
-		insertName name
-		insertCode "("
-		insertCommaSeperated (map (\ (Column colName _) -> insertName colName) cols)
-		insertCode ") VALUES ("
-		insertEntity row
-		insertCode ")"
-
-	where
-		Table name cols =
-			describeTableType ((const Proxy :: a -> Proxy a) row)
-
--- | Insert many rows into a 'Table'.
-insertMany :: (TableEntity a) => [a] -> Query Int
-insertMany [] =
-	buildQuery (insertCode "SELECT 0")
-insertMany rows =
-	buildQuery $ do
-		insertCode "INSERT INTO "
-		insertName name
-		insertCode "("
-		insertCommaSeperated (map (\ (Column colName _) -> insertName colName) cols)
-		insertCode ") VALUES "
-		insertCommaSeperated $ flip map rows $ \ row -> do
-			insertCode "("
-			insertEntity row
-			insertCode ")"
-		insertCode " RETURNING 1"
-
-	where
-		Table name cols =
-			describeTableType ((const Proxy :: [a] -> Proxy a) rows)
