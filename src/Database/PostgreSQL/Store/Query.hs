@@ -9,14 +9,12 @@ module Database.PostgreSQL.Store.Query (
 	-- * Exported modules
 	module Database.PostgreSQL.Store.Query.Builder,
 	module Database.PostgreSQL.Store.Query.TH,
-	module Database.PostgreSQL.Store.Entity,
 
 	-- * Utilities
 	castQuery
 ) where
 
 import Database.PostgreSQL.Store.Types
-import Database.PostgreSQL.Store.Entity
 import Database.PostgreSQL.Store.Query.Builder
 import Database.PostgreSQL.Store.Query.TH
 

@@ -14,13 +14,15 @@ module Database.PostgreSQL.Store.Errand (
 	runErrand,
 
 	execute,
+	execute',
 	query,
 	queryWith,
 
 	insert,
 	insertMany,
 	deleteAll,
-	findAll
+	findAll,
+	create
 ) where
 
 import           Control.Monad.Trans
@@ -197,3 +199,8 @@ findAll =
 				insertColumns (describeTableType proxy)
 				insertCode " FROM "
 				insertName (tableName (describeTableType proxy))
+
+-- | Create the given 'Table' type.
+create :: (TableEntity a) => proxy a -> Errand ()
+create proxy =
+	() <$ execute (buildQuery (buildTableSchema (describeTableType proxy)))
