@@ -18,7 +18,9 @@ module Database.PostgreSQL.Store.Errand (
 	queryWith,
 
 	insert,
-	insertMany
+	insertMany,
+	deleteAll,
+	findAll
 ) where
 
 import           Control.Monad.Trans
@@ -116,6 +118,11 @@ execute (Query statement params) = Errand . ReaderT $ \ con -> do
 		transformParam (TypedValue typ mbValue) =
 			(\ (Value value) -> (typ, value, P.Text)) <$> mbValue
 
+-- | Same as 'execute' but instead of a 'P.Result' it returns the number of affected rows.
+execute' :: Query a -> Errand Int
+execute' =
+	countAffectedRows <=< execute
+
 -- | Execute a query and process its result set.
 query :: (Entity a) => Query a -> Errand [a]
 query qry =
@@ -139,7 +146,7 @@ countAffectedRows res = do
 -- | Insert a row into a 'Table'.
 insert :: (TableEntity a) => a -> Errand Bool
 insert row = do
-	fmap (> 0) . countAffectedRows <=< execute $ buildQuery $ do
+	fmap (> 0) . execute' $ buildQuery $ do
 		insertCode "INSERT INTO "
 		insertName name
 		insertCode "("
@@ -155,7 +162,7 @@ insert row = do
 insertMany :: (TableEntity a) => [a] -> Errand Int
 insertMany [] = pure 0
 insertMany rows =
-	countAffectedRows <=< execute $ buildQuery $ do
+	execute' $ buildQuery $ do
 		insertCode "INSERT INTO "
 		insertName name
 		insertCode "("
@@ -170,3 +177,23 @@ insertMany rows =
 			insertCode "("
 			insertEntity row
 			insertCode ")"
+
+-- | Delete all rows of a 'Table'.
+deleteAll :: (TableEntity a) => proxy a -> Errand Int
+deleteAll proxy =
+	execute' $ buildQuery $ do
+		insertCode "DELETE FROM "
+		insertName (tableName (describeTableType proxy))
+
+-- | Find every row of a 'Table'.
+findAll :: (TableEntity a) => Errand [a]
+findAll =
+	query (findAllQuery Proxy)
+	where
+		findAllQuery :: (TableEntity a) => Proxy a -> Query a
+		findAllQuery proxy =
+			buildQuery $ do
+				insertCode "SELECT "
+				insertColumns (describeTableType proxy)
+				insertCode " FROM "
+				insertName (tableName (describeTableType proxy))
