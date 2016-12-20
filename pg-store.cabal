@@ -34,4 +34,5 @@ library
                     Database.PostgreSQL.Store.Entity
                     Database.PostgreSQL.Store.ColumnEntity
                     Database.PostgreSQL.Store.Table
+                    Database.PostgreSQL.Store
   other-modules:    Database.PostgreSQL.Store.Utilities
