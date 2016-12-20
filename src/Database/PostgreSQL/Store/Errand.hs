@@ -29,6 +29,8 @@ import           Data.Proxy
 import           Data.Maybe
 import qualified Data.ByteString           as B
 
+import           Data.Attoparsec.ByteString.Char8
+
 import qualified Database.PostgreSQL.LibPQ as P
 
 import           Database.PostgreSQL.Store.Types
@@ -125,10 +127,19 @@ queryWith qry parser = do
 	result <- execute qry
 	Errand (lift (withExceptT ParseError (parseResult result parser)))
 
+-- | Counts the rows that have been affected by a query.
+countAffectedRows :: P.Result -> Errand Int
+countAffectedRows res = do
+	fmap (\ numTuples -> fromMaybe 0 (numTuples >>= maybeResult . endResult . parse decimal))
+	     (liftIO (P.cmdTuples res))
+	where
+		endResult (Partial f) = f B.empty
+		endResult x           = x
+
 -- | Insert a row into a 'Table'.
-insert :: (TableEntity a) => a -> Errand ()
+insert :: (TableEntity a) => a -> Errand Bool
 insert row = do
-	execute $ buildQuery $ do
+	fmap (> 0) . countAffectedRows <=< execute $ buildQuery $ do
 		insertCode "INSERT INTO "
 		insertName name
 		insertCode "("
@@ -136,7 +147,6 @@ insert row = do
 		insertCode ") VALUES ("
 		insertEntity row
 		insertCode ")"
-	pure ()
 	where
 		Table name cols =
 			describeTableType ((const Proxy :: a -> Proxy a) row)
@@ -145,19 +155,18 @@ insert row = do
 insertMany :: (TableEntity a) => [a] -> Errand Int
 insertMany [] = pure 0
 insertMany rows =
-	length <$> queryWith (buildQuery qry) (pure ())
+	countAffectedRows <=< execute $ buildQuery $ do
+		insertCode "INSERT INTO "
+		insertName name
+		insertCode "("
+		insertCommaSeperated (map (\ (Column colName _) -> insertName colName) cols)
+		insertCode ") VALUES "
+		insertCommaSeperated (map insertRowValue rows)
 	where
 		Table name cols =
 			describeTableType ((const Proxy :: [a] -> Proxy a) rows)
 
-		qry = do
-			insertCode "INSERT INTO "
-			insertName name
+		insertRowValue row = do
 			insertCode "("
-			insertCommaSeperated (map (\ (Column colName _) -> insertName colName) cols)
-			insertCode ") VALUES "
-			insertCommaSeperated $ flip map rows $ \ row -> do
-				insertCode "("
-				insertEntity row
-				insertCode ")"
-			insertCode " RETURNING 1"
+			insertEntity row
+			insertCode ")"
