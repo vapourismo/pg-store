@@ -1,4 +1,7 @@
-{-# LANGUAGE OverloadedStrings, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings,
+             GeneralizedNewtypeDeriving,
+             TypeApplications,
+             ScopedTypeVariables #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Errand
@@ -29,8 +32,9 @@ import           Control.Monad.Trans
 import           Control.Monad.Except
 import           Control.Monad.Reader
 
-import           Data.Proxy
+import           Data.Tagged
 import           Data.Maybe
+
 import qualified Data.ByteString           as B
 
 import           Data.Attoparsec.ByteString.Char8
@@ -146,7 +150,7 @@ countAffectedRows res = do
 		endResult x           = x
 
 -- | Insert a row into a 'Table'.
-insert :: (TableEntity a) => a -> Errand Bool
+insert :: forall a. (TableEntity a) => a -> Errand Bool
 insert row = do
 	fmap (> 0) . execute' $ buildQuery $ do
 		insertCode "INSERT INTO "
@@ -157,11 +161,10 @@ insert row = do
 		insertEntity row
 		insertCode ")"
 	where
-		Table name cols =
-			describeTableType ((const Proxy :: a -> Proxy a) row)
+		Table name cols = untag (describeTableType @a)
 
 -- | Insert many rows into a 'Table'.
-insertMany :: (TableEntity a) => [a] -> Errand Int
+insertMany :: forall a. (TableEntity a) => [a] -> Errand Int
 insertMany [] = pure 0
 insertMany rows =
 	execute' $ buildQuery $ do
@@ -172,8 +175,7 @@ insertMany rows =
 		insertCode ") VALUES "
 		insertCommaSeperated (map insertRowValue rows)
 	where
-		Table name cols =
-			describeTableType ((const Proxy :: [a] -> Proxy a) rows)
+		Table name cols = untag (describeTableType @a)
 
 		insertRowValue row = do
 			insertCode "("
@@ -181,26 +183,24 @@ insertMany rows =
 			insertCode ")"
 
 -- | Delete all rows of a 'Table'.
-deleteAll :: (TableEntity a) => proxy a -> Errand Int
-deleteAll proxy =
+deleteAll :: forall a proxy. (TableEntity a) => proxy a -> Errand Int
+deleteAll _ =
 	execute' $ buildQuery $ do
 		insertCode "DELETE FROM "
-		insertName (tableName (describeTableType proxy))
+		insertName (tableName (untag (describeTableType @a)))
 
 -- | Find every row of a 'Table'.
-findAll :: (TableEntity a) => Errand [a]
+findAll :: forall a. (TableEntity a) => Errand [a]
 findAll =
-	query (findAllQuery Proxy)
+	query $ buildQuery $ do
+		insertCode "SELECT "
+		insertColumns tableDesc
+		insertCode " FROM "
+		insertName (tableName tableDesc)
 	where
-		findAllQuery :: (TableEntity a) => Proxy a -> Query a
-		findAllQuery proxy =
-			buildQuery $ do
-				insertCode "SELECT "
-				insertColumns (describeTableType proxy)
-				insertCode " FROM "
-				insertName (tableName (describeTableType proxy))
+		tableDesc = untag (describeTableType @a)
 
 -- | Create the given 'Table' type.
-create :: (TableEntity a) => proxy a -> Errand ()
-create proxy =
-	() <$ execute (buildQuery (buildTableSchema (describeTableType proxy)))
+create :: forall a proxy. (TableEntity a) => proxy a -> Errand ()
+create _ =
+	() <$ execute (buildQuery (buildTableSchema (untag (describeTableType @a))))

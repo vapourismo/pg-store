@@ -81,17 +81,16 @@ data Column = Column {
 -- | Provide the means to demote 'KColumns' to a value.
 class GColumns (rec :: KColumns) where
 	-- | Instantiate singleton
-	gDescribeColumns :: proxy rec -> [Column]
+	gDescribeColumns :: Tagged rec [Column]
 
 instance (KnownSymbol name, ColumnEntity typ) => GColumns ('TSelector name typ) where
-	gDescribeColumns _ =
-		[Column (buildByteString (symbolVal (Proxy :: Proxy name)))
-		        (untag (describeColumnType @typ))]
+	gDescribeColumns =
+		Tagged ([Column (buildByteString (symbolVal @name Proxy))
+		                (untag (describeColumnType @typ))])
 
 instance (GColumns lhs, GColumns rhs) => GColumns ('TCombine lhs rhs) where
-	gDescribeColumns _ =
-		gDescribeColumns (Proxy :: Proxy lhs)
-		++ gDescribeColumns (Proxy :: Proxy rhs)
+	gDescribeColumns =
+		Tagged (untag (gDescribeColumns @lhs) ++ untag (gDescribeColumns @rhs))
 
 -- | Check the 'Generic' representation of a record in order to generate an instance of 'KColumns'.
 type family AnalyzeRecordRep org (rec :: * -> *) :: KColumns where
@@ -138,12 +137,12 @@ data Table = Table {
 -- | Provide the means to demote 'KTable' to a value.
 class GTable (tbl :: KTable) where
 	-- | Instantiate singleton
-	gDescribeTable :: proxy tbl -> Table
+	gDescribeTable :: Tagged tbl Table
 
 instance (KnownSymbol name, GColumns cols) => GTable ('TTable name cols) where
-	gDescribeTable _ =
-		Table (buildByteString (symbolVal (Proxy :: Proxy name)))
-		      (gDescribeColumns (Proxy :: Proxy cols))
+	gDescribeTable =
+		Tagged (Table (buildByteString (symbolVal @name Proxy))
+		              (untag (gDescribeColumns @cols)))
 
 -- | Check the 'Generic' representation of a data type in order to generate an instance of 'KTable'.
 type family AnalyzeTableRep org (dat :: * -> *) :: KTable where
@@ -171,16 +170,16 @@ type AnalyzeTable a = AnalyzeTableRep a (Rep a)
 type GenericTable a = (Generic a, GTable (AnalyzeTable a))
 
 -- | Fetch the table description for a generic table type.
-describeGenericTable :: (GenericTable a) => proxy a -> Table
-describeGenericTable proxy =
-	gDescribeTable ((const Proxy :: proxy a -> Proxy (AnalyzeTable a)) proxy)
+describeGenericTable :: forall a. (GenericTable a) => Tagged a Table
+describeGenericTable =
+	retag (gDescribeTable @(AnalyzeTable a))
 
 -- | Classify a type which can be used as a table.
 class (Entity a) => TableEntity a where
 	-- | Describe the table type.
-	describeTableType :: proxy a -> Table
+	describeTableType :: Tagged a Table
 
-	default describeTableType :: (GenericTable a) => proxy a -> Table
+	default describeTableType :: (GenericTable a) => Tagged a Table
 	describeTableType = describeGenericTable
 
 -- | Build SQL code which describes the column.
