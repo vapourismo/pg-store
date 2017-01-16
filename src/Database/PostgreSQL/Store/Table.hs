@@ -9,7 +9,8 @@
              UndecidableInstances,
              ScopedTypeVariables,
              QuasiQuotes,
-             DefaultSignatures
+             DefaultSignatures,
+             TypeApplications
 #-}
 
 -- |
@@ -54,6 +55,7 @@ import           Control.Monad
 
 import           Data.Kind
 import           Data.Proxy
+import           Data.Tagged
 
 import qualified Data.ByteString as B
 
@@ -84,7 +86,7 @@ class GColumns (rec :: KColumns) where
 instance (KnownSymbol name, ColumnEntity typ) => GColumns ('TSelector name typ) where
 	gDescribeColumns _ =
 		[Column (buildByteString (symbolVal (Proxy :: Proxy name)))
-		        (describeColumnType (Proxy :: Proxy typ))]
+		        (untag (describeColumnType @typ))]
 
 instance (GColumns lhs, GColumns rhs) => GColumns ('TCombine lhs rhs) where
 	gDescribeColumns _ =

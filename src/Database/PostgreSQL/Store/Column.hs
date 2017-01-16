@@ -1,4 +1,8 @@
-{-# LANGUAGE OverloadedStrings, FlexibleInstances, ScopedTypeVariables, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings,
+             FlexibleInstances,
+             ScopedTypeVariables,
+             GeneralizedNewtypeDeriving,
+             TypeApplications #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.ColumnEntity
@@ -10,7 +14,7 @@ module Database.PostgreSQL.Store.Column (
 	ColumnEntity (..)
 ) where
 
-import           Data.Proxy
+import           Data.Tagged
 
 import           Data.Int
 import           Data.Word
@@ -43,13 +47,11 @@ data ColumnType = ColumnType {
 -- | Classify a type which can be used as a column in a table.
 class (Entity a) => ColumnEntity a where
 	-- | Describe the column type
-	describeColumnType :: proxy a -> ColumnType
+	describeColumnType :: Tagged a ColumnType
 
 instance (ColumnEntity a) => ColumnEntity (Maybe a) where
-	describeColumnType _ =
-		(describeColumnType (Proxy :: Proxy a)) {
-			colTypeNotNull = False
-		}
+	describeColumnType =
+		Tagged ((untag (describeColumnType @a)) {colTypeNotNull = False})
 
 newtype PGInt2 = PGInt2 Int16
 	deriving (Show, Read, Eq, Ord, Enum, Bounded, Integral, Num, Real)
@@ -62,8 +64,8 @@ instance Entity PGInt2 where
 		PGInt2 <$> parseEntity
 
 instance ColumnEntity PGInt2 where
-	describeColumnType _ =
-		ColumnType "int2" True Nothing
+	describeColumnType =
+		Tagged (ColumnType "int2" True Nothing)
 
 newtype PGInt4 = PGInt4 Int32
 	deriving (Show, Read, Eq, Ord, Enum, Bounded, Integral, Num, Real)
@@ -76,8 +78,8 @@ instance Entity PGInt4 where
 		PGInt4 <$> parseEntity
 
 instance ColumnEntity PGInt4 where
-	describeColumnType _ =
-		ColumnType "int4" True Nothing
+	describeColumnType =
+		Tagged (ColumnType "int4" True Nothing)
 
 newtype PGInt8 = PGInt8 Int64
 	deriving (Show, Read, Eq, Ord, Enum, Bounded, Integral, Num, Real)
@@ -90,32 +92,32 @@ instance Entity PGInt8 where
 		PGInt8 <$> parseEntity
 
 instance ColumnEntity PGInt8 where
-	describeColumnType _ =
-		ColumnType "int8" True Nothing
+	describeColumnType =
+		Tagged (ColumnType "int8" True Nothing)
 
 -- | Select a type which can contain the given numeric type.
-selectBestColumnType :: (Show a, Num a, Ord a, Bounded a) => proxy a -> ColumnType
-selectBestColumnType proxy
+selectBestColumnType :: forall a. (Show a, Num a, Ord a, Bounded a) => Tagged a ColumnType
+selectBestColumnType
 	| -32768 <= lower && upper <= 32767 =
-		ColumnType "int2" True Nothing
+		Tagged (ColumnType "int2" True Nothing)
 	| -2147483648 <= lower && upper <= 2147483647 =
-		ColumnType "int4" True Nothing
+		Tagged (ColumnType "int4" True Nothing)
 	| -9223372036854775808 <= lower && upper <= 9223372036854775807 =
-		ColumnType "int8" True Nothing
+		Tagged (ColumnType "int8" True Nothing)
 	| otherwise =
-		ColumnType (buildByteString ("numeric(" ++ show digits ++ ",0)")) True Nothing
+		Tagged (ColumnType (buildByteString ("numeric(" ++ show digits ++ ",0)")) True Nothing)
 	where
-		upper = (const maxBound :: (Bounded a) => proxy a -> a) proxy
-		lower = (const minBound :: (Bounded a) => proxy a -> a) proxy
+		upper = maxBound :: a
+		lower = minBound :: a
 		digits = max (length (show upper)) (length (show lower))
 
 instance ColumnEntity Bool where
-	describeColumnType _ =
-		ColumnType "bool" True Nothing
+	describeColumnType =
+		Tagged (ColumnType "bool" True Nothing)
 
 instance ColumnEntity Integer where
-	describeColumnType _ =
-		ColumnType "numeric" True Nothing
+	describeColumnType =
+		Tagged (ColumnType "numeric" True Nothing)
 
 instance ColumnEntity Int where
 	describeColumnType = selectBestColumnType
@@ -133,8 +135,8 @@ instance ColumnEntity Int64 where
 	describeColumnType = selectBestColumnType
 
 instance ColumnEntity Natural where
-	describeColumnType _ =
-		ColumnType "numeric" True Nothing
+	describeColumnType =
+		Tagged (ColumnType "numeric" True Nothing)
 
 instance ColumnEntity Word where
 	describeColumnType = selectBestColumnType
@@ -152,37 +154,37 @@ instance ColumnEntity Word64 where
 	describeColumnType = selectBestColumnType
 
 instance ColumnEntity Float where
-	describeColumnType _ =
-		ColumnType "real" True Nothing
+	describeColumnType =
+		Tagged (ColumnType "real" True Nothing)
 
 instance ColumnEntity Double where
-	describeColumnType _ =
-		ColumnType "double precision" True Nothing
+	describeColumnType =
+		Tagged (ColumnType "double precision" True Nothing)
 
 instance ColumnEntity Scientific where
-	describeColumnType _ =
-		ColumnType "numeric" True Nothing
+	describeColumnType =
+		Tagged (ColumnType "numeric" True Nothing)
 
 instance ColumnEntity String where
-	describeColumnType _ =
-		ColumnType "text" True Nothing
+	describeColumnType =
+		Tagged (ColumnType "text" True Nothing)
 
 instance ColumnEntity T.Text where
-	describeColumnType _ =
-		ColumnType "text" True Nothing
+	describeColumnType =
+		Tagged (ColumnType "text" True Nothing)
 
 instance ColumnEntity TL.Text where
-	describeColumnType _ =
-		ColumnType "text" True Nothing
+	describeColumnType =
+		Tagged (ColumnType "text" True Nothing)
 
 instance ColumnEntity B.ByteString where
-	describeColumnType _ =
-		ColumnType "bytea" True Nothing
+	describeColumnType =
+		Tagged (ColumnType "bytea" True Nothing)
 
 instance ColumnEntity BL.ByteString where
-	describeColumnType _ =
-		ColumnType "bytea" True Nothing
+	describeColumnType =
+		Tagged (ColumnType "bytea" True Nothing)
 
 instance ColumnEntity A.Value where
-	describeColumnType _ =
-		ColumnType "json" True Nothing
+	describeColumnType =
+		Tagged (ColumnType "json" True Nothing)
