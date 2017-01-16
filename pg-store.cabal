@@ -22,7 +22,7 @@ library
   build-depends:    base >= 4.9 && < 5,
                     template-haskell >= 2.11 && < 3,
                     bytestring, blaze-builder, text, postgresql-libpq, attoparsec, mtl, time,
-                    haskell-src-meta, aeson, scientific
+                    haskell-src-meta, aeson, scientific, tagged
   hs-source-dirs:   src
   exposed-modules:  Database.PostgreSQL.Store.RowParser
                     Database.PostgreSQL.Store.Errand
@@ -32,7 +32,7 @@ library
                     Database.PostgreSQL.Store.Types
                     Database.PostgreSQL.Store.Generics
                     Database.PostgreSQL.Store.Entity
-                    Database.PostgreSQL.Store.ColumnEntity
+                    Database.PostgreSQL.Store.Column
                     Database.PostgreSQL.Store.Table
                     Database.PostgreSQL.Store
   other-modules:    Database.PostgreSQL.Store.Utilities

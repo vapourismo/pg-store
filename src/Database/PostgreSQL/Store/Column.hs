@@ -5,7 +5,7 @@
 -- Copyright:  (c) Ole Krüger 2016
 -- License:    BSD3
 -- Maintainer: Ole Krüger <ole@vprsm.de>
-module Database.PostgreSQL.Store.ColumnEntity (
+module Database.PostgreSQL.Store.Column (
 	ColumnType (..),
 	ColumnEntity (..)
 ) where

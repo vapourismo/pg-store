@@ -59,7 +59,7 @@ import qualified Data.ByteString as B
 
 import           Database.PostgreSQL.Store.Entity
 import           Database.PostgreSQL.Store.Utilities
-import           Database.PostgreSQL.Store.ColumnEntity
+import           Database.PostgreSQL.Store.Column
 import           Database.PostgreSQL.Store.Query.Builder
 
 -- | Type-level description of a record
