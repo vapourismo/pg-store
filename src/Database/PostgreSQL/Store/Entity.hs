@@ -8,7 +8,8 @@
              TypeFamilies,
              TypeOperators,
              TypeSynonymInstances,
-             UndecidableInstances
+             UndecidableInstances,
+             TypeApplications
 #-}
 
 -- |
@@ -94,10 +95,10 @@ class GEntityEnum (enum :: KFlatSum) where
 
 instance (KnownSymbol name) => GEntityEnum ('TValue ('MetaCons name f r)) where
 	gInsertEnum _ =
-		insertQuote (buildByteString (symbolVal (Proxy :: Proxy name)))
+		insertQuote (buildByteString (symbolVal @name Proxy))
 
 	gEnumValues =
-		[(buildByteString (symbolVal (Proxy :: Proxy name)), Unit)]
+		[(buildByteString (symbolVal @name Proxy), Unit)]
 
 instance (GEntityEnum lhs, GEntityEnum rhs) => GEntityEnum ('TChoose lhs rhs) where
 	gInsertEnum (ChooseLeft lhs)  = gInsertEnum lhs
