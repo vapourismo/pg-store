@@ -17,8 +17,8 @@ import           Language.Haskell.Meta.Parse
 
 import           Control.Applicative
 
+import           Data.Tagged
 import           Data.List
-import           Data.Proxy
 import           Data.Char
 import           Data.Attoparsec.Text
 import qualified Data.ByteString                    as B
@@ -163,21 +163,21 @@ translateSegment segment =
 			case mbTypeName of
 				Nothing -> fail ("'" ++ stringName ++ "' does not refer to a type")
 				Just typ ->
-					[e| insertName (tableName (describeTableType (Proxy :: Proxy $(conT typ)))) |]
+					[e| insertName (tableName (untag (describeTableType :: Tagged $(conT typ) Table))) |]
 
 		QuerySelector stringName -> do
 			mbTypeName <- lookupTypeName stringName
 			case mbTypeName of
 				Nothing -> fail ("'" ++ stringName ++ "' does not refer to a type")
 				Just typ ->
-					[e| insertColumns (describeTableType (Proxy :: Proxy $(conT typ))) |]
+					[e| insertColumns (untag (describeTableType :: Tagged $(conT typ) Table)) |]
 
 		QuerySelectorAlias stringName aliasName -> do
 			mbTypeName <- lookupTypeName stringName
 			case mbTypeName of
 				Nothing -> fail ("'" ++ stringName ++ "' does not refer to a type")
 				Just typ ->
-					[e| insertColumnsOn (describeTableType (Proxy :: Proxy $(conT typ)))
+					[e| insertColumnsOn (untag (describeTableType :: Tagged $(conT typ) Table))
 					                    $(liftByteString (buildByteString aliasName)) |]
 
 		-- QueryIdentifier stringName -> do
