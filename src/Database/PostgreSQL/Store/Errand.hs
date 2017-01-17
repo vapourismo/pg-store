@@ -28,6 +28,7 @@ module Database.PostgreSQL.Store.Errand (
 	create
 ) where
 
+import           Control.Applicative
 import           Control.Monad.Trans
 import           Control.Monad.Except
 import           Control.Monad.Reader
@@ -57,7 +58,16 @@ data ErrandError
 		-- ^ Query execution failed.
 	| ParseError RowError
 		-- ^ Result processing failed.
+	| Multiple [ErrandError]
 	deriving (Show, Eq)
+
+instance Monoid ErrandError where
+	mempty = UserError "mempty"
+
+	mappend (Multiple l) (Multiple r) = Multiple (l ++ r)
+	mappend (Multiple l) r            = Multiple (l ++ [r])
+	mappend l            (Multiple r) = Multiple (l : r)
+	mappend l            r            = Multiple [l, r]
 
 -- | Error codes
 data ErrorCode
@@ -73,7 +83,7 @@ data ErrorCode
 
 -- | An interaction with the database
 newtype Errand a = Errand (ReaderT P.Connection (ExceptT ErrandError IO) a)
-	deriving (Functor, Applicative, Monad, MonadIO, MonadError ErrandError)
+	deriving (Functor, Applicative, Monad, Alternative, MonadIO, MonadError ErrandError)
 
 -- | Run an errand.
 runErrand :: P.Connection -> Errand a -> IO (Either ErrandError a)
