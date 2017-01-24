@@ -106,7 +106,7 @@ insertName name =
 
 		isAllowed =
 			case B.uncons name of
-				Nothing -> True
+				Nothing     -> False
 				Just (h, b) -> isAllowedHead h && B.all isAllowedBody b
 
 -- | @a@ can be instantiated using the query builder.
