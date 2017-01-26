@@ -55,7 +55,6 @@ data QuerySegment
 	| QueryTable String
 	| QuerySelector String
 	| QuerySelectorAlias String String
-	-- QueryIdentifier String
 	deriving (Show, Eq, Ord)
 
 -- | Table
@@ -78,12 +77,6 @@ selectorAliasSegment = do
 	                   <*  char '('
 	                   <*> valueName
 	                   <*  char ')'
-
--- -- | Identifier
--- identifierSegment :: Parser QuerySegment
--- identifierSegment = do
--- 	char '&'
--- 	QueryIdentifier <$> qualifiedTypeName
 
 -- | Entity
 entityNameSegment :: Parser QuerySegment
@@ -134,7 +127,6 @@ quoteSegment delim = do
 otherSegment :: Parser QuerySegment
 otherSegment =
 	QueryOther <$> some (satisfy (notInClass "\"'@#$"))
-	-- QueryOther <$> some (satisfy (notInClass "\"'@&#$"))
 
 -- | Segment that is part of the query
 querySegment :: Parser QuerySegment
@@ -144,7 +136,6 @@ querySegment =
 	        tableSegment,
 	        selectorAliasSegment,
 	        selectorSegment,
-	        -- identifierSegment,
 	        entityCodeSegment,
 	        entityNameSegment,
 	        otherSegment]
@@ -179,13 +170,6 @@ translateSegment segment =
 				Just typ ->
 					[e| insertColumnsOn (untag (describeTableType :: Tagged $(conT typ) Table))
 					                    $(liftByteString (buildByteString aliasName)) |]
-
-		-- QueryIdentifier stringName -> do
-		-- 	mbTypeName <- lookupTypeName stringName
-		-- 	case mbTypeName of
-		-- 		Nothing -> fail ("'" ++ stringName ++ "' does not refer to a type")
-		-- 		Just typ ->
-		-- 			[e| insertTableIdentColumnName (Proxy :: Proxy $(conT typ)) |]
 
 		QueryEntity stringName -> do
 			mbValueName <- lookupValueName stringName
