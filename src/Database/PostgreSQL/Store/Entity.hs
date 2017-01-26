@@ -222,7 +222,7 @@ instance Entity TypedValue where
 
 	parseEntity = fetchColumn
 
--- | A value which may normally not be @NULL@.
+-- | A value which may normally not be @NULL@
 instance (Entity a) => Entity (Maybe a) where
 	unpackEntity Nothing  = [nullValue]
 	unpackEntity (Just x) = unpackEntity x
@@ -236,6 +236,17 @@ instance (Entity a) => Entity (Maybe a) where
 		case value of
 			Nothing -> pure Nothing
 			_       -> Just <$> parseEntity
+
+-- | Comma-seperated list of entities
+instance {-# OVERLAPPABLE #-} (Entity e) => Entity [e] where
+	unpackEntity xs =
+		concat (map unpackEntity xs)
+
+	insertEntity xs =
+		insertCommaSeperated (map insertEntity xs)
+
+	parseEntity =
+		many parseEntity
 
 -- | @boolean@
 instance Entity Bool where
