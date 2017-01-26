@@ -6,7 +6,11 @@
 module Database.PostgreSQL.Store.Types (
 	-- * General
 	Value (..),
+
 	TypedValue (..),
+	nullValue,
+	anyTypeValue,
+
 	Query (..)
 ) where
 
@@ -20,6 +24,14 @@ newtype Value = Value { valueData :: B.ByteString }
 -- | Value and type 'P.Oid' of a cell in the result set
 data TypedValue = TypedValue P.Oid (Maybe Value)
 	deriving (Show, Eq, Ord)
+
+-- | NULL
+nullValue :: TypedValue
+nullValue = TypedValue P.invalidOid Nothing
+
+-- |
+anyTypeValue :: Value -> TypedValue
+anyTypeValue value = TypedValue P.invalidOid (Just value)
 
 -- | Query
 data Query a = Query {

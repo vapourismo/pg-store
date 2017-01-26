@@ -24,9 +24,7 @@ module Database.PostgreSQL.Store.Query.Builder (
 import           Control.Monad.State.Strict
 
 import           Data.List
-import qualified Data.ByteString           as B
-
-import           Database.PostgreSQL.LibPQ (invalidOid)
+import qualified Data.ByteString as B
 
 import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Utilities
@@ -59,7 +57,7 @@ insertTypedValue typedValue =
 -- | Same as 'insertTypedValue' but untyped.
 insertValue :: Value -> QueryBuilder
 insertValue value =
-	insertTypedValue (TypedValue invalidOid (Just value))
+	insertTypedValue (anyTypeValue value)
 
 -- | Extension of 'insertValue' which will add a type hint to the parameter placeholder.
 insertValue' :: B.ByteString -> Value -> QueryBuilder

@@ -63,7 +63,7 @@ import           Database.PostgreSQL.Store.Generics
 import           Database.PostgreSQL.Store.Query.Builder
 import           Database.PostgreSQL.Store.RowParser
 
-import           Database.PostgreSQL.LibPQ (Oid (..), invalidOid)
+import           Database.PostgreSQL.LibPQ (Oid (..))
 
 -- | Generic record entity
 class GEntityRecord (rec :: KRecord) where
@@ -192,7 +192,7 @@ instance Entity TypedValue where
 
 -- | A value which may normally not be @NULL@.
 instance (Entity a) => Entity (Maybe a) where
-	insertEntity Nothing  = insertTypedValue (TypedValue invalidOid Nothing)
+	insertEntity Nothing  = insertTypedValue nullValue
 	insertEntity (Just x) = insertEntity x
 
 	parseEntity = do
