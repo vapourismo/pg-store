@@ -8,7 +8,9 @@
 module Database.PostgreSQL.Store.Query.TH (
 	-- * Template Haskell
 	parseQuery,
-	pgsq
+	pgsq,
+
+	markPrep
 ) where
 
 import           Language.Haskell.TH
@@ -29,6 +31,7 @@ import qualified Data.Text                          as T
 import           Database.PostgreSQL.Store.Utilities
 import           Database.PostgreSQL.Store.Entity
 import           Database.PostgreSQL.Store.Table
+import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Query.Builder
 
 -- | Name
@@ -55,7 +58,13 @@ data QuerySegment
 	| QueryTable String
 	| QuerySelector String
 	| QuerySelectorAlias String String
+	| QueryPlaceholer
 	deriving (Show, Eq, Ord)
+
+-- | Placeholder
+placeholderSegment :: Parser QuerySegment
+placeholderSegment =
+	QueryPlaceholer <$ string "$?"
 
 -- | Table
 tableSegment :: Parser QuerySegment
@@ -136,6 +145,7 @@ querySegment =
 	        tableSegment,
 	        selectorAliasSegment,
 	        selectorSegment,
+	        placeholderSegment,
 	        entityCodeSegment,
 	        entityNameSegment,
 	        otherSegment]
@@ -190,6 +200,9 @@ translateSegment segment =
 		QueryOther code ->
 			[e| insertCode $(liftByteString (packCode code)) |]
 
+		QueryPlaceholer ->
+			[e| insertPlaceholder |]
+
 -- | Parse a query string in order to produce a 'QueryBuilder' expression.
 parseQuery :: String -> Q Exp
 parseQuery code =
@@ -212,3 +225,14 @@ pgsq =
 		quoteType = const (fail "Cannot use 'pgsq' in type"),
 		quoteDec  = const (fail "Cannot use 'pgsq' in declaration")
 	}
+
+-- | Mark a query as preparable.
+-- Use like this:
+-- > $markPrep [pgsq| ... |]
+markPrep :: Q Exp
+markPrep = do
+	Loc _ _ m _ _ <- location
+	generate (m ++ "_query")
+	where
+		generate prefix =
+			[e| PrepQuery $(newName prefix >>= liftByteString . buildByteString . show) |]

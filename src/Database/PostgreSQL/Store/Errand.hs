@@ -21,6 +21,9 @@ module Database.PostgreSQL.Store.Errand (
 	query,
 	queryWith,
 
+	prepare,
+	executePrep,
+
 	insert,
 	insertMany,
 	deleteAll,
@@ -34,6 +37,7 @@ import           Control.Monad.Reader
 
 import           Data.Tagged
 import           Data.Maybe
+import           Data.List (mapAccumL)
 
 import qualified Data.ByteString           as B
 
@@ -89,19 +93,18 @@ runErrand :: P.Connection -> Errand a -> IO (Either ErrandError a)
 runErrand con (Errand errand) =
 	runExceptT (runReaderT errand con)
 
--- | Execute a query and return the internal raw result.
-execute :: Query a -> Errand P.Result
-execute (Query statement params) = Errand . ReaderT $ \ con -> do
-	res <- ExceptT (transformResult <$> P.execParams con statement (map transformParam params) P.Text)
-	status <- lift (P.resultStatus res)
+-- | Validate the result.
+validateResult :: P.Result -> Errand ()
+validateResult res = do
+	status <- liftIO (P.resultStatus res)
 
 	case status of
-		P.CommandOk   -> pure res
-		P.TuplesOk    -> pure res
-		P.SingleTuple -> pure res
+		P.CommandOk   -> pure ()
+		P.TuplesOk    -> pure ()
+		P.SingleTuple -> pure ()
 
 		other -> do
-			(state, msg, detail, hint) <- lift $
+			(state, msg, detail, hint) <- liftIO $
 				(,,,) <$> P.resultErrorField res P.DiagSqlstate
 				      <*> P.resultErrorField res P.DiagMessagePrimary
 				      <*> P.resultErrorField res P.DiagMessageDetail
@@ -124,11 +127,19 @@ execute (Query statement params) = Errand . ReaderT $ \ con -> do
 			                      (fromMaybe B.empty detail)
 			                      (fromMaybe B.empty hint))
 
-	where
-		-- Turn 'Maybe P.Result' into 'Either ErrandError P.Result'
-		transformResult =
-			maybe (throwError NoResult) pure
+-- | Extract the result.
+transformResult :: Maybe P.Result -> Errand P.Result
+transformResult =
+	maybe (throwError NoResult) pure
 
+-- | Execute a query and return the internal raw result.
+execute :: Query a -> Errand P.Result
+execute (Query statement params) = do
+	con <- Errand ask
+	mbRes <- liftIO (P.execParams con statement (map transformParam params) P.Text)
+	res <- transformResult mbRes
+	res <$ validateResult res
+	where
 		-- Turn 'TypedValue' into 'Maybe (P.Oid, B.ByteString, P.Format)'
 		transformParam (TypedValue typ mbValue) =
 			(\ (Value value) -> (typ, value, P.Text)) <$> mbValue
@@ -148,6 +159,33 @@ queryWith :: Query a -> RowParser a -> Errand [a]
 queryWith qry parser = do
 	result <- execute qry
 	Errand (lift (withExceptT ParseError (parseResult result parser)))
+
+-- | Prepare a preparable query.
+prepare :: PrepQuery a -> Errand ()
+prepare (PrepQuery name (Query stmt _)) = do
+	con <- Errand ask
+	mbRes <- liftIO (P.prepare con name stmt Nothing)
+	res <- transformResult mbRes
+	validateResult res
+
+-- | Execute a prepared query.
+executePrep :: (Entity e) => PrepQuery a -> e -> Errand P.Result
+executePrep (PrepQuery name (Query _ params)) input = do
+	con <- Errand ask
+	mbRes <- liftIO (P.execPrepared con name (snd (mapAccumL replacePlaceholder fillerParams params)) P.Text)
+	res <- transformResult mbRes
+	res <$ validateResult res
+	where
+		fillerParams =
+			buildQuery (insertEntity input)
+
+		replacePlaceholder (x : xs) param
+			| param == placeholderValue = (xs, transformParam x)
+			| otherwise                 = (x : xs, transformParam param)
+		replacePlaceholder xs param = (xs, transformParam param)
+
+		transformParam (TypedValue _ mbValue) =
+			(\ (Value value) -> (value, P.Text)) <$> mbValue
 
 -- | Counts the rows that have been affected by a query.
 countAffectedRows :: P.Result -> Errand Int

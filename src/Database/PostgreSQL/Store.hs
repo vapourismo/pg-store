@@ -20,7 +20,9 @@ module Database.PostgreSQL.Store (
 
 	-- * Query
 	Query (..),
+	PrepQuery (..),
 	pgsq,
+	markPrep,
 	castQuery,
 
 	-- * Entity

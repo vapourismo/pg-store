@@ -9,9 +9,12 @@ module Database.PostgreSQL.Store.Types (
 
 	TypedValue (..),
 	nullValue,
+	placeholderValue,
 	anyTypeValue,
 
-	Query (..)
+	Query (..),
+
+	PrepQuery (..)
 ) where
 
 import qualified Data.ByteString           as B
@@ -25,11 +28,15 @@ newtype Value = Value { valueData :: B.ByteString }
 data TypedValue = TypedValue P.Oid (Maybe Value)
 	deriving (Show, Eq, Ord)
 
--- | NULL
+-- | NULL value
 nullValue :: TypedValue
 nullValue = TypedValue P.invalidOid Nothing
 
--- |
+-- | Placeholder value
+placeholderValue :: TypedValue
+placeholderValue = TypedValue (P.Oid maxBound) Nothing
+
+-- | Value with any type
 anyTypeValue :: Value -> TypedValue
 anyTypeValue value = TypedValue P.invalidOid (Just value)
 
@@ -37,4 +44,10 @@ anyTypeValue value = TypedValue P.invalidOid (Just value)
 data Query a = Query {
 	queryStatement :: B.ByteString,
 	queryParams    :: [TypedValue]
+} deriving (Show, Eq, Ord)
+
+-- | Preparable query
+data PrepQuery a = PrepQuery {
+	prepQueryName :: B.ByteString,
+	prepQuery     :: Query a
 } deriving (Show, Eq, Ord)

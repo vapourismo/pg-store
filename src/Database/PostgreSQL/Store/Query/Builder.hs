@@ -9,6 +9,7 @@ module Database.PostgreSQL.Store.Query.Builder (
 	-- * Query Builder
 	QueryBuilder,
 	insertCode,
+	insertPlaceholder,
 	insertTypedValue,
 	insertValue,
 	insertValue',
@@ -43,6 +44,16 @@ type QueryBuilder = State BuilderState ()
 insertCode :: B.ByteString -> QueryBuilder
 insertCode code =
 	modify (\ state -> state {queryCode = B.append (queryCode state) code})
+
+-- | Insert an empty placeholder. Only useful in queries that you want to prepare.
+insertPlaceholder :: QueryBuilder
+insertPlaceholder =
+	modify $ \ BuilderState {..} ->
+		BuilderState {
+			queryCode = B.concat [queryCode, B.singleton 36, showByteString queryIndex],
+			queryIndex = queryIndex + 1,
+			queryValues = queryValues ++ [placeholderValue]
+		}
 
 -- | Insert a parameter placeholder into the code and attach the typed value to the query.
 insertTypedValue :: TypedValue -> QueryBuilder
@@ -122,6 +133,11 @@ instance FromQueryBuilder (B.ByteString, [TypedValue]) where
 	buildQuery builder =
 		(code, values)
 		where BuilderState code _ values = execState builder (BuilderState B.empty 1 [])
+
+instance FromQueryBuilder [TypedValue] where
+	buildQuery builder =
+		values
+		where BuilderState _ _ values = execState builder (BuilderState B.empty 1 [])
 
 instance FromQueryBuilder (Query a) where
 	buildQuery builder =
