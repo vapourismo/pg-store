@@ -172,12 +172,12 @@ prepare (PrepQuery name (Query stmt _)) = do
 executePrep :: (Entity e) => PrepQuery a -> e -> Errand P.Result
 executePrep (PrepQuery name (Query _ params)) input = do
 	con <- Errand ask
-	mbRes <- liftIO (P.execPrepared con name (snd (mapAccumL replacePlaceholder fillerParams params)) P.Text)
+	mbRes <- liftIO (P.execPrepared con name realParams P.Text)
 	res <- transformResult mbRes
 	res <$ validateResult res
 	where
-		fillerParams =
-			buildQuery (insertEntity input)
+		(_, realParams) =
+			mapAccumL replacePlaceholder (unpackEntity input) params
 
 		replacePlaceholder (x : xs) param
 			| param == placeholderValue = (xs, transformParam x)
