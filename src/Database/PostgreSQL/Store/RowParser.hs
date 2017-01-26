@@ -30,6 +30,7 @@ module Database.PostgreSQL.Store.RowParser (
 	parseResult
 ) where
 
+import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Except
 import           Control.Monad.Reader
@@ -58,6 +59,11 @@ data RowErrorDetail
 data RowError = RowError RowErrorLocation RowErrorDetail
 	deriving (Show, Eq, Ord)
 
+instance Monoid RowError where
+	mempty = RowError (RowErrorLocation (toEnum 0) (toEnum 0)) (ContentsRejected Nothing)
+
+	mappend _ e = e
+
 -- | Static result information
 data ResultInfo = ResultInfo P.Result -- Result to operate on
                              P.Column -- Total number of columns
@@ -69,7 +75,7 @@ data RowInput = RowInput ResultInfo -- Result info
 -- | Row parser
 newtype RowParser a =
 	RowParser (ReaderT RowInput (StateT P.Column (ExceptT RowError IO)) a)
-	deriving (Functor, Applicative, Monad, MonadError RowError)
+	deriving (Functor, Applicative, Monad, Alternative, MonadPlus, MonadError RowError)
 
 -- | Parse a single row.
 parseRow :: RowParser a -> RowInput -> ExceptT RowError IO a
