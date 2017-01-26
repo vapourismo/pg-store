@@ -2,7 +2,6 @@
 
 module Main (main) where
 
-import           Control.Monad
 import           Control.Monad.Trans
 
 import           Data.Int
@@ -99,26 +98,26 @@ main = do
 
 	defaultMain
 		[
-			testProperty "entity-bool" (testEntity @Bool db),
+			testProperty "entity-bool"            (testEntity @Bool db),
 
-			testProperty "entity-integer" (testEntity @Integer db),
-			testProperty "entity-int"     (testEntity @Int db),
-			testProperty "entity-int8"    (testEntity @Int8 db),
-			testProperty "entity-int16"   (testEntity @Int16 db),
-			testProperty "entity-int32"   (testEntity @Int32 db),
-			testProperty "entity-int64"   (testEntity @Int64 db),
+			testProperty "entity-integer"         (testEntity @Integer db),
+			testProperty "entity-int"             (testEntity @Int db),
+			testProperty "entity-int8"            (testEntity @Int8 db),
+			testProperty "entity-int16"           (testEntity @Int16 db),
+			testProperty "entity-int32"           (testEntity @Int32 db),
+			testProperty "entity-int64"           (testEntity @Int64 db),
 
-			testProperty "entity-natural" (testEntity @Natural db),
-			testProperty "entity-word"    (testEntity @Word db),
-			testProperty "entity-word8"   (testEntity @Word8 db),
-			testProperty "entity-word16"  (testEntity @Word16 db),
-			testProperty "entity-word32"  (testEntity @Word32 db),
-			testProperty "entity-word64"  (testEntity @Word64 db),
+			testProperty "entity-natural"         (testEntity @Natural db),
+			testProperty "entity-word"            (testEntity @Word db),
+			testProperty "entity-word8"           (testEntity @Word8 db),
+			testProperty "entity-word16"          (testEntity @Word16 db),
+			testProperty "entity-word32"          (testEntity @Word32 db),
+			testProperty "entity-word64"          (testEntity @Word64 db),
 
-			testProperty "entity-float"  (testEntity @Float db),
-			testProperty "entity-double" (testEntity @Double db),
+			testProperty "entity-float"           (testEntity @Float db),
+			testProperty "entity-double"          (testEntity @Double db),
 
-			testProperty "entity-scientific" (testEntity @Scientific db),
+			testProperty "entity-scientific"      (testEntity @Scientific db),
 
 			testProperty "entity-bytestring"      (testEntity @B.ByteString db),
 			testProperty "entity-bytestring-lazy" (testEntity @BL.ByteString db),
