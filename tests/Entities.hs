@@ -94,7 +94,6 @@ main :: IO ()
 main = do
 	pgInfo <- lookupEnv "PGINFO"
 	db <- P.connectdb (fromString (fromMaybe "user=pgstore dbname=pgstore" pgInfo))
-	status <- P.status db
 
 	defaultMain
 		[
