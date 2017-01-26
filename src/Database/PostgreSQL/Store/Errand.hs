@@ -24,8 +24,7 @@ module Database.PostgreSQL.Store.Errand (
 	insert,
 	insertMany,
 	deleteAll,
-	findAll,
-	create
+	findAll
 ) where
 
 import           Control.Applicative
@@ -166,7 +165,7 @@ insert row = do
 		insertCode "INSERT INTO "
 		insertName name
 		insertCode "("
-		insertCommaSeperated (map (\ (Column colName _) -> insertName colName) cols)
+		insertCommaSeperated (map insertName cols)
 		insertCode ") VALUES ("
 		insertEntity row
 		insertCode ")"
@@ -181,7 +180,7 @@ insertMany rows =
 		insertCode "INSERT INTO "
 		insertName name
 		insertCode "("
-		insertCommaSeperated (map (\ (Column colName _) -> insertName colName) cols)
+		insertCommaSeperated (map insertName cols)
 		insertCode ") VALUES "
 		insertCommaSeperated (map insertRowValue rows)
 	where
@@ -209,8 +208,3 @@ findAll =
 		insertName (tableName tableDesc)
 	where
 		tableDesc = untag (describeTableType @a)
-
--- | Create the given 'Table' type.
-create :: forall a proxy. (TableEntity a) => proxy a -> Errand ()
-create _ =
-	() <$ execute (buildQuery (buildTableSchema (untag (describeTableType @a))))

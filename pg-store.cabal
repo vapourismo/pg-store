@@ -32,7 +32,6 @@ library
                     Database.PostgreSQL.Store.Types
                     Database.PostgreSQL.Store.Generics
                     Database.PostgreSQL.Store.Entity
-                    Database.PostgreSQL.Store.Column
                     Database.PostgreSQL.Store.Table
                     Database.PostgreSQL.Store
   other-modules:    Database.PostgreSQL.Store.Utilities

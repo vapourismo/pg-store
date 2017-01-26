@@ -19,15 +19,9 @@
 -- License:    BSD3
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Table (
-	-- * Columns
-	Column (..),
-	ColumnType (..),
-	ColumnEntity (..),
-
 	-- * Table
 	Table (..),
 	TableEntity (..),
-	buildTableSchema,
 
 	insertColumns,
 	insertColumnsOn,
@@ -51,8 +45,6 @@ module Database.PostgreSQL.Store.Table (
 import           GHC.Generics
 import           GHC.TypeLits
 
-import           Control.Monad
-
 import           Data.Kind
 import           Data.Proxy
 import           Data.Tagged
@@ -61,7 +53,6 @@ import qualified Data.ByteString as B
 
 import           Database.PostgreSQL.Store.Entity
 import           Database.PostgreSQL.Store.Utilities
-import           Database.PostgreSQL.Store.Column
 import           Database.PostgreSQL.Store.Query.Builder
 
 -- | Type-level description of a record
@@ -69,28 +60,19 @@ data KColumns
 	= TCombine KColumns KColumns
 	| TSelector Symbol Type
 
--- | Desciption of a column
-data Column = Column {
-	-- | Column name
-	colName :: B.ByteString,
-
-	-- | Column type
-	colType :: ColumnType
-}
-
 -- | Provide the means to demote 'KColumns' to a value.
 class GColumns (rec :: KColumns) where
 	-- | Instantiate singleton
-	gDescribeColumns :: Tagged rec [Column]
+	gDescribeColumns :: Tagged rec [B.ByteString]
 
-instance (KnownSymbol name, ColumnEntity typ) => GColumns ('TSelector name typ) where
+instance (KnownSymbol name) => GColumns ('TSelector name typ) where
 	gDescribeColumns =
-		Tagged ([Column (buildByteString (symbolVal @name Proxy))
-		                (untag (describeColumnType @typ))])
+		Tagged [buildByteString (symbolVal @name Proxy)]
 
 instance (GColumns lhs, GColumns rhs) => GColumns ('TCombine lhs rhs) where
 	gDescribeColumns =
 		Tagged (untag (gDescribeColumns @lhs) ++ untag (gDescribeColumns @rhs))
+		-- (++) <$> retag (gDescribeColumns @lhs) <*> retag (gDescribeColumns @rhs)
 
 -- | Check the 'Generic' representation of a record in order to generate an instance of 'KColumns'.
 type family AnalyzeRecordRep org (rec :: * -> *) :: KColumns where
@@ -131,7 +113,7 @@ data Table = Table {
 	tableName :: B.ByteString,
 
 	-- | Table columns
-	tableCols :: [Column]
+	tableCols :: [B.ByteString]
 }
 
 -- | Provide the means to demote 'KTable' to a value.
@@ -182,38 +164,12 @@ class (Entity a) => TableEntity a where
 	default describeTableType :: (GenericTable a) => Tagged a Table
 	describeTableType = describeGenericTable
 
--- | Build SQL code which describes the column.
-buildColumn :: Column -> QueryBuilder
-buildColumn (Column name (ColumnType typeName notNull mbCheck)) = do
-	insertName name
-	insertCode " "
-	insertName typeName
-
-	when notNull (insertCode " NOT NULL")
-
-	case mbCheck of
-		Just gen -> do
-			insertCode " CHECK("
-			gen name
-			insertCode ")"
-
-		Nothing -> pure ()
-
--- | Build the SQL code which describes and creates the table.
-buildTableSchema :: Table -> QueryBuilder
-buildTableSchema (Table name cols) = do
-	insertCode "CREATE TABLE IF NOT EXISTS "
-	insertName name
-	insertCode "("
-	insertCommaSeperated (map buildColumn cols)
-	insertCode ")"
-
 -- | Insert a comma-seperated list of the fully qualified column names of a table.
 insertColumns :: Table -> QueryBuilder
 insertColumns (Table name cols) =
 	insertCommaSeperated (map insertColumn cols)
 	where
-		insertColumn (Column colName _) = do
+		insertColumn colName = do
 			insertName name
 			insertCode "."
 			insertName colName
@@ -223,7 +179,7 @@ insertColumnsOn :: Table -> B.ByteString -> QueryBuilder
 insertColumnsOn (Table _ cols) name =
 	insertCommaSeperated (map insertColumn cols)
 	where
-		insertColumn (Column colName _) = do
+		insertColumn colName = do
 			insertName name
 			insertCode "."
 			insertName colName

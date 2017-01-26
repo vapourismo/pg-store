@@ -17,7 +17,6 @@ module Database.PostgreSQL.Store (
 	insertMany,
 	deleteAll,
 	findAll,
-	create,
 
 	-- * Query
 	Query (..),
@@ -28,12 +27,8 @@ module Database.PostgreSQL.Store (
 	Entity (..),
 
 	-- * Tables
-	TableEntity (..),
-	ColumnEntity (..),
-
 	Table (..),
-	ColumnType (..),
-	Column (..),
+	TableEntity (..),
 
 	-- * Errors
 	ErrandError (..),
