@@ -72,7 +72,6 @@ instance (KnownSymbol name) => GColumns ('TSelector name typ) where
 instance (GColumns lhs, GColumns rhs) => GColumns ('TCombine lhs rhs) where
 	gDescribeColumns =
 		Tagged (untag (gDescribeColumns @lhs) ++ untag (gDescribeColumns @rhs))
-		-- (++) <$> retag (gDescribeColumns @lhs) <*> retag (gDescribeColumns @rhs)
 
 -- | Check the 'Generic' representation of a record in order to generate an instance of 'KColumns'.
 type family AnalyzeRecordRep org (rec :: * -> *) :: KColumns where
