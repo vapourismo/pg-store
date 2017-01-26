@@ -36,3 +36,16 @@ library
                     Database.PostgreSQL.Store.Table
                     Database.PostgreSQL.Store
   other-modules:    Database.PostgreSQL.Store.Utilities
+
+test-suite entities
+  type:             exitcode-stdio-1.0
+  ghc-options:      -Wall -fno-warn-unused-do-bind -fno-warn-tabs -fno-warn-name-shadowing
+                    -Wno-orphans
+  default-language: Haskell2010
+  build-depends:    base, pg-store, mtl,
+                    test-framework, test-framework-quickcheck2, QuickCheck,
+                    postgresql-libpq,
+                    scientific,
+                    bytestring, text
+  hs-source-dirs:   tests
+  main-is:          Entities.hs
