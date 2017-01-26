@@ -41,4 +41,7 @@ buildByteString =
 -- | Lift 'ByteString'.
 liftByteString :: B.ByteString -> Q Exp
 liftByteString bs =
-	[e| B.pack $(lift (B.unpack bs)) |]
+	case B.unpack bs of
+		[]  -> [e| B.empty |]
+		[x] -> [e| B.singleton x |]
+		xs  -> [e| B.pack $(lift xs) |]
