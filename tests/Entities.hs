@@ -10,6 +10,9 @@ import           Data.Word
 import           Numeric.Natural
 import           Data.Scientific
 
+import           Data.Maybe
+import           Data.String
+
 import qualified Data.ByteString      as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text            as T
@@ -25,6 +28,8 @@ import qualified Database.PostgreSQL.LibPQ as P
 import           Database.PostgreSQL.Store.Entity
 import           Database.PostgreSQL.Store.Errand
 import           Database.PostgreSQL.Store.Query
+
+import           System.Environment
 
 instance Arbitrary B.ByteString where
 	arbitrary = B.pack <$> arbitrary
@@ -88,10 +93,11 @@ filterLazyTextNulls x = TL.concat (TL.split (== '\NUL') x)
 -- | Test entry point
 main :: IO ()
 main = do
-	db <- P.connectdb "user=pgstore dbname=pgstore"
+	pgInfo <- lookupEnv "PGINFO"
+	db <- P.connectdb (fromString (fromMaybe "user=pgstore dbname=pgstore" pgInfo))
 	status <- P.status db
 
-	when (status == P.ConnectionOk) $ defaultMain
+	defaultMain
 		[
 			testProperty "entity-bool" (testEntity @Bool db),
 
