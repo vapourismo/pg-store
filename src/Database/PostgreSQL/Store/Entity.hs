@@ -321,22 +321,22 @@ instance Entity Scientific where
 
 	parseEntity = parseContentsWith scientific
 
--- | @char@, @varchar@ or @text@ - UTF-8 encoded
+-- | @char@, @varchar@ or @text@ - UTF-8 encoded; does not allow NULL characters
 instance Entity String where
 	insertEntity value =
-		insertTypedValue_ (Oid 25) (buildByteString value)
+		insertTypedValue_ (Oid 25) (buildByteString (filter (/= '\NUL') value))
 
 	parseEntity = T.unpack <$> parseEntity
 
--- | @char@, @varchar@ or @text@ - UTF-8 encoded
+-- | @char@, @varchar@ or @text@ - UTF-8 encoded; does not allow NULL characters
 instance Entity T.Text where
 	insertEntity value =
-		insertTypedValue_ (Oid 25) (T.encodeUtf8 value)
+		insertTypedValue_ (Oid 25) (T.encodeUtf8 (T.concat (T.split (== '\NUL') value)))
 
 	parseEntity =
 		parseContents (either (const Nothing) Just . T.decodeUtf8')
 
--- | @char@, @varchar@ or @text@ - UTF-8 encoded
+-- | @char@, @varchar@ or @text@ - UTF-8 encoded; does not allow NULL characters
 instance Entity TL.Text where
 	insertEntity value =
 		insertEntity (TL.toStrict value)
