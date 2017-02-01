@@ -62,19 +62,25 @@ import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Utilities
 import           Database.PostgreSQL.Store.Generics
 import           Database.PostgreSQL.Store.Query.Builder
+import           Database.PostgreSQL.Store.Query.Builder2
 import           Database.PostgreSQL.Store.RowParser
 
-import           Database.PostgreSQL.LibPQ (Oid (..))
+import           Database.PostgreSQL.LibPQ (Oid (..), invalidOid)
 
 -- | Generic record entity
 class GEntityRecord (rec :: KRecord) where
 	gUnpackRecord :: Record rec -> [TypedValue]
+
+	gEmbedRecord :: QueryGenerator (Record rec)
 
 	gParseRecord :: RowParser (Record rec)
 
 instance (Entity typ) => GEntityRecord ('TSingle meta typ) where
 	gUnpackRecord (Single x) =
 		unpackEntity x
+
+	gEmbedRecord =
+		With (\ (Single x) -> x) embedEntity
 
 	gParseRecord =
 		Single <$> parseEntity
@@ -83,6 +89,11 @@ instance (GEntityRecord lhs, GEntityRecord rhs) => GEntityRecord ('TCombine lhs 
 	gUnpackRecord (Combine lhs rhs) = do
 		gUnpackRecord lhs
 		++ gUnpackRecord rhs
+
+	gEmbedRecord =
+		mconcat [With (\ (Combine lhs _) -> lhs) gEmbedRecord,
+		         Code ",",
+		         With (\ (Combine _ rhs) -> rhs) gEmbedRecord]
 
 	gParseRecord =
 		Combine <$> gParseRecord <*> gParseRecord
@@ -93,6 +104,8 @@ class GEntityEnum (enum :: KFlatSum) where
 
 	gInsertEnum :: FlatSum enum -> QueryBuilder
 
+	gEnumToValue :: FlatSum enum -> Value2
+
 	gEnumValues :: [(B.ByteString, FlatSum enum)]
 
 instance (KnownSymbol name) => GEntityEnum ('TValue ('MetaCons name f r)) where
@@ -101,6 +114,9 @@ instance (KnownSymbol name) => GEntityEnum ('TValue ('MetaCons name f r)) where
 
 	gInsertEnum _ =
 		insertQuote (buildByteString (symbolVal @name Proxy))
+
+	gEnumToValue _ =
+		Value2 invalidOid (buildByteString (symbolVal @name Proxy))
 
 	gEnumValues =
 		[(buildByteString (symbolVal @name Proxy), Unit)]
@@ -112,6 +128,9 @@ instance (GEntityEnum lhs, GEntityEnum rhs) => GEntityEnum ('TChoose lhs rhs) wh
 	gInsertEnum (ChooseLeft lhs)  = gInsertEnum lhs
 	gInsertEnum (ChooseRight rhs) = gInsertEnum rhs
 
+	gEnumToValue (ChooseLeft lhs)  = gEnumToValue lhs
+	gEnumToValue (ChooseRight rhs) = gEnumToValue rhs
+
 	gEnumValues =
 		map (second ChooseLeft) gEnumValues
 		++ map (second ChooseRight) gEnumValues
@@ -122,6 +141,8 @@ class GEntity (dat :: KDataType) where
 
 	gInsertEntity :: DataType dat -> QueryBuilder
 
+	gEmbedEntity :: QueryGenerator (DataType dat)
+
 	gParseEntity :: RowParser (DataType dat)
 
 instance (GEntityRecord rec) => GEntity ('TRecord d c rec) where
@@ -130,6 +151,9 @@ instance (GEntityRecord rec) => GEntity ('TRecord d c rec) where
 
 	gInsertEntity x =
 		insertCommaSeperated (map insertTypedValue (gUnpackEntity x))
+
+	gEmbedEntity =
+		With (\ (Record x) -> x) gEmbedRecord
 
 	gParseEntity =
 		Record <$> gParseRecord
@@ -140,6 +164,9 @@ instance (GEntityEnum enum) => GEntity ('TFlatSum d enum) where
 
 	gInsertEntity (FlatSum x) =
 		gInsertEnum x
+
+	gEmbedEntity =
+		Gen (\ (FlatSum x) -> gEnumToValue x)
 
 	gParseEntity =
 		FlatSum <$> parseContents (`lookup` gEnumValues)
@@ -153,6 +180,11 @@ unpackGeneric x =
 insertGeneric :: (GenericEntity a, GEntity (AnalyzeEntity a)) => a -> QueryBuilder
 insertGeneric x =
 	gInsertEntity (fromGenericEntity x)
+
+-- |
+embedGeneric :: (GenericEntity a, GEntity (AnalyzeEntity a)) => QueryGenerator a
+embedGeneric =
+	With fromGenericEntity gEmbedEntity
 
 -- | Generic 'RowParser' for an entity.
 parseGeneric :: (GenericEntity a, GEntity (AnalyzeEntity a)) => RowParser a
@@ -171,6 +203,13 @@ class Entity a where
 	insertEntity :: a -> QueryBuilder
 	insertEntity x =
 		insertCommaSeperated (map insertTypedValue (unpackEntity x))
+
+	-- | Embed the entity into the query.
+	embedEntity :: QueryGenerator a
+	embedEntity = error "Do not use yet"
+
+	-- default embedEntity :: (GenericEntity a, GEntity (AnalyzeEntity a)) => QueryGenerator a
+	-- embedEntity = embedGeneric
 
 	-- | Retrieve an instance of @a@ from the result set.
 	parseEntity :: RowParser a
@@ -226,7 +265,6 @@ instance Entity TypedValue where
 instance (Entity a) => Entity (Maybe a) where
 	unpackEntity Nothing  = [nullValue]
 	unpackEntity (Just x) = unpackEntity x
-
 
 	insertEntity Nothing  = insertTypedValue nullValue
 	insertEntity (Just x) = insertEntity x
