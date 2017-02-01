@@ -30,6 +30,8 @@ module Database.PostgreSQL.Store.Query.Parameters (
 	extractParam8,
 	extractParam9,
 
+	FunctionType,
+
 	Constructible,
 	constructWithParams
 ) where
