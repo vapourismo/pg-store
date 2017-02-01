@@ -55,7 +55,16 @@ data Parameters (x :: [Type]) where
 
 -- | An instance of 'Parameters' has a parameter of type @r@ at index @n@
 class HasParam (n :: Nat) (ts :: [Type]) r | n ts -> r where
-	-- | Extract the parameter.
+	-- | Extract the value of type @r@ at index @n@ from @params@.
+	--
+	-- Usage with extension @TypeApplications@ enabled:
+	--
+	-- > untag (extractParam @n params)
+	--
+	-- Usage without (requires knowledge of @r@):
+	--
+	-- > untag (extractParam params :: Tagged n r)
+	--
 	extractParam :: Parameters ts -> Tagged n r
 
 -- | Parameter at index 0.
