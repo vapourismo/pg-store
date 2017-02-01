@@ -22,7 +22,6 @@ module Database.PostgreSQL.Store.Types (
 
 import           Text.Show.Functions ()
 
-import           Data.Kind
 import qualified Data.ByteString as B
 
 import           Database.PostgreSQL.LibPQ (Oid (..), invalidOid)
