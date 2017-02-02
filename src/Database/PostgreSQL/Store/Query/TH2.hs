@@ -1,16 +1,10 @@
 {-# LANGUAGE TemplateHaskell, OverloadedStrings #-}
 
--- |
--- Module:     Database.PostgreSQL.Store.Query.TH
--- Copyright:  (c) Ole Krüger 2016
--- License:    BSD3
--- Maintainer: Ole Krüger <ole@vprsm.de>
-module Database.PostgreSQL.Store.Query.TH (
+module Database.PostgreSQL.Store.Query.TH2 (
 	-- * Template Haskell
-	parseQuery,
-	pgsq,
-
-	markPrep
+	pgQueryGen,
+	pgQuery,
+	pgPrepQuery
 ) where
 
 import           Language.Haskell.TH
@@ -31,8 +25,7 @@ import qualified Data.Text                          as T
 import           Database.PostgreSQL.Store.Utilities
 import           Database.PostgreSQL.Store.Entity
 import           Database.PostgreSQL.Store.Table
-import           Database.PostgreSQL.Store.Types
-import           Database.PostgreSQL.Store.Query.Builder
+import           Database.PostgreSQL.Store.Query.Builder2
 
 -- | Name
 valueName :: Parser String
@@ -58,13 +51,7 @@ data QuerySegment
 	| QueryTable String
 	| QuerySelector String
 	| QuerySelectorAlias String String
-	| QueryPlaceholer
 	deriving (Show, Eq, Ord)
-
--- | Placeholder
-placeholderSegment :: Parser QuerySegment
-placeholderSegment =
-	QueryPlaceholer <$ string "$?"
 
 -- | Table
 tableSegment :: Parser QuerySegment
@@ -145,7 +132,6 @@ querySegment =
 	        tableSegment,
 	        selectorAliasSegment,
 	        selectorSegment,
-	        placeholderSegment,
 	        entityCodeSegment,
 	        entityNameSegment,
 	        otherSegment]
@@ -155,6 +141,14 @@ packCode :: String -> B.ByteString
 packCode code =
 	B.toByteString (B.fromString code)
 
+-- | Shortcut for @Tagged t Table@
+type TableTag t = Tagged t Table
+
+-- |
+tableDescriptionE :: Name -> Q Exp
+tableDescriptionE typ =
+	[e| untag (describeTableType :: TableTag $(conT typ)) |]
+
 -- | Translate a "QuerySegment" to an expression.
 translateSegment :: QuerySegment -> Q Exp
 translateSegment segment =
@@ -162,77 +156,100 @@ translateSegment segment =
 		QueryTable stringName -> do
 			mbTypeName <- lookupTypeName stringName
 			case mbTypeName of
-				Nothing -> fail ("'" ++ stringName ++ "' does not refer to a type")
+				Nothing ->
+					fail ("'" ++ stringName ++ "' does not refer to a type")
 				Just typ ->
-					[e| insertName (tableName (untag (describeTableType :: Tagged $(conT typ) Table))) |]
+					[e| genTableName $(tableDescriptionE typ) |]
 
 		QuerySelector stringName -> do
 			mbTypeName <- lookupTypeName stringName
 			case mbTypeName of
-				Nothing -> fail ("'" ++ stringName ++ "' does not refer to a type")
+				Nothing ->
+					fail ("'" ++ stringName ++ "' does not refer to a type")
 				Just typ ->
-					[e| insertColumns (untag (describeTableType :: Tagged $(conT typ) Table)) |]
+					[e| genTableColumns $(tableDescriptionE typ) |]
 
 		QuerySelectorAlias stringName aliasName -> do
 			mbTypeName <- lookupTypeName stringName
 			case mbTypeName of
-				Nothing -> fail ("'" ++ stringName ++ "' does not refer to a type")
+				Nothing ->
+					fail ("'" ++ stringName ++ "' does not refer to a type")
 				Just typ ->
-					[e| insertColumnsOn (untag (describeTableType :: Tagged $(conT typ) Table))
-					                    $(liftByteString (buildByteString aliasName)) |]
+					[e| genTableColumnsOn $(tableDescriptionE typ)
+					                      $(liftByteString (buildByteString aliasName)) |]
 
 		QueryEntity stringName -> do
 			mbValueName <- lookupValueName stringName
 			case mbValueName of
-				Nothing -> fail ("'" ++ stringName ++ "' does not refer to a value")
+				Nothing ->
+					fail ("'" ++ stringName ++ "' does not refer to a value")
 				Just name ->
-					[e| insertEntity $(varE name) |]
+					[e| genEntity $(varE name) |]
 
 		QueryEntityCode code ->
 			case parseExp code of
-				Left msg -> fail ("Error in code " ++ show code ++ ": " ++ msg)
-				Right expr ->
-					[e| insertEntity $(pure expr) |]
+				Left msg   -> fail ("Error in code " ++ show code ++ ": " ++ msg)
+				Right expr -> pure expr
 
 		QueryQuote delim code ->
-			[e| insertCode $(liftByteString (packCode (delim : code ++ [delim]))) |]
+			[e| Code $(liftByteString (packCode (delim : code ++ [delim]))) |]
 
 		QueryOther code ->
-			[e| insertCode $(liftByteString (packCode code)) |]
+			[e| Code $(liftByteString (packCode code)) |]
 
-		QueryPlaceholer ->
-			[e| insertPlaceholder |]
-
--- | Parse a query string in order to produce a 'QueryBuilder' expression.
-parseQuery :: String -> Q Exp
-parseQuery code =
+-- | Parse a query string in order to produce a 'QueryGenerator' expression.
+queryGenE :: String -> Q Exp
+queryGenE code =
 	case parseOnly (many querySegment <* endOfInput) (T.strip (T.pack code)) of
 		Left msg ->
 			fail ("Query parser failed: " ++ msg)
 
 		Right [] ->
-			[e| buildQuery (pure ()) |]
+			[e| mempty |]
 
 		Right segments ->
-			[e| buildQuery $(DoE . map NoBindS <$> mapM translateSegment segments) |]
+			[e| mconcat $(ListE <$> mapM translateSegment segments) |]
 
--- | Generate queries conveniently. See 'BuildQuery' to find out which types can be produced.
-pgsq :: QuasiQuoter
-pgsq =
+-- |
+pgQueryGen :: QuasiQuoter
+pgQueryGen =
 	QuasiQuoter {
-		quoteExp  = parseQuery,
-		quotePat  = const (fail "Cannot use 'pgsq' in pattern"),
-		quoteType = const (fail "Cannot use 'pgsq' in type"),
-		quoteDec  = const (fail "Cannot use 'pgsq' in declaration")
+		quoteExp  = queryGenE,
+		quotePat  = const (fail "Cannot use 'pgQueryGen' in pattern"),
+		quoteType = const (fail "Cannot use 'pgQueryGen' in type"),
+		quoteDec  = const (fail "Cannot use 'pgQueryGen' in declaration")
 	}
 
--- | Mark a query as preparable.
--- Use like this:
--- > $markPrep [pgsq| ... |]
-markPrep :: Q Exp
-markPrep = do
-	Loc _ _ m _ _ <- location
-	generate (m ++ "_query")
+-- |
+queryE :: String -> Q Exp
+queryE code =
+	[e| assemble $(queryGenE code) () |]
+
+-- | Generate queries conveniently.
+pgQuery :: QuasiQuoter
+pgQuery =
+	QuasiQuoter {
+		quoteExp  = queryE,
+		quotePat  = const (fail "Cannot use 'pgQuery' in pattern"),
+		quoteType = const (fail "Cannot use 'pgQuery' in type"),
+		quoteDec  = const (fail "Cannot use 'pgQuery' in declaration")
+	}
+
+-- |
+prepQueryE :: String -> Q Exp
+prepQueryE code = do
+	Loc _ p m _ _ <- location
+	withPrefix (B.concat [buildByteString p, "_", buildByteString m, "_"])
 	where
-		generate prefix =
-			[e| PrepQuery $(newName prefix >>= liftByteString . buildByteString . show) |]
+		withPrefix prefix =
+			[e| assemblePrep $(liftByteString prefix) $(queryGenE code) |]
+
+-- |
+pgPrepQuery :: QuasiQuoter
+pgPrepQuery =
+	QuasiQuoter {
+		quoteExp  = prepQueryE,
+		quotePat  = const (fail "Cannot use 'pgPrepQuery' in pattern"),
+		quoteType = const (fail "Cannot use 'pgPrepQuery' in type"),
+		quoteDec  = const (fail "Cannot use 'pgPrepQuery' in declaration")
+	}

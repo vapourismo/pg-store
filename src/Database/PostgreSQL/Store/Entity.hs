@@ -7,9 +7,9 @@
              ScopedTypeVariables,
              TypeFamilies,
              TypeOperators,
+             TypeApplications,
              TypeSynonymInstances,
-             UndecidableInstances,
-             TypeApplications
+             UndecidableInstances
 #-}
 
 -- |
@@ -21,8 +21,20 @@ module Database.PostgreSQL.Store.Entity (
 	-- * Result and query entity
 	Entity (..),
 
-	unpackGeneric,
-	insertGeneric,
+	withEntity,
+
+	genParam0,
+	genParam1,
+	genParam2,
+	genParam3,
+	genParam4,
+	genParam5,
+	genParam6,
+	genParam7,
+	genParam8,
+	genParam9,
+
+	genGeneric,
 	parseGeneric,
 
 	-- * Helpers
@@ -35,7 +47,6 @@ import           GHC.Generics
 import           GHC.TypeLits
 
 import           Control.Applicative
-import           Control.Monad
 
 import           Data.Int
 import           Data.Bits
@@ -61,35 +72,26 @@ import           Data.Attoparsec.ByteString.Char8 (signed, decimal, skipSpace, d
 import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Utilities
 import           Database.PostgreSQL.Store.Generics
-import           Database.PostgreSQL.Store.Query.Builder
-import           Database.PostgreSQL.Store.Query.Builder2
 import           Database.PostgreSQL.Store.RowParser
+import           Database.PostgreSQL.Store.Query.Builder2
+import           Database.PostgreSQL.Store.Query.Parameters
 
 import           Database.PostgreSQL.LibPQ (Oid (..), invalidOid)
 
 -- | Generic record entity
 class GEntityRecord (rec :: KRecord) where
-	gUnpackRecord :: Record rec -> [TypedValue]
-
 	gEmbedRecord :: QueryGenerator (Record rec)
 
 	gParseRecord :: RowParser (Record rec)
 
 instance (Entity typ) => GEntityRecord ('TSingle meta typ) where
-	gUnpackRecord (Single x) =
-		unpackEntity x
-
 	gEmbedRecord =
-		With (\ (Single x) -> x) embedEntity
+		With (\ (Single x) -> x) genEntity
 
 	gParseRecord =
 		Single <$> parseEntity
 
 instance (GEntityRecord lhs, GEntityRecord rhs) => GEntityRecord ('TCombine lhs rhs) where
-	gUnpackRecord (Combine lhs rhs) = do
-		gUnpackRecord lhs
-		++ gUnpackRecord rhs
-
 	gEmbedRecord =
 		mconcat [With (\ (Combine lhs _) -> lhs) gEmbedRecord,
 		         Code ",",
@@ -100,23 +102,18 @@ instance (GEntityRecord lhs, GEntityRecord rhs) => GEntityRecord ('TCombine lhs 
 
 -- | Generic enumeration entity
 class GEntityEnum (enum :: KFlatSum) where
-	gUnpackEnum :: FlatSum enum -> [TypedValue]
+	gUnpackEnum :: FlatSum enum -> [Value]
 
-	gInsertEnum :: FlatSum enum -> QueryBuilder
-
-	gEnumToValue :: FlatSum enum -> Value2
+	gEnumToValue :: FlatSum enum -> Value
 
 	gEnumValues :: [(B.ByteString, FlatSum enum)]
 
 instance (KnownSymbol name) => GEntityEnum ('TValue ('MetaCons name f r)) where
 	gUnpackEnum _ =
-		[anyTypeValue (Value (buildByteString (symbolVal @name Proxy)))]
-
-	gInsertEnum _ =
-		insertQuote (buildByteString (symbolVal @name Proxy))
+		[Value invalidOid (buildByteString (symbolVal @name Proxy))]
 
 	gEnumToValue _ =
-		Value2 invalidOid (buildByteString (symbolVal @name Proxy))
+		Value invalidOid (buildByteString (symbolVal @name Proxy))
 
 	gEnumValues =
 		[(buildByteString (symbolVal @name Proxy), Unit)]
@@ -124,9 +121,6 @@ instance (KnownSymbol name) => GEntityEnum ('TValue ('MetaCons name f r)) where
 instance (GEntityEnum lhs, GEntityEnum rhs) => GEntityEnum ('TChoose lhs rhs) where
 	gUnpackEnum (ChooseLeft lhs)  = gUnpackEnum lhs
 	gUnpackEnum (ChooseRight rhs) = gUnpackEnum rhs
-
-	gInsertEnum (ChooseLeft lhs)  = gInsertEnum lhs
-	gInsertEnum (ChooseRight rhs) = gInsertEnum rhs
 
 	gEnumToValue (ChooseLeft lhs)  = gEnumToValue lhs
 	gEnumToValue (ChooseRight rhs) = gEnumToValue rhs
@@ -137,21 +131,11 @@ instance (GEntityEnum lhs, GEntityEnum rhs) => GEntityEnum ('TChoose lhs rhs) wh
 
 -- | Generic entity
 class GEntity (dat :: KDataType) where
-	gUnpackEntity :: DataType dat -> [TypedValue]
-
-	gInsertEntity :: DataType dat -> QueryBuilder
-
 	gEmbedEntity :: QueryGenerator (DataType dat)
 
 	gParseEntity :: RowParser (DataType dat)
 
 instance (GEntityRecord rec) => GEntity ('TRecord d c rec) where
-	gUnpackEntity (Record x) =
-		gUnpackRecord x
-
-	gInsertEntity x =
-		insertCommaSeperated (map insertTypedValue (gUnpackEntity x))
-
 	gEmbedEntity =
 		With (\ (Record x) -> x) gEmbedRecord
 
@@ -159,31 +143,21 @@ instance (GEntityRecord rec) => GEntity ('TRecord d c rec) where
 		Record <$> gParseRecord
 
 instance (GEntityEnum enum) => GEntity ('TFlatSum d enum) where
-	gUnpackEntity (FlatSum x) =
-		gUnpackEnum x
-
-	gInsertEntity (FlatSum x) =
-		gInsertEnum x
-
 	gEmbedEntity =
 		Gen (\ (FlatSum x) -> gEnumToValue x)
 
 	gParseEntity =
 		FlatSum <$> parseContents (`lookup` gEnumValues)
 
--- | Unpack a generic entity.
-unpackGeneric :: (GenericEntity a, GEntity (AnalyzeEntity a)) => a -> [TypedValue]
-unpackGeneric x =
-	gUnpackEntity (fromGenericEntity x)
-
--- | Insert a generic entity into the query.
-insertGeneric :: (GenericEntity a, GEntity (AnalyzeEntity a)) => a -> QueryBuilder
-insertGeneric x =
-	gInsertEntity (fromGenericEntity x)
+-- |
+genericToValue :: (GenericEntity a, AnalyzeEntity a ~ 'TFlatSum d e, GEntityEnum e) => a -> Value
+genericToValue x =
+	gEnumToValue enum
+	where FlatSum enum = fromGenericEntity x
 
 -- |
-embedGeneric :: (GenericEntity a, GEntity (AnalyzeEntity a)) => QueryGenerator a
-embedGeneric =
+genGeneric :: (GenericEntity a, GEntity (AnalyzeEntity a)) => QueryGenerator a
+genGeneric =
 	With fromGenericEntity gEmbedEntity
 
 -- | Generic 'RowParser' for an entity.
@@ -191,31 +165,75 @@ parseGeneric :: (GenericEntity a, GEntity (AnalyzeEntity a)) => RowParser a
 parseGeneric =
 	toGenericEntity <$> gParseEntity
 
+-- |
+class ToValue a where
+	-- |
+	toValue :: a -> Value
+
+	default toValue :: (GenericEntity a, AnalyzeEntity a ~ 'TFlatSum d e, GEntityEnum e) => a -> Value
+	toValue = genericToValue
+
+-- |
+genValue :: (ToValue a) => QueryGenerator a
+genValue = Gen toValue
+
 -- | An entity that is used as a parameter or result of a query.
 class Entity a where
-	-- |
-	unpackEntity :: a -> [TypedValue]
-
-	default unpackEntity :: (GenericEntity a, GEntity (AnalyzeEntity a)) => a -> [TypedValue]
-	unpackEntity = unpackGeneric
-
-	-- | Insert an instance of @a@ into the query.
-	insertEntity :: a -> QueryBuilder
-	insertEntity x =
-		insertCommaSeperated (map insertTypedValue (unpackEntity x))
-
 	-- | Embed the entity into the query.
-	embedEntity :: QueryGenerator a
-	embedEntity = error "Do not use yet"
+	genEntity :: QueryGenerator a
 
-	-- default embedEntity :: (GenericEntity a, GEntity (AnalyzeEntity a)) => QueryGenerator a
-	-- embedEntity = embedGeneric
+	default genEntity :: (GenericEntity a, GEntity (AnalyzeEntity a)) => QueryGenerator a
+	genEntity = genGeneric
 
 	-- | Retrieve an instance of @a@ from the result set.
 	parseEntity :: RowParser a
 
 	default parseEntity :: (GenericEntity a, GEntity (AnalyzeEntity a)) => RowParser a
 	parseEntity = parseGeneric
+
+-- |
+withEntity :: (Entity e) => e -> QueryGenerator a
+withEntity e = withOther e genEntity
+
+-- |
+genParam0 :: (Entity r) => QueryGenerator (Parameters (r ': ts))
+genParam0 = withParam0 genEntity
+
+-- |
+genParam1 :: (Entity r) => QueryGenerator (Parameters (t0 ': r ': ts))
+genParam1 = withParam1 genEntity
+
+-- |
+genParam2 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': r ': ts))
+genParam2 = withParam2 genEntity
+
+-- |
+genParam3 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': r ': ts))
+genParam3 = withParam3 genEntity
+
+-- |
+genParam4 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': r ': ts))
+genParam4 = withParam4 genEntity
+
+-- |
+genParam5 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': r ': ts))
+genParam5 = withParam5 genEntity
+
+-- |
+genParam6 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': r ': ts))
+genParam6 = withParam6 genEntity
+
+-- |
+genParam7 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': r ': ts))
+genParam7 = withParam7 genEntity
+
+-- |
+genParam8 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': t7 ': r ': ts))
+genParam8 = withParam8 genEntity
+
+-- |
+genParam9 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': t7 ': t8 ': r ': ts))
+genParam9 = withParam9 genEntity
 
 -- | 2 result entities in sequence
 instance (Entity a, Entity b) => Entity (a, b)
@@ -235,45 +253,23 @@ instance (Entity a, Entity b, Entity c, Entity d, Entity e, Entity f) => Entity 
 -- | 7 result entities in sequence
 instance (Entity a, Entity b, Entity c, Entity d, Entity e, Entity f, Entity g) => Entity (a, b, c, d, e, f, g)
 
--- | 'QueryBuilder'
-instance Entity QueryBuilder where
-	unpackEntity = buildQuery
+instance (ToValue a) => ToValue (Maybe a) where
+	toValue = maybe Null toValue
 
-	insertEntity = id
-
-	parseEntity = do
-		colsLeft <- columnsLeft
-		insertCommaSeperated <$> replicateM (fromEnum colsLeft) (insertTypedValue <$> fetchColumn)
-
--- | Untyped column value
-instance Entity Value where
-	unpackEntity x = [anyTypeValue x]
-
-	insertEntity = insertValue
-
-	parseEntity = parseColumn (\ (TypedValue _ mbValue) -> mbValue)
-
--- | Typed column value
-instance Entity TypedValue where
-	unpackEntity x = [x]
-
-	insertEntity = insertTypedValue
-
-	parseEntity = fetchColumn
-
--- | A value which may normally not be @NULL@
-instance (Entity a) => Entity (Maybe a) where
-	unpackEntity Nothing  = [nullValue]
-	unpackEntity (Just x) = unpackEntity x
-
-	insertEntity Nothing  = insertTypedValue nullValue
-	insertEntity (Just x) = insertEntity x
+-- | A value which may normally not be @NULL@.
+instance (ToValue a, Entity a) => Entity (Maybe a) where
+	genEntity = genValue
 
 	parseEntity = do
-		TypedValue _ value <- peekColumn
-		case value of
-			Nothing -> pure Nothing
-			_       -> Just <$> parseEntity
+		mbValue <- peekColumn
+		case mbValue of
+			Null -> pure Nothing
+			_     -> Just <$> parseEntity
+
+-- |
+instance ToValue Bool where
+	toValue True = Value (Oid 16) "t"
+	toValue _    = Value (Oid 16) "f"
 
 -- | Comma-seperated list of entities
 instance {-# OVERLAPPABLE #-} (Entity e) => Entity [e] where
@@ -288,8 +284,7 @@ instance {-# OVERLAPPABLE #-} (Entity e) => Entity [e] where
 
 -- | @boolean@
 instance Entity Bool where
-	unpackEntity True = mkTypedValue (Oid 16) "t"
-	unpackEntity _    = mkTypedValue (Oid 16) "f"
+	genEntity = genValue
 
 	parseEntity =
 		parseContents $ \ dat ->
@@ -303,134 +298,201 @@ parseContentsWith p =
 		endResult (Partial f) = f B.empty
 		endResult x           = x
 
--- | Simplified version of 'insertTypedValue'
-mkTypedValue :: Oid -> B.ByteString -> [TypedValue]
-mkTypedValue typ val =
-	[TypedValue typ (Just (Value val))]
+-- |
+toNumericValue :: (Show a) => a -> Value
+toNumericValue x =
+	Value (Oid 1700) (showByteString x)
 
--- | Insert a numeric value.
-unpackNumeric :: (Show a) => a -> [TypedValue]
-unpackNumeric x =
-	mkTypedValue (Oid 1700) (showByteString x)
+-- |
+instance ToValue Integer where
+	toValue = toNumericValue
 
 -- | Any integer
 instance Entity Integer where
-	unpackEntity = unpackNumeric
+	genEntity = genValue
 
 	parseEntity = parseContentsWith (signed decimal)
+
+-- |
+instance ToValue Int where
+	toValue = toNumericValue
 
 -- | Any integer
 instance Entity Int where
-	unpackEntity = unpackNumeric
+	genEntity = genValue
 
 	parseEntity = parseContentsWith (signed decimal)
+
+-- |
+instance ToValue Int8 where
+	toValue = toNumericValue
 
 -- | Any integer
 instance Entity Int8 where
-	unpackEntity = unpackNumeric
+	genEntity = genValue
 
 	parseEntity = parseContentsWith (signed decimal)
+
+-- |
+instance ToValue Int16 where
+	toValue = toNumericValue
 
 -- | Any integer
 instance Entity Int16 where
-	unpackEntity = unpackNumeric
+	genEntity = genValue
 
 	parseEntity = parseContentsWith (signed decimal)
+
+-- |
+instance ToValue Int32 where
+	toValue = toNumericValue
 
 -- | Any integer
 instance Entity Int32 where
-	unpackEntity = unpackNumeric
+	genEntity = genValue
 
 	parseEntity = parseContentsWith (signed decimal)
+
+-- |
+instance ToValue Int64 where
+	toValue = toNumericValue
 
 -- | Any integer
 instance Entity Int64 where
-	unpackEntity = unpackNumeric
+	genEntity = genValue
 
 	parseEntity = parseContentsWith (signed decimal)
 
+-- |
+instance ToValue Natural where
+	toValue = toNumericValue
+
 -- | Any unsigned integer
 instance Entity Natural where
-	unpackEntity = unpackNumeric
+	genEntity = genValue
 
 	parseEntity = parseContentsWith decimal
+
+-- |
+instance ToValue Word where
+	toValue = toNumericValue
 
 -- | Any unsigned integer
 instance Entity Word where
-	unpackEntity = unpackNumeric
+	genEntity = genValue
 
 	parseEntity = parseContentsWith decimal
+
+-- |
+instance ToValue Word8 where
+	toValue = toNumericValue
 
 -- | Any unsigned integer
 instance Entity Word8 where
-	unpackEntity = unpackNumeric
+	genEntity = genValue
 
 	parseEntity = parseContentsWith decimal
+
+-- |
+instance ToValue Word16 where
+	toValue = toNumericValue
 
 -- | Any unsigned integer
 instance Entity Word16 where
-	unpackEntity = unpackNumeric
+	genEntity = genValue
 
 	parseEntity = parseContentsWith decimal
+
+-- |
+instance ToValue Word32 where
+	toValue = toNumericValue
 
 -- | Any unsigned integer
 instance Entity Word32 where
-	unpackEntity = unpackNumeric
+	genEntity = genValue
 
 	parseEntity = parseContentsWith decimal
+
+-- |
+instance ToValue Word64 where
+	toValue = toNumericValue
 
 -- | Any unsigned integer
 instance Entity Word64 where
-	unpackEntity = unpackNumeric
+	genEntity = genValue
 
 	parseEntity = parseContentsWith decimal
 
+-- |
+instance ToValue Double where
+	toValue = toNumericValue
+
 -- | Any floating-point number
 instance Entity Double where
-	unpackEntity = unpackNumeric
+	genEntity = genValue
 
 	parseEntity = parseContentsWith double
 
+-- |
+instance ToValue Float where
+	toValue = toNumericValue
+
 -- | Any floating-point number
 instance Entity Float where
-	unpackEntity = unpackNumeric
+	genEntity = genValue
 
 	parseEntity = (realToFrac :: Double -> Float) <$> parseEntity
 
+-- |
+instance ToValue Scientific where
+	toValue x =
+		Value (Oid 1700) (buildByteString (formatScientific Fixed Nothing x))
+
 -- | Any numeric type
 instance Entity Scientific where
-	unpackEntity x =
-		mkTypedValue (Oid 1700) (buildByteString (formatScientific Fixed Nothing x))
+	genEntity = genValue
 
 	parseEntity = parseContentsWith scientific
 
+-- |
+instance ToValue String where
+	toValue value =
+		Value (Oid 25) (buildByteString (filter (/= '\NUL') value))
+
 -- | @char@, @varchar@ or @text@ - UTF-8 encoded; does not allow NULL characters
 instance Entity String where
-	unpackEntity value =
-		mkTypedValue (Oid 25) (buildByteString (filter (/= '\NUL') value))
+	genEntity = genValue
 
 	parseEntity = T.unpack <$> parseEntity
 
+-- |
+instance ToValue T.Text where
+	toValue value =
+		Value (Oid 25) (T.encodeUtf8 (T.concat (T.split (== '\NUL') value)))
+
 -- | @char@, @varchar@ or @text@ - UTF-8 encoded; does not allow NULL characters
 instance Entity T.Text where
-	unpackEntity value =
-		mkTypedValue (Oid 25) (T.encodeUtf8 (T.concat (T.split (== '\NUL') value)))
+	genEntity = genValue
 
 	parseEntity =
 		parseContents (either (const Nothing) Just . T.decodeUtf8')
 
+-- |
+instance ToValue TL.Text where
+	toValue value =
+		toValue (TL.toStrict value)
+
 -- | @char@, @varchar@ or @text@ - UTF-8 encoded; does not allow NULL characters
 instance Entity TL.Text where
-	unpackEntity value =
-		unpackEntity (TL.toStrict value)
+	genEntity = genValue
 
 	parseEntity =
 		parseContents (either (const Nothing) Just . TL.decodeUtf8' . BL.fromStrict)
 
--- | @bytea@ - byte array encoded in hex format
-instance Entity B.ByteString where
-	unpackEntity value =
-		mkTypedValue (Oid 17) dat
+-- |
+instance ToValue B.ByteString where
+	toValue value =
+		Value (Oid 17) dat
 		where
 			dat = B.append "\\x" (B.concatMap showHex' value)
 
@@ -439,6 +501,10 @@ instance Entity B.ByteString where
 					(a : b : _) -> [a, b]
 					(a : _)     -> ['0', a]
 					[]          -> "00"
+
+-- | @bytea@ - byte array encoded in hex format
+instance Entity B.ByteString where
+	genEntity = genValue
 
 	parseEntity =
 		parseContentsWith (hexFormat <|> escapedFormat)
@@ -487,16 +553,24 @@ instance Entity B.ByteString where
 			escapedFormat =
 				B.pack <$> many (escapedBackslash <|> escapedWord <|> anyWord8)
 
+-- |
+instance ToValue BL.ByteString where
+	toValue value =
+		toValue (BL.toStrict value)
+
 -- | @bytea@ - byte array encoded in hex format
 instance Entity BL.ByteString where
-	unpackEntity value =
-		unpackEntity (BL.toStrict value)
+	genEntity = genValue
 
 	parseEntity = BL.fromStrict <$> parseEntity
 
+-- |
+instance ToValue A.Value where
+	toValue value =
+		Value (Oid 114) (BL.toStrict (A.encode value))
+
 -- | @json@ or @jsonb@
 instance Entity A.Value where
-	unpackEntity value =
-		mkTypedValue (Oid 114) (BL.toStrict (A.encode value))
+	genEntity = genValue
 
 	parseEntity = parseContents A.decodeStrict

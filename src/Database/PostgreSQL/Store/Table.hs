@@ -23,8 +23,12 @@ module Database.PostgreSQL.Store.Table (
 	Table (..),
 	TableEntity (..),
 
-	insertColumns,
-	insertColumnsOn,
+	genTableName,
+	genTableColumns,
+	genTableColumnsOn,
+
+	-- insertColumns,
+	-- insertColumnsOn,
 
 	GenericTable,
 	describeGenericTable,
@@ -53,7 +57,7 @@ import qualified Data.ByteString as B
 
 import           Database.PostgreSQL.Store.Entity
 import           Database.PostgreSQL.Store.Utilities
-import           Database.PostgreSQL.Store.Query.Builder
+import           Database.PostgreSQL.Store.Query.Builder2
 
 -- | Type-level description of a record
 data KColumns
@@ -163,22 +167,37 @@ class (Entity a) => TableEntity a where
 	default describeTableType :: (GenericTable a) => Tagged a Table
 	describeTableType = describeGenericTable
 
--- | Insert a comma-seperated list of the fully qualified column names of a table.
-insertColumns :: Table -> QueryBuilder
-insertColumns (Table name cols) =
-	insertCommaSeperated (map insertColumn cols)
-	where
-		insertColumn colName = do
-			insertName name
-			insertCode "."
-			insertName colName
+-- |
+genTableName :: Table -> QueryGenerator a
+genTableName (Table name _) =
+	genIdentifier name
 
--- | Similar to 'insertColumns', but instead it expands the column names on an alias.
-insertColumnsOn :: Table -> B.ByteString -> QueryBuilder
-insertColumnsOn (Table _ cols) name =
-	insertCommaSeperated (map insertColumn cols)
-	where
-		insertColumn colName = do
-			insertName name
-			insertCode "."
-			insertName colName
+-- |
+genTableColumns :: Table -> QueryGenerator a
+genTableColumns (Table name columns) =
+	joinGens (B.singleton 44) (map (genNestedIdentifier name) columns)
+
+-- |
+genTableColumnsOn :: Table -> B.ByteString -> QueryGenerator a
+genTableColumnsOn (Table _ columns) name =
+	joinGens (B.singleton 44) (map (genNestedIdentifier name) columns)
+
+-- -- | Insert a comma-seperated list of the fully qualified column names of a table.
+-- insertColumns :: Table -> QueryBuilder
+-- insertColumns (Table name cols) =
+-- 	insertCommaSeperated (map insertColumn cols)
+-- 	where
+-- 		insertColumn colName = do
+-- 			insertName name
+-- 			insertCode "."
+-- 			insertName colName
+
+-- -- | Similar to 'insertColumns', but instead it expands the column names on an alias.
+-- insertColumnsOn :: Table -> B.ByteString -> QueryBuilder
+-- insertColumnsOn (Table _ cols) name =
+-- 	insertCommaSeperated (map insertColumn cols)
+-- 	where
+-- 		insertColumn colName = do
+-- 			insertName name
+-- 			insertCode "."
+-- 			insertName colName

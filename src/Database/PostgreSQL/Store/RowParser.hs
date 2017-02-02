@@ -49,7 +49,7 @@ data RowErrorLocation = RowErrorLocation P.Column P.Row
 data RowErrorDetail
 	= TooFewColumns
 		-- ^ Underlying 'RowParser' wants more columns than are currently present.
-	| ColumnRejected TypedValue
+	| ColumnRejected Value
 		-- ^ A column value could not be parsed.
 	| ContentsRejected (Maybe B.ByteString)
 		-- ^ The contents of a column could not be parsed.
@@ -112,22 +112,22 @@ withColumn action = do
 	else
 		throwError (RowError (RowErrorLocation col row) TooFewColumns)
 
--- | Fetch the 'TypedValue' associated with the current cell without advancing the cursor.
-peekColumn :: RowParser TypedValue
+-- | Fetch the 'Value' associated with the current cell without advancing the cursor.
+peekColumn :: RowParser Value
 peekColumn =
 	withColumn $ \ result row col -> RowParser $ liftIO $
-		TypedValue <$> P.ftype result col
-		           <*> fmap (fmap Value) (P.getvalue' result row col)
+		Value <$> P.ftype result col
+		       <*> fmap (maybe B.empty id) (P.getvalue' result row col)
 
 -- | Fetch the type 'Oid' and value of the current cell. Also advances the cell cursor to the next
 -- column.
-fetchColumn :: RowParser TypedValue
+fetchColumn :: RowParser Value
 fetchColumn =
 	peekColumn <* nextColumn
 
 -- | Fetch a column and parse it. Returning 'Nothing' from the provided parser function will cause
 -- a 'ColumnRejected' to be raised. Advances the cell cursor to the next column.
-parseColumn :: (TypedValue -> Maybe a) -> RowParser a
+parseColumn :: (Value -> Maybe a) -> RowParser a
 parseColumn proc = do
 	typedValue <- peekColumn
 	case proc typedValue of

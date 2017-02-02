@@ -7,18 +7,9 @@
 -- This module acts solely as a re-export unit.
 module Database.PostgreSQL.Store.Query (
 	-- * Exported modules
-	module Database.PostgreSQL.Store.Query.Builder,
-	module Database.PostgreSQL.Store.Query.TH,
-
-	-- * Utilities
-	castQuery
+	module Database.PostgreSQL.Store.Query.Builder2,
+	module Database.PostgreSQL.Store.Query.TH2
 ) where
 
-import Database.PostgreSQL.Store.Types
-import Database.PostgreSQL.Store.Query.Builder
-import Database.PostgreSQL.Store.Query.TH
-
--- | Cast the query's result type.
-castQuery :: Query a -> Query b
-castQuery (Query s p) =
-	Query s p
+import Database.PostgreSQL.Store.Query.Builder2
+import Database.PostgreSQL.Store.Query.TH2

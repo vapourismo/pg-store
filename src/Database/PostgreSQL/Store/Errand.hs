@@ -22,12 +22,12 @@ module Database.PostgreSQL.Store.Errand (
 	queryWith,
 
 	prepare,
-	executePrep,
+	-- executePrep,
 
-	insert,
-	insertMany,
-	deleteAll,
-	findAll
+	-- insert,
+	-- insertMany,
+	-- deleteAll,
+	-- findAll
 ) where
 
 import           Control.Applicative
@@ -35,9 +35,7 @@ import           Control.Monad.Trans
 import           Control.Monad.Except
 import           Control.Monad.Reader
 
-import           Data.Tagged
 import           Data.Maybe
-import           Data.List (mapAccumL)
 
 import qualified Data.ByteString           as B
 
@@ -46,10 +44,8 @@ import           Data.Attoparsec.ByteString.Char8
 import qualified Database.PostgreSQL.LibPQ as P
 
 import           Database.PostgreSQL.Store.Types
-import           Database.PostgreSQL.Store.Table
 import           Database.PostgreSQL.Store.Entity
 import           Database.PostgreSQL.Store.RowParser
-import           Database.PostgreSQL.Store.Query.Builder
 
 -- | Error during errand
 data ErrandError
@@ -133,59 +129,59 @@ transformResult =
 	maybe (throwError NoResult) pure
 
 -- | Execute a query and return the internal raw result.
-execute :: Query a -> Errand P.Result
+execute :: Query -> Errand P.Result
 execute (Query statement params) = do
 	con <- Errand ask
 	mbRes <- liftIO (P.execParams con statement (map transformParam params) P.Text)
 	res <- transformResult mbRes
 	res <$ validateResult res
 	where
-		-- Turn 'TypedValue' into 'Maybe (P.Oid, B.ByteString, P.Format)'
-		transformParam (TypedValue typ mbValue) =
-			(\ (Value value) -> (typ, value, P.Text)) <$> mbValue
+		-- Turn 'Value' into 'Maybe (P.Oid, B.ByteString, P.Format)'
+		transformParam Null              = Nothing
+		transformParam (Value typ value) = Just (typ, value, P.Text)
 
 -- | Same as 'execute' but instead of a 'P.Result' it returns the number of affected rows.
-execute' :: Query a -> Errand Int
+execute' :: Query -> Errand Int
 execute' =
 	countAffectedRows <=< execute
 
 -- | Execute a query and process its result set.
-query :: (Entity a) => Query a -> Errand [a]
+query :: (Entity a) => Query -> Errand [a]
 query qry =
 	queryWith qry parseEntity
 
 -- | Execute a query and process its result set using the provided 'RowParser'.
-queryWith :: Query a -> RowParser a -> Errand [a]
+queryWith :: Query -> RowParser a -> Errand [a]
 queryWith qry parser = do
 	result <- execute qry
 	Errand (lift (withExceptT ParseError (parseResult result parser)))
 
 -- | Prepare a preparable query.
 prepare :: PrepQuery a -> Errand ()
-prepare (PrepQuery name (Query stmt _)) = do
+prepare (PrepQuery name stmt _) = do
 	con <- Errand ask
 	mbRes <- liftIO (P.prepare con name stmt Nothing)
 	res <- transformResult mbRes
 	validateResult res
 
--- | Execute a prepared query.
-executePrep :: (Entity e) => PrepQuery a -> e -> Errand P.Result
-executePrep (PrepQuery name (Query _ params)) input = do
-	con <- Errand ask
-	mbRes <- liftIO (P.execPrepared con name realParams P.Text)
-	res <- transformResult mbRes
-	res <$ validateResult res
-	where
-		(_, realParams) =
-			mapAccumL replacePlaceholder (unpackEntity input) params
+-- -- | Execute a prepared query.
+-- executePrep :: (Entity e) => PrepQuery a -> e -> Errand P.Result
+-- executePrep (PrepQuery name (Query _ params)) input = do
+-- 	con <- Errand ask
+-- 	mbRes <- liftIO (P.execPrepared con name realParams P.Text)
+-- 	res <- transformResult mbRes
+-- 	res <$ validateResult res
+-- 	where
+-- 		(_, realParams) =
+-- 			mapAccumL replacePlaceholder (unpackEntity input) params
 
-		replacePlaceholder (x : xs) param
-			| param == placeholderValue = (xs, transformParam x)
-			| otherwise                 = (x : xs, transformParam param)
-		replacePlaceholder xs param = (xs, transformParam param)
+-- 		replacePlaceholder (x : xs) param
+-- 			| param == placeholderValue = (xs, transformParam x)
+-- 			| otherwise                 = (x : xs, transformParam param)
+-- 		replacePlaceholder xs param = (xs, transformParam param)
 
-		transformParam (TypedValue _ mbValue) =
-			(\ (Value value) -> (value, P.Text)) <$> mbValue
+-- 		transformParam Null              = Nothing
+-- 		transformParam (Value typ value) = Just (typ, value, P.Text)
 
 -- | Counts the rows that have been affected by a query.
 countAffectedRows :: P.Result -> Errand Int
@@ -196,53 +192,53 @@ countAffectedRows res = do
 		endResult (Partial f) = f B.empty
 		endResult x           = x
 
--- | Insert a row into a 'Table'.
-insert :: forall a. (TableEntity a) => a -> Errand Bool
-insert row = do
-	fmap (> 0) . execute' $ buildQuery $ do
-		insertCode "INSERT INTO "
-		insertName name
-		insertCode "("
-		insertCommaSeperated (map insertName cols)
-		insertCode ") VALUES ("
-		insertEntity row
-		insertCode ")"
-	where
-		Table name cols = untag (describeTableType @a)
+-- -- | Insert a row into a 'Table'.
+-- insert :: forall a. (TableEntity a) => a -> Errand Bool
+-- insert row = do
+-- 	fmap (> 0) . execute' $ buildQuery $ do
+-- 		insertCode "INSERT INTO "
+-- 		insertName name
+-- 		insertCode "("
+-- 		insertCommaSeperated (map insertName cols)
+-- 		insertCode ") VALUES ("
+-- 		insertEntity row
+-- 		insertCode ")"
+-- 	where
+-- 		Table name cols = untag (describeTableType @a)
 
--- | Insert many rows into a 'Table'.
-insertMany :: forall a. (TableEntity a) => [a] -> Errand Int
-insertMany [] = pure 0
-insertMany rows =
-	execute' $ buildQuery $ do
-		insertCode "INSERT INTO "
-		insertName name
-		insertCode "("
-		insertCommaSeperated (map insertName cols)
-		insertCode ") VALUES "
-		insertCommaSeperated (map insertRowValue rows)
-	where
-		Table name cols = untag (describeTableType @a)
+-- -- | Insert many rows into a 'Table'.
+-- insertMany :: forall a. (TableEntity a) => [a] -> Errand Int
+-- insertMany [] = pure 0
+-- insertMany rows =
+-- 	execute' $ buildQuery $ do
+-- 		insertCode "INSERT INTO "
+-- 		insertName name
+-- 		insertCode "("
+-- 		insertCommaSeperated (map insertName cols)
+-- 		insertCode ") VALUES "
+-- 		insertCommaSeperated (map insertRowValue rows)
+-- 	where
+-- 		Table name cols = untag (describeTableType @a)
 
-		insertRowValue row = do
-			insertCode "("
-			insertEntity row
-			insertCode ")"
+-- 		insertRowValue row = do
+-- 			insertCode "("
+-- 			insertEntity row
+-- 			insertCode ")"
 
--- | Delete all rows of a 'Table'.
-deleteAll :: forall a proxy. (TableEntity a) => proxy a -> Errand Int
-deleteAll _ =
-	execute' $ buildQuery $ do
-		insertCode "DELETE FROM "
-		insertName (tableName (untag (describeTableType @a)))
+-- -- | Delete all rows of a 'Table'.
+-- deleteAll :: forall a proxy. (TableEntity a) => proxy a -> Errand Int
+-- deleteAll _ =
+-- 	execute' $ buildQuery $ do
+-- 		insertCode "DELETE FROM "
+-- 		insertName (tableName (untag (describeTableType @a)))
 
--- | Find every row of a 'Table'.
-findAll :: forall a. (TableEntity a) => Errand [a]
-findAll =
-	query $ buildQuery $ do
-		insertCode "SELECT "
-		insertColumns tableDesc
-		insertCode " FROM "
-		insertName (tableName tableDesc)
-	where
-		tableDesc = untag (describeTableType @a)
+-- -- | Find every row of a 'Table'.
+-- findAll :: forall a. (TableEntity a) => Errand [a]
+-- findAll =
+-- 	query $ buildQuery $ do
+-- 		insertCode "SELECT "
+-- 		insertColumns tableDesc
+-- 		insertCode " FROM "
+-- 		insertName (tableName tableDesc)
+-- 	where
+-- 		tableDesc = untag (describeTableType @a)

@@ -13,17 +13,19 @@ module Database.PostgreSQL.Store (
 	query,
 	queryWith,
 
-	insert,
-	insertMany,
-	deleteAll,
-	findAll,
+	prepare,
+
+	-- insert,
+	-- insertMany,
+	-- deleteAll,
+	-- findAll,
 
 	-- * Query
 	Query (..),
 	PrepQuery (..),
-	pgsq,
-	markPrep,
-	castQuery,
+	pgQuery,
+	pgPrepQuery,
+	pgQueryGen,
 
 	-- * Entity
 	Entity (..),

@@ -22,15 +22,13 @@ library
   build-depends:    base >= 4.9 && < 5,
                     template-haskell >= 2.11 && < 3,
                     bytestring, blaze-builder, text, postgresql-libpq, attoparsec, mtl, time,
-                    haskell-src-meta, aeson, scientific, tagged
+                    haskell-src-meta, aeson, scientific, tagged, hashable
   hs-source-dirs:   src
   exposed-modules:  Database.PostgreSQL.Store.RowParser
                     Database.PostgreSQL.Store.Errand
                     Database.PostgreSQL.Store.Query.Parameters
-                    Database.PostgreSQL.Store.Query.Builder
                     Database.PostgreSQL.Store.Query.Builder2
-                    Database.PostgreSQL.Store.Query.TH
-                    -- Database.PostgreSQL.Store.Query.TH2
+                    Database.PostgreSQL.Store.Query.TH2
                     Database.PostgreSQL.Store.Query
                     Database.PostgreSQL.Store.Types
                     Database.PostgreSQL.Store.Generics
