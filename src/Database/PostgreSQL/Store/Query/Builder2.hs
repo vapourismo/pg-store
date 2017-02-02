@@ -34,7 +34,7 @@ import qualified Data.ByteString as B
 
 import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Utilities
-import           Database.PostgreSQL.Store.Query.Parameters
+import           Database.PostgreSQL.Store.Parameters
 
 -- | Generator for queries, its type parameter hints the type needed to generate the attached values
 data QueryGenerator a

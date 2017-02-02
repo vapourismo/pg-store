@@ -26,7 +26,7 @@ library
   hs-source-dirs:   src
   exposed-modules:  Database.PostgreSQL.Store.RowParser
                     Database.PostgreSQL.Store.Errand
-                    Database.PostgreSQL.Store.Query.Parameters
+                    Database.PostgreSQL.Store.Parameters
                     Database.PostgreSQL.Store.Query.Builder2
                     Database.PostgreSQL.Store.Query.TH2
                     Database.PostgreSQL.Store.Query

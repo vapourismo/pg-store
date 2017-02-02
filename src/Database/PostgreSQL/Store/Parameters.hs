@@ -15,7 +15,7 @@
              BangPatterns
 #-}
 
-module Database.PostgreSQL.Store.Query.Parameters (
+module Database.PostgreSQL.Store.Parameters (
 	Parameters (..),
 	appendParam,
 	extractParam,
