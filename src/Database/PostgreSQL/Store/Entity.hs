@@ -74,7 +74,7 @@ import           Database.PostgreSQL.Store.Utilities
 import           Database.PostgreSQL.Store.Generics
 import           Database.PostgreSQL.Store.RowParser
 import           Database.PostgreSQL.Store.Parameters
-import           Database.PostgreSQL.Store.Query.Builder2
+import           Database.PostgreSQL.Store.Query.Builder
 
 import           Database.PostgreSQL.LibPQ (Oid (..), invalidOid)
 

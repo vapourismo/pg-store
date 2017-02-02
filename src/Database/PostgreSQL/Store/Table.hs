@@ -57,7 +57,7 @@ import qualified Data.ByteString as B
 
 import           Database.PostgreSQL.Store.Entity
 import           Database.PostgreSQL.Store.Utilities
-import           Database.PostgreSQL.Store.Query.Builder2
+import           Database.PostgreSQL.Store.Query.Builder
 
 -- | Type-level description of a record
 data KColumns
