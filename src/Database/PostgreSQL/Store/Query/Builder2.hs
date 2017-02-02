@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE ExistentialQuantification, UnboxedTuples #-}
 
 module Database.PostgreSQL.Store.Query.Builder2 (
 	QueryGenerator (..),
@@ -72,22 +72,22 @@ assemblePrep :: B.ByteString -> QueryGenerator a -> PrepQuery2 a
 assemblePrep name gen =
 	PrepQuery2 name code values
 	where
-		(code, values, _) = walk gen 1
+		(# code, values, _ #) = walk gen 1
 
-		walk :: QueryGenerator b -> Word -> (B.ByteString, b -> [Value2], Word)
+		walk :: QueryGenerator b -> Word -> (# B.ByteString, b -> [Value2], Word #)
 		walk gen n =
 			case gen of
 				Gen f ->
-					(B.cons 36 (showByteString n), \ x -> [f x], n + 1)
+					(# B.cons 36 (showByteString n), \ x -> [f x], n + 1 #)
 
 				Code c ->
-					(c, const [], n)
+					(# c, const [], n #)
 
 				Merge lhs rhs ->
 					let
-						(lc, lf, n')  = walk lhs n
-						(rc, rf, n'') = walk rhs n'
-					in (B.append lc rc, lf <> rf, n'')
+						(# lc, lf, n' #)  = walk lhs n
+						(# rc, rf, n'' #) = walk rhs n'
+					in (# B.append lc rc, lf <> rf, n'' #)
 
 				With t gen' ->
-					let (c, v, n') = walk gen' n in (c, v . t, n')
+					let (# c, v, n' #) = walk gen' n in (# c, v . t, n' #)
