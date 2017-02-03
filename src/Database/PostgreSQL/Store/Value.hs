@@ -209,14 +209,14 @@ instance IsValue Word64 where
 	fromValue = parseValue decimal
 
 instance IsValue Double where
-	toValue = buildValue (Oid 701) B.doubleDec
+	toValue = buildValue (Oid 1700) B.doubleDec
 
 	fromValue = parseValue double
 
 instance IsValue Float where
-	toValue = buildValue (Oid 700) B.floatDec
+	toValue = buildValue (Oid 1700) B.floatDec
 
-	fromValue x = realToFrac @Double @Float <$> fromValue x
+	fromValue value = realToFrac @Double @Float <$> fromValue value
 
 instance IsValue Scientific where
 	toValue x = Value (Oid 1700) (buildByteString (formatScientific Fixed Nothing x))
