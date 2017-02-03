@@ -64,7 +64,7 @@ instance Arbitrary Scientific where
 -- |
 testEntity :: (Entity a, Eq a, Show a) => P.Connection -> a -> Property
 testEntity db x = monadicIO $ do
-	result <- lift (runErrand db (query [pgsq| SELECT $x |]))
+	result <- lift (runErrand db (query [pgQuery| SELECT $x |]))
 	elem <- case result of
 		Left err  -> fail ("ErrandError: " ++ show err)
 		Right [x] -> pure x
