@@ -5,7 +5,6 @@
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Types (
 	-- * General
-	Value (..),
 	Query (..),
 	PrepQuery (..)
 ) where
@@ -14,13 +13,7 @@ import           Text.Show.Functions ()
 
 import qualified Data.ByteString as B
 
-import           Database.PostgreSQL.LibPQ (Oid (..))
-
--- | Value sent with a request to the database
-data Value
-	= Value Oid B.ByteString
-	| Null
-	deriving (Show, Eq, Ord)
+import           Database.PostgreSQL.Store.Value
 
 -- | Query object
 data Query = Query {

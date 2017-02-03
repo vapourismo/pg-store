@@ -39,7 +39,7 @@ import           Control.Monad.State.Strict
 import qualified Data.ByteString           as B
 
 import qualified Database.PostgreSQL.LibPQ as P
-import           Database.PostgreSQL.Store.Types
+import           Database.PostgreSQL.Store.Value
 
 -- | Location of an error
 data RowErrorLocation = RowErrorLocation P.Column P.Row

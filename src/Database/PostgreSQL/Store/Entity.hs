@@ -39,12 +39,8 @@ module Database.PostgreSQL.Store.Entity (
 
 	-- * Helpers
 	GEntityRecord (..),
-	GEntityEnum (..),
 	GEntity (..)
 ) where
-
-import           GHC.Generics
-import           GHC.TypeLits
 
 import           Control.Applicative
 
@@ -52,15 +48,13 @@ import           Data.Int
 import           Data.Bits
 import           Data.Word
 import           Data.Scientific hiding (scientific)
-import           Numeric
 import           Numeric.Natural
 
-import           Data.Bifunctor
-import           Data.Proxy
-
 import qualified Data.Aeson              as A
+
 import qualified Data.ByteString         as B
 import qualified Data.ByteString.Lazy    as BL
+
 import qualified Data.Text               as T
 import qualified Data.Text.Encoding      as T
 import qualified Data.Text.Lazy          as TL
@@ -69,14 +63,11 @@ import qualified Data.Text.Lazy.Encoding as TL
 import           Data.Attoparsec.ByteString
 import           Data.Attoparsec.ByteString.Char8 (signed, decimal, skipSpace, double, scientific)
 
-import           Database.PostgreSQL.Store.Types
-import           Database.PostgreSQL.Store.Utilities
+import           Database.PostgreSQL.Store.Value
 import           Database.PostgreSQL.Store.Generics
 import           Database.PostgreSQL.Store.RowParser
 import           Database.PostgreSQL.Store.Parameters
 import           Database.PostgreSQL.Store.Query.Builder
-
-import           Database.PostgreSQL.LibPQ (Oid (..), invalidOid)
 
 -- | Generic record entity
 class GEntityRecord (rec :: KRecord) where
@@ -100,35 +91,6 @@ instance (GEntityRecord lhs, GEntityRecord rhs) => GEntityRecord ('TCombine lhs 
 	gParseRecord =
 		Combine <$> gParseRecord <*> gParseRecord
 
--- | Generic enumeration entity
-class GEntityEnum (enum :: KFlatSum) where
-	gUnpackEnum :: FlatSum enum -> [Value]
-
-	gEnumToValue :: FlatSum enum -> Value
-
-	gEnumValues :: [(B.ByteString, FlatSum enum)]
-
-instance (KnownSymbol name) => GEntityEnum ('TValue ('MetaCons name f r)) where
-	gUnpackEnum _ =
-		[Value invalidOid (buildByteString (symbolVal @name Proxy))]
-
-	gEnumToValue _ =
-		Value invalidOid (buildByteString (symbolVal @name Proxy))
-
-	gEnumValues =
-		[(buildByteString (symbolVal @name Proxy), Unit)]
-
-instance (GEntityEnum lhs, GEntityEnum rhs) => GEntityEnum ('TChoose lhs rhs) where
-	gUnpackEnum (ChooseLeft lhs)  = gUnpackEnum lhs
-	gUnpackEnum (ChooseRight rhs) = gUnpackEnum rhs
-
-	gEnumToValue (ChooseLeft lhs)  = gEnumToValue lhs
-	gEnumToValue (ChooseRight rhs) = gEnumToValue rhs
-
-	gEnumValues =
-		map (second ChooseLeft) gEnumValues
-		++ map (second ChooseRight) gEnumValues
-
 -- | Generic entity
 class GEntity (dat :: KDataType) where
 	gEmbedEntity :: QueryGenerator (DataType dat)
@@ -142,18 +104,12 @@ instance (GEntityRecord rec) => GEntity ('TRecord d c rec) where
 	gParseEntity =
 		Record <$> gParseRecord
 
-instance (GEntityEnum enum) => GEntity ('TFlatSum d enum) where
+instance (GEnumValue enum) => GEntity ('TFlatSum d enum) where
 	gEmbedEntity =
 		Gen (\ (FlatSum x) -> gEnumToValue x)
 
 	gParseEntity =
-		FlatSum <$> parseContents (`lookup` gEnumValues)
-
--- |
-genericToValue :: (GenericEntity a, AnalyzeEntity a ~ 'TFlatSum d e, GEntityEnum e) => a -> Value
-genericToValue x =
-	gEnumToValue enum
-	where FlatSum enum = fromGenericEntity x
+		FlatSum <$> parseContents gEnumFromValue
 
 -- |
 genGeneric :: (GenericEntity a, GEntity (AnalyzeEntity a)) => QueryGenerator a
@@ -164,18 +120,6 @@ genGeneric =
 parseGeneric :: (GenericEntity a, GEntity (AnalyzeEntity a)) => RowParser a
 parseGeneric =
 	toGenericEntity <$> gParseEntity
-
--- |
-class ToValue a where
-	-- |
-	toValue :: a -> Value
-
-	default toValue :: (GenericEntity a, AnalyzeEntity a ~ 'TFlatSum d e, GEntityEnum e) => a -> Value
-	toValue = genericToValue
-
--- |
-genValue :: (ToValue a) => QueryGenerator a
-genValue = Gen toValue
 
 -- | An entity that is used as a parameter or result of a query.
 class Entity a where
@@ -253,11 +197,8 @@ instance (Entity a, Entity b, Entity c, Entity d, Entity e, Entity f) => Entity 
 -- | 7 result entities in sequence
 instance (Entity a, Entity b, Entity c, Entity d, Entity e, Entity f, Entity g) => Entity (a, b, c, d, e, f, g)
 
-instance (ToValue a) => ToValue (Maybe a) where
-	toValue = maybe Null toValue
-
 -- | A value which may normally not be @NULL@.
-instance (ToValue a, Entity a) => Entity (Maybe a) where
+instance (IsValue a, Entity a) => Entity (Maybe a) where
 	genEntity = genValue
 
 	parseEntity = do
@@ -265,22 +206,6 @@ instance (ToValue a, Entity a) => Entity (Maybe a) where
 		case mbValue of
 			Null -> pure Nothing
 			_     -> Just <$> parseEntity
-
--- |
-instance ToValue Bool where
-	toValue True = Value (Oid 16) "t"
-	toValue _    = Value (Oid 16) "f"
-
--- | Comma-seperated list of entities
-instance {-# OVERLAPPABLE #-} (Entity e) => Entity [e] where
-	unpackEntity xs =
-		concat (map unpackEntity xs)
-
-	insertEntity xs =
-		insertCommaSeperated (map insertEntity xs)
-
-	parseEntity =
-		many parseEntity
 
 -- | @boolean@
 instance Entity Bool where
@@ -298,24 +223,11 @@ parseContentsWith p =
 		endResult (Partial f) = f B.empty
 		endResult x           = x
 
--- |
-toNumericValue :: (Show a) => a -> Value
-toNumericValue x =
-	Value (Oid 1700) (showByteString x)
-
--- |
-instance ToValue Integer where
-	toValue = toNumericValue
-
 -- | Any integer
 instance Entity Integer where
 	genEntity = genValue
 
 	parseEntity = parseContentsWith (signed decimal)
-
--- |
-instance ToValue Int where
-	toValue = toNumericValue
 
 -- | Any integer
 instance Entity Int where
@@ -323,19 +235,11 @@ instance Entity Int where
 
 	parseEntity = parseContentsWith (signed decimal)
 
--- |
-instance ToValue Int8 where
-	toValue = toNumericValue
-
 -- | Any integer
 instance Entity Int8 where
 	genEntity = genValue
 
 	parseEntity = parseContentsWith (signed decimal)
-
--- |
-instance ToValue Int16 where
-	toValue = toNumericValue
 
 -- | Any integer
 instance Entity Int16 where
@@ -343,19 +247,11 @@ instance Entity Int16 where
 
 	parseEntity = parseContentsWith (signed decimal)
 
--- |
-instance ToValue Int32 where
-	toValue = toNumericValue
-
 -- | Any integer
 instance Entity Int32 where
 	genEntity = genValue
 
 	parseEntity = parseContentsWith (signed decimal)
-
--- |
-instance ToValue Int64 where
-	toValue = toNumericValue
 
 -- | Any integer
 instance Entity Int64 where
@@ -363,19 +259,11 @@ instance Entity Int64 where
 
 	parseEntity = parseContentsWith (signed decimal)
 
--- |
-instance ToValue Natural where
-	toValue = toNumericValue
-
 -- | Any unsigned integer
 instance Entity Natural where
 	genEntity = genValue
 
 	parseEntity = parseContentsWith decimal
-
--- |
-instance ToValue Word where
-	toValue = toNumericValue
 
 -- | Any unsigned integer
 instance Entity Word where
@@ -383,19 +271,11 @@ instance Entity Word where
 
 	parseEntity = parseContentsWith decimal
 
--- |
-instance ToValue Word8 where
-	toValue = toNumericValue
-
 -- | Any unsigned integer
 instance Entity Word8 where
 	genEntity = genValue
 
 	parseEntity = parseContentsWith decimal
-
--- |
-instance ToValue Word16 where
-	toValue = toNumericValue
 
 -- | Any unsigned integer
 instance Entity Word16 where
@@ -403,19 +283,11 @@ instance Entity Word16 where
 
 	parseEntity = parseContentsWith decimal
 
--- |
-instance ToValue Word32 where
-	toValue = toNumericValue
-
 -- | Any unsigned integer
 instance Entity Word32 where
 	genEntity = genValue
 
 	parseEntity = parseContentsWith decimal
-
--- |
-instance ToValue Word64 where
-	toValue = toNumericValue
 
 -- | Any unsigned integer
 instance Entity Word64 where
@@ -423,19 +295,11 @@ instance Entity Word64 where
 
 	parseEntity = parseContentsWith decimal
 
--- |
-instance ToValue Double where
-	toValue = toNumericValue
-
 -- | Any floating-point number
 instance Entity Double where
 	genEntity = genValue
 
 	parseEntity = parseContentsWith double
-
--- |
-instance ToValue Float where
-	toValue = toNumericValue
 
 -- | Any floating-point number
 instance Entity Float where
@@ -443,32 +307,17 @@ instance Entity Float where
 
 	parseEntity = (realToFrac :: Double -> Float) <$> parseEntity
 
--- |
-instance ToValue Scientific where
-	toValue x =
-		Value (Oid 1700) (buildByteString (formatScientific Fixed Nothing x))
-
 -- | Any numeric type
 instance Entity Scientific where
 	genEntity = genValue
 
 	parseEntity = parseContentsWith scientific
 
--- |
-instance ToValue String where
-	toValue value =
-		Value (Oid 25) (buildByteString (filter (/= '\NUL') value))
-
 -- | @char@, @varchar@ or @text@ - UTF-8 encoded; does not allow NULL characters
 instance Entity String where
 	genEntity = genValue
 
 	parseEntity = T.unpack <$> parseEntity
-
--- |
-instance ToValue T.Text where
-	toValue value =
-		Value (Oid 25) (T.encodeUtf8 (T.concat (T.split (== '\NUL') value)))
 
 -- | @char@, @varchar@ or @text@ - UTF-8 encoded; does not allow NULL characters
 instance Entity T.Text where
@@ -477,30 +326,12 @@ instance Entity T.Text where
 	parseEntity =
 		parseContents (either (const Nothing) Just . T.decodeUtf8')
 
--- |
-instance ToValue TL.Text where
-	toValue value =
-		toValue (TL.toStrict value)
-
 -- | @char@, @varchar@ or @text@ - UTF-8 encoded; does not allow NULL characters
 instance Entity TL.Text where
 	genEntity = genValue
 
 	parseEntity =
 		parseContents (either (const Nothing) Just . TL.decodeUtf8' . BL.fromStrict)
-
--- |
-instance ToValue B.ByteString where
-	toValue value =
-		Value (Oid 17) dat
-		where
-			dat = B.append "\\x" (B.concatMap showHex' value)
-
-			showHex' n =
-				buildByteString $ case showHex n [] of
-					(a : b : _) -> [a, b]
-					(a : _)     -> ['0', a]
-					[]          -> "00"
 
 -- | @bytea@ - byte array encoded in hex format
 instance Entity B.ByteString where
@@ -553,21 +384,11 @@ instance Entity B.ByteString where
 			escapedFormat =
 				B.pack <$> many (escapedBackslash <|> escapedWord <|> anyWord8)
 
--- |
-instance ToValue BL.ByteString where
-	toValue value =
-		toValue (BL.toStrict value)
-
 -- | @bytea@ - byte array encoded in hex format
 instance Entity BL.ByteString where
 	genEntity = genValue
 
 	parseEntity = BL.fromStrict <$> parseEntity
-
--- |
-instance ToValue A.Value where
-	toValue value =
-		Value (Oid 114) (BL.toStrict (A.encode value))
 
 -- | @json@ or @jsonb@
 instance Entity A.Value where
