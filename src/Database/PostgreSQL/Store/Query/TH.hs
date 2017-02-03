@@ -184,7 +184,7 @@ translateSegment segment =
 				Nothing ->
 					fail ("'" ++ stringName ++ "' does not refer to a value")
 				Just name ->
-					[e| genEntity $(varE name) |]
+					[e| withEntity $(varE name) |]
 
 		QueryEntityCode code ->
 			case parseExp code of
