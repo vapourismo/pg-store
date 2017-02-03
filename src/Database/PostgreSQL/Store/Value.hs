@@ -81,6 +81,7 @@ instance (GEnumValue lhs, GEnumValue rhs) => GEnumValue ('TChoose lhs rhs) where
 	gEnumFromValue input =
 		(ChooseLeft <$> gEnumFromValue input) <|> (ChooseRight <$> gEnumFromValue input)
 
+-- | Generic value
 class GValue (dat :: KDataType) where
 	gToValue :: DataType dat -> Value
 
@@ -92,17 +93,17 @@ instance (GEnumValue enum) => GValue ('TFlatSum d enum) where
 	gFromValue (Value _ input) = FlatSum <$> gEnumFromValue input
 	gFromValue _               = Nothing
 
--- |
+-- | To 'Value', generically.
 genericToValue :: (GenericEntity a, GValue (AnalyzeEntity a)) => a -> Value
 genericToValue x =
 	gToValue (fromGenericEntity x)
 
--- |
+-- | From 'Value', generically.
 genericFromValue :: (GenericEntity a, GValue (AnalyzeEntity a)) => Value -> Maybe a
 genericFromValue value =
 	toGenericEntity <$> gFromValue value
 
--- |
+-- | Encapsules methods for converting from and to 'Value'
 class IsValue a where
 	-- |
 	toValue :: a -> Value
@@ -156,12 +157,10 @@ instance IsValue Int where
 
 	fromValue = parseValue (signed decimal)
 
-
 instance IsValue Int8 where
 	toValue = buildValue (Oid 21) B.int8Dec
 
 	fromValue = parseValue (signed decimal)
-
 
 instance IsValue Int16 where
 	toValue = buildValue (Oid 21) B.int16Dec
