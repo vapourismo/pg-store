@@ -15,11 +15,6 @@ module Database.PostgreSQL.Store (
 
 	prepare,
 
-	-- insert,
-	-- insertMany,
-	-- deleteAll,
-	-- findAll,
-
 	-- * Query
 	Query (..),
 	PrepQuery (..),

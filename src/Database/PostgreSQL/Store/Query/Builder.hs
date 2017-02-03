@@ -75,7 +75,7 @@ instance Hashable (QueryGenerator a) where
 	hashWithSalt salt (Merge l r) = hashWithSalt (hashWithSalt salt l) r
 
 -- | Assemble the query object.
-assemble :: QueryGenerator a -> a -> Query
+assemble :: QueryGenerator a -> a -> Query r
 assemble gen x =
 	Query code values
 	where
@@ -101,7 +101,7 @@ assemble gen x =
 					walk gen' (t x) n
 
 -- | Assemble for query preparation.
-assemblePrep :: B.ByteString -> QueryGenerator a -> PrepQuery a
+assemblePrep :: B.ByteString -> QueryGenerator a -> PrepQuery a r
 assemblePrep prefix gen =
 	PrepQuery (B.append prefix (showByteString (hash code))) code values
 	where

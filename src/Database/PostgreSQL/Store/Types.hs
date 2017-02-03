@@ -16,14 +16,14 @@ import qualified Data.ByteString as B
 import           Database.PostgreSQL.Store.Value
 
 -- | Query object
-data Query = Query {
-	query2Statement :: B.ByteString,
-	query2Params    :: [Value]
+data Query a = Query {
+	queryStatement :: B.ByteString,
+	queryParams    :: [Value]
 } deriving (Show, Eq, Ord)
 
 -- | Preparable query object
-data PrepQuery a = PrepQuery {
-	prep2Name      :: B.ByteString,
-	prep2Statement :: B.ByteString,
-	prep2Params    :: a -> [Value]
+data PrepQuery p a = PrepQuery {
+	prepName      :: B.ByteString,
+	prepStatement :: B.ByteString,
+	prepParams    :: p -> [Value]
 } deriving (Show)

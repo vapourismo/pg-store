@@ -29,15 +29,7 @@ module Database.PostgreSQL.Store.Errand (
 	query,
 	queryWith,
 
-	prepare,
-	executePrepWith,
-	executePrep,
-	queryPrepWith,
-
-	-- insert,
-	-- insertMany,
-	-- deleteAll,
-	-- findAll
+	prepare
 ) where
 
 import           Control.Applicative
@@ -135,36 +127,6 @@ validateResult res = do
 			                      (fromMaybe B.empty detail)
 			                      (fromMaybe B.empty hint))
 
--- | Extract the result.
-transformResult :: Maybe P.Result -> Errand P.Result
-transformResult =
-	maybe (throwError NoResult) pure
-
--- | Execute the query and return its internal result.
-execute :: Query -> Errand P.Result
-execute (Query statement params) = do
-	con <- Errand ask
-	mbRes <- liftIO (P.execParams con statement (map transformParam params) P.Text)
-	res <- transformResult mbRes
-	res <$ validateResult res
-	where
-		transformParam Null              = Nothing
-		transformParam (Value typ value) = Just (typ, value, P.Text)
-
--- | Same as 'execute' but instead of a 'P.Result' it returns the number of affected rows.
-execute' :: Query -> Errand Int
-execute' = countAffectedRows <=< execute
-
--- | Execute a query and process its result set.
-query :: (Entity a) => Query -> Errand [a]
-query = queryWith parseEntity
-
--- | Execute a query and process its result set using the provided 'RowParser'.
-queryWith :: RowParser a -> Query -> Errand [a]
-queryWith parser qry = do
-	result <- execute qry
-	Errand (lift (withExceptT ParseError (parseResult result parser)))
-
 -- | Counts the rows that have been affected by a query.
 countAffectedRows :: P.Result -> Errand Int
 countAffectedRows res = do
@@ -174,43 +136,70 @@ countAffectedRows res = do
 		endResult (Partial f) = f B.empty
 		endResult x           = x
 
+-- | Extract the result.
+transformResult :: Maybe P.Result -> Errand P.Result
+transformResult =
+	maybe (throwError NoResult) pure
+
+class ErrandQuery q r where
+	type ErrandResult q r
+
+	executeWith :: (P.Result -> Errand r) -> q x -> ErrandResult q r
+
+instance ErrandQuery Query r where
+	type ErrandResult Query r = Errand r
+
+	executeWith end (Query stmt params) = do
+		con <- Errand ask
+		mbRes <- liftIO (P.execParams con stmt (map transformParam params) P.Text)
+		res <- transformResult mbRes
+		validateResult res
+		end res
+		where
+			transformParam Null              = Nothing
+			transformParam (Value typ value) = Just (typ, value, P.Text)
+
+instance (Constructible ts (Errand r)) => ErrandQuery (PrepQuery (Parameters ts)) r where
+	type ErrandResult (PrepQuery (Parameters ts)) r = FunctionType ts (Errand r)
+
+	executeWith end (PrepQuery name _ gens) =
+		constructWithParams $ \ params -> do
+			con <- Errand ask
+			mbRes <- liftIO (P.execPrepared con name (map transformParam (gens params)) P.Text)
+			res <- transformResult mbRes
+			validateResult res
+			end res
+		where
+			transformParam Null              = Nothing
+			transformParam (Value _ value) = Just (value, P.Text)
+
+-- | Execute the query and return its internal result.
+execute :: (ErrandQuery q P.Result) => q r -> ErrandResult q P.Result
+execute =
+	executeWith pure
+
+-- | Same as 'execute' but instead of a 'P.Result' it returns the number of affected rows.
+execute' :: (ErrandQuery q Int) => q r -> ErrandResult q Int
+execute' =
+	executeWith countAffectedRows
+
+-- | Execute a query and process its result set using the provided 'RowParser'.
+queryWith :: (ErrandQuery q [r]) => RowParser r -> q r -> ErrandResult q [r]
+queryWith parser =
+	executeWith $ \ result ->
+		Errand (lift (withExceptT ParseError (parseResult result parser)))
+
+-- | Execute a query and process its result set.
+query :: (Entity r, ErrandQuery q [r]) => q r -> ErrandResult q [r]
+query = queryWith parseEntity
+
 -- | Prepare a preparable query.
-prepare :: PrepQuery a -> Errand ()
+prepare :: PrepQuery a r -> Errand ()
 prepare (PrepQuery name stmt _) = do
 	con <- Errand ask
 	mbRes <- liftIO (P.prepare con name stmt Nothing)
 	res <- transformResult mbRes
 	validateResult res
-
--- |
-executePrepWith :: (Constructible ts (Errand r))
-                => (P.Result -> Errand r) -> PrepQuery (Parameters ts) -> FunctionType ts (Errand r)
-executePrepWith end (PrepQuery name _ gens) =
-	constructWithParams $ \ params -> do
-		con <- Errand ask
-		mbRes <- liftIO (P.execPrepared con name (map transformParam (gens params)) P.Text)
-		res <- transformResult mbRes
-		validateResult res
-		end res
-	where
-		transformParam Null              = Nothing
-		transformParam (Value _ value) = Just (value, P.Text)
-
--- |
-executePrep :: (Constructible ts (Errand P.Result))
-            => PrepQuery (Parameters ts) -> FunctionType ts (Errand P.Result)
-executePrep = executePrepWith pure
-
--- |
-queryPrepWith :: (Constructible ts (Errand [a]))
-              => RowParser a -> PrepQuery (Parameters ts) -> FunctionType ts (Errand [a])
-queryPrepWith parser =
-	executePrepWith $ \ result ->
-		Errand (lift (withExceptT ParseError (parseResult result parser)))
-
--- -- |
--- queryPrep :: (Entity a, Constructible ts (Errand [a]) => PrepQuery (Parameters ts) -> FunctionType ts (Errand [a])
--- queryPrep = undefined
 
 -- -- | Insert a row into a 'Table'.
 -- insert :: forall a. (TableEntity a) => a -> Errand Bool
