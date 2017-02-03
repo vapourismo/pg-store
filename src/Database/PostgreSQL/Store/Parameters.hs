@@ -30,10 +30,12 @@ module Database.PostgreSQL.Store.Parameters (
 	extractParam8,
 	extractParam9,
 
-	FunctionType,
-
 	Constructible,
-	constructWithParams
+	constructWithParams,
+
+	-- * Helpers
+	FunctionType,
+	BuildParams
 ) where
 
 import GHC.TypeLits
