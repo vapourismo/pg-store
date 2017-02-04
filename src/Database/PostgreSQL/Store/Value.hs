@@ -119,7 +119,7 @@ instance (IsValue a) => IsValue (Maybe a) where
 	toValue (Just x) = toValue x
 	toValue _        = Null
 
-	fromValue Null  = Nothing
+	fromValue Null  = Just Nothing
 	fromValue value = Just <$> fromValue value
 
 instance IsValue Bool where
