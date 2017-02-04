@@ -159,8 +159,8 @@ instance ErrandQuery Query r where
 			transformParam Null              = Nothing
 			transformParam (Value typ value) = Just (typ, value, P.Text)
 
-instance (Constructible ts (Errand r)) => ErrandQuery (PrepQuery (Parameters ts)) r where
-	type ErrandResult (PrepQuery (Parameters ts)) r = FunctionType ts (Errand r)
+instance (Constructible ts (Errand r)) => ErrandQuery (PrepQuery ts) r where
+	type ErrandResult (PrepQuery ts) r = FunctionType ts (Errand r)
 
 	executeWith end (PrepQuery name _ gens) =
 		constructWithParams $ \ params -> do
@@ -200,54 +200,3 @@ prepare (PrepQuery name stmt _) = do
 	mbRes <- liftIO (P.prepare con name stmt Nothing)
 	res <- transformResult mbRes
 	validateResult res
-
--- -- | Insert a row into a 'Table'.
--- insert :: forall a. (TableEntity a) => a -> Errand Bool
--- insert row = do
--- 	fmap (> 0) . execute' $ buildQuery $ do
--- 		insertCode "INSERT INTO "
--- 		insertName name
--- 		insertCode "("
--- 		insertCommaSeperated (map insertName cols)
--- 		insertCode ") VALUES ("
--- 		insertEntity row
--- 		insertCode ")"
--- 	where
--- 		Table name cols = untag (describeTableType @a)
-
--- -- | Insert many rows into a 'Table'.
--- insertMany :: forall a. (TableEntity a) => [a] -> Errand Int
--- insertMany [] = pure 0
--- insertMany rows =
--- 	execute' $ buildQuery $ do
--- 		insertCode "INSERT INTO "
--- 		insertName name
--- 		insertCode "("
--- 		insertCommaSeperated (map insertName cols)
--- 		insertCode ") VALUES "
--- 		insertCommaSeperated (map insertRowValue rows)
--- 	where
--- 		Table name cols = untag (describeTableType @a)
-
--- 		insertRowValue row = do
--- 			insertCode "("
--- 			insertEntity row
--- 			insertCode ")"
-
--- -- | Delete all rows of a 'Table'.
--- deleteAll :: forall a proxy. (TableEntity a) => proxy a -> Errand Int
--- deleteAll _ =
--- 	execute' $ buildQuery $ do
--- 		insertCode "DELETE FROM "
--- 		insertName (tableName (untag (describeTableType @a)))
-
--- -- | Find every row of a 'Table'.
--- findAll :: forall a. (TableEntity a) => Errand [a]
--- findAll =
--- 	query $ buildQuery $ do
--- 		insertCode "SELECT "
--- 		insertColumns tableDesc
--- 		insertCode " FROM "
--- 		insertName (tableName tableDesc)
--- 	where
--- 		tableDesc = untag (describeTableType @a)

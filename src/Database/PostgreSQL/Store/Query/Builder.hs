@@ -101,7 +101,7 @@ assemble gen x =
 					walk gen' (t x) n
 
 -- | Assemble for query preparation.
-assemblePrep :: B.ByteString -> QueryGenerator a -> PrepQuery a r
+assemblePrep :: B.ByteString -> QueryGenerator (Parameters p) -> PrepQuery p r
 assemblePrep prefix gen =
 	PrepQuery (B.append prefix (showByteString (hash code))) code values
 	where

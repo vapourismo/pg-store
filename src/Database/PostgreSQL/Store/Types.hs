@@ -14,6 +14,7 @@ import           Text.Show.Functions ()
 import qualified Data.ByteString as B
 
 import           Database.PostgreSQL.Store.Value
+import           Database.PostgreSQL.Store.Parameters
 
 -- | Query object
 data Query a = Query {
@@ -25,5 +26,5 @@ data Query a = Query {
 data PrepQuery p a = PrepQuery {
 	prepName      :: B.ByteString,
 	prepStatement :: B.ByteString,
-	prepParams    :: p -> [Value]
+	prepParams    :: Parameters p -> [Value]
 } deriving (Show)
