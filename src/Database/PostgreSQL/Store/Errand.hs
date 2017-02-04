@@ -141,9 +141,12 @@ transformResult :: Maybe P.Result -> Errand P.Result
 transformResult =
 	maybe (throwError NoResult) pure
 
+-- | Identifies @q@ as a query object.
 class ErrandQuery q r where
+	-- | A type equal to @Errand r@ or a function which will eventually yield a @Errand r@
 	type ErrandResult q r
 
+	-- | Execute the query described in @q x@ and pass its 'P.Result' to the given function.
 	executeWith :: (P.Result -> Errand r) -> q x -> ErrandResult q r
 
 instance ErrandQuery Query r where

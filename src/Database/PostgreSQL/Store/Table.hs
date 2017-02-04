@@ -27,9 +27,6 @@ module Database.PostgreSQL.Store.Table (
 	genTableColumns,
 	genTableColumnsOn,
 
-	-- insertColumns,
-	-- insertColumnsOn,
-
 	GenericTable,
 	describeGenericTable,
 
@@ -167,37 +164,17 @@ class (Entity a) => TableEntity a where
 	default describeTableType :: (GenericTable a) => Tagged a Table
 	describeTableType = describeGenericTable
 
--- |
+-- | Embed table name.
 genTableName :: Table -> QueryGenerator a
 genTableName (Table name _) =
 	genIdentifier name
 
--- |
+-- | Embed a comma-seperated list of the table's columns.
 genTableColumns :: Table -> QueryGenerator a
 genTableColumns (Table name columns) =
 	joinGens (B.singleton 44) (map (genNestedIdentifier name) columns)
 
--- |
+-- | Same as 'genTableColumns' but expands the columns on an alias of the table name.
 genTableColumnsOn :: Table -> B.ByteString -> QueryGenerator a
 genTableColumnsOn (Table _ columns) name =
 	joinGens (B.singleton 44) (map (genNestedIdentifier name) columns)
-
--- -- | Insert a comma-seperated list of the fully qualified column names of a table.
--- insertColumns :: Table -> QueryBuilder
--- insertColumns (Table name cols) =
--- 	insertCommaSeperated (map insertColumn cols)
--- 	where
--- 		insertColumn colName = do
--- 			insertName name
--- 			insertCode "."
--- 			insertName colName
-
--- -- | Similar to 'insertColumns', but instead it expands the column names on an alias.
--- insertColumnsOn :: Table -> B.ByteString -> QueryBuilder
--- insertColumnsOn (Table _ cols) name =
--- 	insertCommaSeperated (map insertColumn cols)
--- 	where
--- 		insertColumn colName = do
--- 			insertName name
--- 			insertCode "."
--- 			insertName colName

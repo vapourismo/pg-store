@@ -105,13 +105,11 @@ genericFromValue value =
 
 -- | Encapsules methods for converting from and to 'Value'
 class IsValue a where
-	-- |
 	toValue :: a -> Value
 
 	default toValue :: (GenericEntity a, GValue (AnalyzeEntity a)) => a -> Value
 	toValue = genericToValue
 
-	-- |
 	fromValue :: Value -> Maybe a
 
 	default fromValue :: (GenericEntity a, GValue (AnalyzeEntity a)) => Value -> Maybe a
@@ -133,12 +131,12 @@ instance IsValue Bool where
 	fromValue _ =
 		Nothing
 
--- |
+-- | Construct a 'Value' using a 'B.Builder'.
 buildValue :: Oid -> (a -> B.Builder) -> a -> Value
 buildValue typ builder x =
 	Value typ (BL.toStrict (B.toLazyByteString (builder x)))
 
--- |
+-- | Process the value's contents.
 parseValue :: Parser a -> Value -> Maybe a
 parseValue _ Null = Nothing
 parseValue p (Value _ input) =
