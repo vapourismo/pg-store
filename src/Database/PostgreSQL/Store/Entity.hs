@@ -21,7 +21,7 @@ module Database.PostgreSQL.Store.Entity (
 	-- * Result and query entity
 	Entity (..),
 
-	withEntity,
+	embedEntity,
 
 	param0,
 	param1,
@@ -136,8 +136,8 @@ class Entity a where
 	parseEntity = parseGeneric
 
 -- | Embed an entity into the query generator.
-withEntity :: (Entity e) => e -> QueryGenerator a
-withEntity e = withOther e genEntity
+embedEntity :: (Entity e) => e -> QueryGenerator a
+embedEntity e = withOther e genEntity
 
 -- | Parameter entity at index 0
 param0 :: (Entity r) => QueryGenerator (Parameters (r ': ts))
