@@ -23,16 +23,16 @@ module Database.PostgreSQL.Store.Entity (
 
 	withEntity,
 
-	genParam0,
-	genParam1,
-	genParam2,
-	genParam3,
-	genParam4,
-	genParam5,
-	genParam6,
-	genParam7,
-	genParam8,
-	genParam9,
+	param0,
+	param1,
+	param2,
+	param3,
+	param4,
+	param5,
+	param6,
+	param7,
+	param8,
+	param9,
 
 	genGeneric,
 	parseGeneric,
@@ -140,44 +140,44 @@ withEntity :: (Entity e) => e -> QueryGenerator a
 withEntity e = withOther e genEntity
 
 -- |
-genParam0 :: (Entity r) => QueryGenerator (Parameters (r ': ts))
-genParam0 = withParam0 genEntity
+param0 :: (Entity r) => QueryGenerator (Parameters (r ': ts))
+param0 = withParam0 genEntity
 
 -- |
-genParam1 :: (Entity r) => QueryGenerator (Parameters (t0 ': r ': ts))
-genParam1 = withParam1 genEntity
+param1 :: (Entity r) => QueryGenerator (Parameters (t0 ': r ': ts))
+param1 = withParam1 genEntity
 
 -- |
-genParam2 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': r ': ts))
-genParam2 = withParam2 genEntity
+param2 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': r ': ts))
+param2 = withParam2 genEntity
 
 -- |
-genParam3 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': r ': ts))
-genParam3 = withParam3 genEntity
+param3 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': r ': ts))
+param3 = withParam3 genEntity
 
 -- |
-genParam4 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': r ': ts))
-genParam4 = withParam4 genEntity
+param4 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': r ': ts))
+param4 = withParam4 genEntity
 
 -- |
-genParam5 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': r ': ts))
-genParam5 = withParam5 genEntity
+param5 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': r ': ts))
+param5 = withParam5 genEntity
 
 -- |
-genParam6 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': r ': ts))
-genParam6 = withParam6 genEntity
+param6 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': r ': ts))
+param6 = withParam6 genEntity
 
 -- |
-genParam7 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': r ': ts))
-genParam7 = withParam7 genEntity
+param7 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': r ': ts))
+param7 = withParam7 genEntity
 
 -- |
-genParam8 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': t7 ': r ': ts))
-genParam8 = withParam8 genEntity
+param8 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': t7 ': r ': ts))
+param8 = withParam8 genEntity
 
 -- |
-genParam9 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': t7 ': t8 ': r ': ts))
-genParam9 = withParam9 genEntity
+param9 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': t7 ': t8 ': r ': ts))
+param9 = withParam9 genEntity
 
 -- | 2 result entities in sequence
 instance (Entity a, Entity b) => Entity (a, b)
