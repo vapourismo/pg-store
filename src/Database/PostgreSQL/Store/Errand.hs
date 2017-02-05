@@ -32,6 +32,8 @@ module Database.PostgreSQL.Store.Errand (
 	prepare
 ) where
 
+import           GHC.TypeLits
+
 import           Control.Applicative
 import           Control.Monad.Trans
 import           Control.Monad.Except
@@ -187,13 +189,13 @@ execute' =
 	executeWith countAffectedRows
 
 -- | Execute a query and process its result set using the provided 'RowParser'.
-queryWith :: (ErrandQuery q [r]) => RowParser r -> q r -> ErrandResult q [r]
+queryWith :: (ErrandQuery q [r], KnownNat n) => RowParser n r -> q r -> ErrandResult q [r]
 queryWith parser =
 	executeWith $ \ result ->
-		Errand (lift (withExceptT ParseError (parseResult result parser)))
+		Errand (lift (withExceptT ParseError (processResultWith result parser)))
 
 -- | Execute a query and process its result set.
-query :: (Entity r, ErrandQuery q [r]) => q r -> ErrandResult q [r]
+query :: (EntityC r, ErrandQuery q [r]) => q r -> ErrandResult q [r]
 query = queryWith parseEntity
 
 -- | Prepare a preparable query.
