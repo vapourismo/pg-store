@@ -122,6 +122,11 @@ instance (IsValue a) => IsValue (Maybe a) where
 	fromValue Null  = Just Nothing
 	fromValue value = Just <$> fromValue value
 
+instance IsValue Value where
+	toValue = id
+
+	fromValue = Just
+
 instance IsValue Bool where
 	toValue True = Value (Oid 16) "t"
 	toValue _    = Value (Oid 16) "f"
