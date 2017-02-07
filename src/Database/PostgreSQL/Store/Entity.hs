@@ -40,7 +40,8 @@ module Database.PostgreSQL.Store.Entity (
 
 	-- * Helpers
 	GEntityRecord (..),
-	GEntity (..)
+	GEntity (..),
+	GenericPolyEntity
 ) where
 
 import           GHC.TypeLits
