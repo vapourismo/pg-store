@@ -92,8 +92,7 @@ newtype Errand a = Errand (ReaderT P.Connection (ExceptT ErrandError IO) a)
 
 -- | Run an errand.
 runErrand :: P.Connection -> Errand a -> IO (Either ErrandError a)
-runErrand con (Errand errand) =
-	runExceptT (runReaderT errand con)
+runErrand con (Errand errand) = runExceptT (runReaderT errand con)
 
 -- | Validate the result.
 validateResult :: P.Result -> Errand ()
@@ -140,8 +139,7 @@ countAffectedRows res = do
 
 -- | Extract the result.
 transformResult :: Maybe P.Result -> Errand P.Result
-transformResult =
-	maybe (throwError NoResult) pure
+transformResult = maybe (throwError NoResult) pure
 
 -- | Identifies @q@ as a query object.
 class ErrandQuery q r where
@@ -167,7 +165,7 @@ instance ErrandQuery Query r where
 instance (Constructible ts (Errand r)) => ErrandQuery (PrepQuery ts) r where
 	type ErrandResult (PrepQuery ts) r = FunctionType ts (Errand r)
 
-	executeWith end (PrepQuery name _ gens) =
+	executeWith end (PrepQuery name _ _ gens) =
 		constructWithParams $ \ params -> do
 			con <- Errand ask
 			mbRes <- liftIO (P.execPrepared con name (map transformParam (gens params)) P.Text)
@@ -180,13 +178,11 @@ instance (Constructible ts (Errand r)) => ErrandQuery (PrepQuery ts) r where
 
 -- | Execute the query and return its internal result.
 execute :: (ErrandQuery q P.Result) => q r -> ErrandResult q P.Result
-execute =
-	executeWith pure
+execute = executeWith pure
 
 -- | Same as 'execute' but instead of a 'P.Result' it returns the number of affected rows.
 execute' :: (ErrandQuery q Int) => q r -> ErrandResult q Int
-execute' =
-	executeWith countAffectedRows
+execute' = executeWith countAffectedRows
 
 -- | Execute a query and process its result set using the provided 'RowParser'.
 queryWith :: (ErrandQuery q [r], KnownNat n) => RowParser n r -> q r -> ErrandResult q [r]
@@ -200,8 +196,8 @@ query = queryWith parseEntity
 
 -- | Prepare a preparable query.
 prepare :: PrepQuery a r -> Errand ()
-prepare (PrepQuery name stmt _) = do
+prepare (PrepQuery name stmt oids _) = do
 	con <- Errand ask
-	mbRes <- liftIO (P.prepare con name stmt Nothing)
+	mbRes <- liftIO (P.prepare con name stmt (Just oids))
 	res <- transformResult mbRes
 	validateResult res

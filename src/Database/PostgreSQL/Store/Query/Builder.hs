@@ -1,4 +1,8 @@
-{-# LANGUAGE ExistentialQuantification, TypeOperators, DataKinds #-}
+{-# LANGUAGE ExistentialQuantification,
+             TypeOperators,
+             TypeApplications,
+             ScopedTypeVariables,
+             DataKinds #-}
 
 module Database.PostgreSQL.Store.Query.Builder (
 	QueryGenerator (..),
@@ -31,6 +35,7 @@ import           Data.Semigroup
 
 import           Data.List
 import           Data.String
+import           Data.Tagged
 import           Data.Hashable
 
 import qualified Data.ByteString as B
@@ -40,9 +45,11 @@ import           Database.PostgreSQL.Store.Value
 import           Database.PostgreSQL.Store.Utilities
 import           Database.PostgreSQL.Store.Parameters
 
+import           Database.PostgreSQL.LibPQ (Oid (..))
+
 -- | Generator for queries, its type parameter hints the type needed to generate the attached values
 data QueryGenerator a
-	= Gen (a -> Value)
+	= Gen Oid (a -> Value)
 	| Code B.ByteString
 	| forall b. With (a -> b) (QueryGenerator b)
 	| Merge (QueryGenerator a) (QueryGenerator a)
@@ -69,7 +76,7 @@ instance IsString (QueryGenerator a) where
 	fromString str = Code (buildByteString str)
 
 instance Hashable (QueryGenerator a) where
-	hashWithSalt salt (Gen _)     = hashWithSalt salt ()
+	hashWithSalt salt (Gen _ _)   = hashWithSalt salt ()
 	hashWithSalt salt (Code c)    = hashWithSalt salt c
 	hashWithSalt salt (With _ c)  = hashWithSalt salt c
 	hashWithSalt salt (Merge l r) = hashWithSalt (hashWithSalt salt l) r
@@ -84,7 +91,7 @@ assemble gen x =
 		walk :: QueryGenerator b -> b -> Word -> (B.ByteString, [Value], Word)
 		walk gen x n =
 			case gen of
-				Gen f ->
+				Gen _ f ->
 					-- 36 = $
 					(B.cons 36 (showByteString n), [f x], n + 1)
 
@@ -103,27 +110,27 @@ assemble gen x =
 -- | Assemble for query preparation.
 assemblePrep :: B.ByteString -> QueryGenerator (Parameters p) -> PrepQuery p r
 assemblePrep prefix gen =
-	PrepQuery (B.append prefix (showByteString (hash code))) code values
+	PrepQuery (B.append prefix (showByteString (hash code))) code oids values
 	where
-		(code, values, _) = walk gen 1
+		(code, oids, values, _) = walk gen 1
 
-		walk :: QueryGenerator b -> Word -> (B.ByteString, b -> [Value], Word)
+		walk :: QueryGenerator b -> Word -> (B.ByteString, [Oid], b -> [Value], Word)
 		walk gen n =
 			case gen of
-				Gen f ->
-					(B.cons 36 (showByteString n), \ x -> [f x], n + 1)
+				Gen t f ->
+					(B.cons 36 (showByteString n), [t], \ x -> [f x], n + 1)
 
 				Code c ->
-					(c, const [], n)
+					(c, [], const [], n)
 
 				Merge lhs rhs ->
 					let
-						(lc, lf, n')  = walk lhs n
-						(rc, rf, n'') = walk rhs n'
-					in (B.append lc rc, lf <> rf, n'')
+						(lc, lt, lf, n')  = walk lhs n
+						(rc, rt, rf, n'') = walk rhs n'
+					in (B.append lc rc, lt ++ rt, lf <> rf, n'')
 
-				With t gen' ->
-					let (c, v, n') = walk gen' n in (c, v . t, n')
+				With f gen' ->
+					let (c, t, v, n') = walk gen' n in (c, t, v . f, n')
 
 -- | Embed a generator which requires an external parameter.
 withOther :: a -> QueryGenerator a -> QueryGenerator b
@@ -173,8 +180,8 @@ genQuote contents =
 	                B.singleton 39])
 
 -- | Generator for an 'IsValue' instance.
-genValue :: (IsValue a) => QueryGenerator a
-genValue = Gen toValue
+genValue :: forall a. (IsValue a) => QueryGenerator a
+genValue = Gen (untag (oidOf @a)) toValue
 
 -- | Join multiple query generators with a piece of code.
 joinGens :: B.ByteString -> [QueryGenerator a] -> QueryGenerator a

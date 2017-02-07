@@ -66,6 +66,8 @@ import           Database.PostgreSQL.Store.RowParser
 import           Database.PostgreSQL.Store.Parameters
 import           Database.PostgreSQL.Store.Query.Builder
 
+import           Database.PostgreSQL.LibPQ (Oid (..))
+
 -- | Generic record entity
 class GEntityRecord (rec :: KRecord) where
 	type GRecordWidth rec :: Nat
@@ -133,7 +135,7 @@ instance (GEnumValue enum) => GEntity ('TFlatSum d enum) where
 	type GEntityConstraint ('TFlatSum d enum) = KnownNat 1
 
 	gEmbedEntity =
-		Gen (\ (FlatSum x) -> gEnumToValue x)
+		Gen (Oid 0) (\ (FlatSum x) -> gEnumToValue x)
 
 	gParseEntity =
 		withEntityParser $ \ value ->

@@ -16,6 +16,8 @@ import qualified Data.ByteString as B
 import           Database.PostgreSQL.Store.Value
 import           Database.PostgreSQL.Store.Parameters
 
+import           Database.PostgreSQL.LibPQ (Oid (..))
+
 -- | Query object
 data Query a = Query {
 	queryStatement :: B.ByteString,
@@ -26,5 +28,6 @@ data Query a = Query {
 data PrepQuery p a = PrepQuery {
 	prepName      :: B.ByteString,
 	prepStatement :: B.ByteString,
+	prepOids      :: [Oid],
 	prepParams    :: Parameters p -> [Value]
 } deriving (Show)
