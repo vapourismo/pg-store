@@ -144,8 +144,7 @@ instance (GEnumValue enum) => GEntity ('TFlatSum d enum) where
 
 				Null -> cancel (ColumnRejected value)
 
--- | 'GEntity' constraint, 'GEntityConstraint' constraint and a check that 'GEntityWidth' is a known
--- natural number.
+-- | 'GEntity' constraint and check that 'GEntityWidth' is a known natural number.
 type GEntityC a = (GEntity a, KnownNat (GEntityWidth a))
 
 -- | Required for instances of 'Entity' for types with type parameters. This constraints all
