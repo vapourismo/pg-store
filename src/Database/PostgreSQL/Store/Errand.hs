@@ -63,16 +63,12 @@ data ErrandError
 		-- ^ Query execution failed.
 	| ParseError RowError
 		-- ^ Result processing failed.
-	| Multiple [ErrandError]
 	deriving (Show, Eq)
 
 instance Monoid ErrandError where
 	mempty = UserError "mempty"
 
-	mappend (Multiple l) (Multiple r) = Multiple (l ++ r)
-	mappend (Multiple l) r            = Multiple (l ++ [r])
-	mappend l            (Multiple r) = Multiple (l : r)
-	mappend l            r            = Multiple [l, r]
+	mappend _ e = e
 
 -- | Error codes
 data ErrorCode
