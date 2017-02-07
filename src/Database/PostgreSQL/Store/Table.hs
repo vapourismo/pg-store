@@ -156,7 +156,7 @@ describeGenericTable :: forall a. (GenericTable a) => Tagged a Table
 describeGenericTable =
 	retag (gDescribeTable @(AnalyzeTable a))
 
--- | Classify a type which can be used as a table.
+-- | Table entity with extra information about its name and column names
 class (Entity a) => TableEntity a where
 	-- | Describe the table type.
 	describeTableType :: Tagged a Table
