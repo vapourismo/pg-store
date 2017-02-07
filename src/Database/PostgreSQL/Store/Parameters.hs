@@ -12,7 +12,8 @@
              FlexibleInstances,
              UndecidableInstances,
              FunctionalDependencies,
-             BangPatterns
+             BangPatterns,
+             StandaloneDeriving
 #-}
 
 module Database.PostgreSQL.Store.Parameters (
@@ -41,6 +42,7 @@ module Database.PostgreSQL.Store.Parameters (
 import GHC.TypeLits
 
 import Data.Kind
+import Data.List
 import Data.Tagged
 
 -- | Append a single element to the end of the list.
@@ -54,6 +56,20 @@ infixl 5 |>
 data Parameters (x :: [Type]) where
 	Empty :: Parameters '[]
 	Cons  :: t -> {-# UNPACK #-} !(Parameters ts) -> Parameters (t ': ts)
+
+-- | Helper for 'Show' instance
+class GatherShownParameters ts where
+	gatherShown :: Parameters ts -> [String]
+
+instance GatherShownParameters '[] where
+	gatherShown _ = []
+
+instance (Show t, GatherShownParameters ts) => GatherShownParameters (t ': ts) where
+	gatherShown (Cons x rest) = show x : gatherShown rest
+
+instance (GatherShownParameters ts) => Show (Parameters ts) where
+	show params =
+		concat ["[", intercalate "," (gatherShown params), "]"]
 
 -- | An instance of 'Parameters' has a parameter of type @r@ at index @n@
 class HasParam (n :: Nat) (ts :: [Type]) r | n ts -> r where
