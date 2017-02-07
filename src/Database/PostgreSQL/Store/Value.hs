@@ -105,11 +105,14 @@ genericFromValue value =
 	toGenericEntity <$> gFromValue value
 
 -- | Encapsules methods for converting from and to 'Value'
+--
+-- Implementation of 'toValue' and 'fromValue' may be omitted when @a@ is an enumeration type.
+-- @a@ is an enumeration type when all of its constructors have zero fields.
 class IsValue a where
 	-- | Hint which 'Oid' this type will be associated with. This does restrict the input 'Value's
 	-- to 'fromValue'. The implementaton can process 'Value's regardless of its 'Oid'.
 	--
-	-- Default 'Oid' is 0. This means the server will infer its type.
+	-- Default 'Oid' is 0, which means the server will infer the type.
 	oidOf :: Tagged a Oid
 	oidOf = Tagged (Oid 0)
 
