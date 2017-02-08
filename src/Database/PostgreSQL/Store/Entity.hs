@@ -135,13 +135,13 @@ instance (GEnumValue enum) => GEntity ('TFlatSum d enum) where
 	type GEntityConstraint ('TFlatSum d enum) = KnownNat 1
 
 	gEmbedEntity =
-		Gen (Oid 0) (\ (FlatSum x) -> gEnumToValue x)
+		Gen (Oid 0) (\ (FlatSum x) -> Value (Oid 0) (gEnumToPayload x))
 
 	gParseEntity =
 		withEntityParser $ \ value ->
 			case value of
 				Value _ input ->
-					case gEnumFromValue input of
+					case gEnumFromPayload input of
 						Just x  -> finish (FlatSum x)
 						Nothing -> cancel (ColumnRejected value)
 
