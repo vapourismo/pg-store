@@ -5,6 +5,7 @@
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Types (
 	-- * General
+	Value (..),
 	Query (..),
 	PrepQuery (..)
 ) where
@@ -13,10 +14,17 @@ import           Text.Show.Functions ()
 
 import qualified Data.ByteString as B
 
-import           Database.PostgreSQL.Store.Value
 import           Database.PostgreSQL.Store.Parameters
 
 import           Database.PostgreSQL.LibPQ (Oid (..))
+
+-- | Data that will be sent to the database as parameters to a request
+--
+-- Payload is always in text format.
+data Value
+	= Value Oid B.ByteString -- ^ Payload with type hint
+	| Null                   -- ^ Equivalent to @NULL@
+	deriving (Show, Eq, Ord)
 
 -- | Query object
 data Query a = Query {

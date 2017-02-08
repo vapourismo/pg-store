@@ -53,19 +53,12 @@ import qualified Data.Text          as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy     as TL
 
+import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Generics
 import           Database.PostgreSQL.Store.Utilities
 import           Database.PostgreSQL.Store.Parameters
 
 import           Database.PostgreSQL.LibPQ (Oid (..))
-
--- | Data that will be sent to the database as parameters to a request
---
--- Payload is always in text format.
-data Value
-	= Value Oid B.ByteString -- ^ Payload with type hint
-	| Null                   -- ^ Equivalent to @NULL@
-	deriving (Show, Eq, Ord)
 
 -- | Generic record value
 class GRecordValue (rec :: KRecord) where

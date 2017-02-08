@@ -48,7 +48,6 @@ import           Data.Attoparsec.ByteString.Char8
 import qualified Database.PostgreSQL.LibPQ as P
 
 import           Database.PostgreSQL.Store.Types
-import           Database.PostgreSQL.Store.Value
 import           Database.PostgreSQL.Store.Parameters
 import           Database.PostgreSQL.Store.Entity
 import           Database.PostgreSQL.Store.RowParser
