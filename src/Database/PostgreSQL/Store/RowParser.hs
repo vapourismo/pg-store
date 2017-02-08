@@ -23,6 +23,8 @@ module Database.PostgreSQL.Store.RowParser (
 	finish,
 	cancel,
 	withRowParser,
+	skipColumns,
+	nonNullCheck,
 
 	-- * Default parsers
 	parseValue,
@@ -94,6 +96,16 @@ withRowParser proc func =
 	RowParser $ \ result row col -> do
 		x <- runProcessor proc result row col :: M a
 		runProcessor (func x) result row (col + fromIntegral (natVal @v Proxy))
+
+-- | Skip a number of columns.
+skipColumns :: RowParser n ()
+skipColumns = RowParser (\ _ _ _ -> pure ())
+
+-- | Check if the following n columns are not @NULL@.
+nonNullCheck :: Int -> RowParser 0 Bool
+nonNullCheck n =
+	RowParser $ \ result row col ->
+		not . or <$> lift (forM [col .. col + (toEnum n - 1)] (P.getisnull result row))
 
 -- | Row parser which extracts a single column 'Value'.
 parseValue :: RowParser 1 Value

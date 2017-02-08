@@ -46,6 +46,7 @@ module Database.PostgreSQL.Store.Entity (
 
 import           GHC.TypeLits
 import           Data.Kind
+import           Data.Proxy
 
 import           Data.Int
 import           Data.Word
@@ -259,12 +260,29 @@ instance (GenericPolyEntity (a, b, c, d, e, f)) => Entity (a, b, c, d, e, f)
 instance (GenericPolyEntity (a, b, c, d, e, f, g)) => Entity (a, b, c, d, e, f, g)
 
 -- | A value which may normally not be @NULL@.
-instance (IsValue a) => Entity (Maybe a) where
-	type Width (Maybe a) = 1
+instance (EntityC a) => Entity (Maybe a) where
+	type Width (Maybe a) = Width a
 
-	genEntity = genValue
+	genEntity =
+		walkTree genEntity
+		where
+			maskGen _ Nothing  = Null
+			maskGen f (Just x) = f x
 
-	parseEntity = parseFromValue
+			walkTree :: QueryGenerator b -> QueryGenerator (Maybe b)
+			walkTree (Gen oid f)  = Gen oid (maskGen f)
+			walkTree (Code code)  = Code code
+			walkTree (With f gen) = With (fmap f) (walkTree gen)
+			walkTree (Merge l r)  = Merge (walkTree l) (walkTree r)
+
+	parseEntity =
+		withRowParser (nonNullCheck width) $ \ allNonNull ->
+			if allNonNull then
+				Just <$> parseEntity
+			else
+				withRowParser skipColumns (\ _ -> finish Nothing)
+		where
+			width = fromIntegral (natVal @(Width a) Proxy)
 
 -- | Anything
 instance Entity Value where
