@@ -280,14 +280,7 @@ instance Entity Bool where
 
 	genEntity = genValue
 
-	parseEntity =
-		withEntityParser $ \ value ->
-			case value of
-				Value _ dat ->
-					finish (elem dat ["t", "1", "true", "TRUE", "y", "yes", "YES", "on", "ON"])
-
-				Null ->
-					finish False
+	parseEntity = parseFromValue
 
 -- |
 parseFromValue :: (IsValue a) => RowParser 1 a
