@@ -160,12 +160,12 @@ formatIdentifier name =
 				Nothing     -> False
 				Just (h, b) -> isAllowedHead h && B.all isAllowedBody b
 
--- | Insert an identifying name.
+-- | Insert an identifying name. Takes care of proper quotation.
 genIdentifier :: B.ByteString -> QueryGenerator a
 genIdentifier name =
 	Code (formatIdentifier name)
 
--- | Connect two identifiers with a dot.
+-- | Connect two identifiers with a dot. Each identifier is surrounded by quotes if necessary.
 genNestedIdentifier :: B.ByteString -> B.ByteString -> QueryGenerator a
 genNestedIdentifier target field =
 	Code (B.concat [formatIdentifier target,
