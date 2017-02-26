@@ -43,7 +43,7 @@ import qualified Data.ByteString as B
 import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Value
 import           Database.PostgreSQL.Store.Utilities
-import           Database.PostgreSQL.Store.Parameters
+import           Database.PostgreSQL.Store.Tuple
 
 import           Database.PostgreSQL.LibPQ (Oid (..))
 
@@ -108,7 +108,7 @@ assemble gen x =
 					walk gen' (t x) n
 
 -- | Assemble for query preparation.
-assemblePrep :: B.ByteString -> QueryGenerator (Parameters p) -> PrepQuery p r
+assemblePrep :: B.ByteString -> QueryGenerator (Tuple p) -> PrepQuery p r
 assemblePrep prefix gen =
 	PrepQuery (B.append prefix (showByteString (hash code))) code oids values
 	where
@@ -189,41 +189,41 @@ joinGens code gens =
 	mconcat (intersperse (Code code) gens)
 
 -- |
-withParam0 :: QueryGenerator r -> QueryGenerator (Parameters (r ': ts))
-withParam0 = With extractParam0
+withParam0 :: QueryGenerator r -> QueryGenerator (Tuple (r ': ts))
+withParam0 = With getElement0
 
 -- |
-withParam1 :: QueryGenerator r -> QueryGenerator (Parameters (t0 ': r ': ts))
-withParam1 = With extractParam1
+withParam1 :: QueryGenerator r -> QueryGenerator (Tuple (t0 ': r ': ts))
+withParam1 = With getElement1
 
 -- |
-withParam2 :: QueryGenerator r -> QueryGenerator (Parameters (t0 ': t1 ': r ': ts))
-withParam2 = With extractParam2
+withParam2 :: QueryGenerator r -> QueryGenerator (Tuple (t0 ': t1 ': r ': ts))
+withParam2 = With getElement2
 
 -- |
-withParam3 :: QueryGenerator r -> QueryGenerator (Parameters (t0 ': t1 ': t2 ': r ': ts))
-withParam3 = With extractParam3
+withParam3 :: QueryGenerator r -> QueryGenerator (Tuple (t0 ': t1 ': t2 ': r ': ts))
+withParam3 = With getElement3
 
 -- |
-withParam4 :: QueryGenerator r -> QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': r ': ts))
-withParam4 = With extractParam4
+withParam4 :: QueryGenerator r -> QueryGenerator (Tuple (t0 ': t1 ': t2 ': t3 ': r ': ts))
+withParam4 = With getElement4
 
 -- |
-withParam5 :: QueryGenerator r -> QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': r ': ts))
-withParam5 = With extractParam5
+withParam5 :: QueryGenerator r -> QueryGenerator (Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': r ': ts))
+withParam5 = With getElement5
 
 -- |
-withParam6 :: QueryGenerator r -> QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': r ': ts))
-withParam6 = With extractParam6
+withParam6 :: QueryGenerator r -> QueryGenerator (Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': r ': ts))
+withParam6 = With getElement6
 
 -- |
-withParam7 :: QueryGenerator r -> QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': r ': ts))
-withParam7 = With extractParam7
+withParam7 :: QueryGenerator r -> QueryGenerator (Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': r ': ts))
+withParam7 = With getElement7
 
 -- |
-withParam8 :: QueryGenerator r -> QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': t7 ': r ': ts))
-withParam8 = With extractParam8
+withParam8 :: QueryGenerator r -> QueryGenerator (Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': t7 ': r ': ts))
+withParam8 = With getElement8
 
 -- |
-withParam9 :: QueryGenerator r -> QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': t7 ': t8 ': r ': ts))
-withParam9 = With extractParam9
+withParam9 :: QueryGenerator r -> QueryGenerator (Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': t7 ': t8 ': r ': ts))
+withParam9 = With getElement9

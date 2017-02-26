@@ -14,7 +14,7 @@ import           Text.Show.Functions ()
 
 import qualified Data.ByteString as B
 
-import           Database.PostgreSQL.Store.Parameters
+import           Database.PostgreSQL.Store.Tuple
 
 import           Database.PostgreSQL.LibPQ (Oid (..))
 
@@ -33,9 +33,9 @@ data Query a = Query {
 } deriving (Show, Eq, Ord)
 
 -- | Preparable query object
-data PrepQuery p a = PrepQuery {
+data PrepQuery ts a = PrepQuery {
 	prepName      :: B.ByteString,
 	prepStatement :: B.ByteString,
 	prepOids      :: [Oid],
-	prepParams    :: Parameters p -> [Value]
+	prepParams    :: Tuple ts -> [Value]
 } deriving (Show)

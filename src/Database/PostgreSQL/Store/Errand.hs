@@ -48,7 +48,7 @@ import           Data.Attoparsec.ByteString.Char8
 import qualified Database.PostgreSQL.LibPQ as P
 
 import           Database.PostgreSQL.Store.Types
-import           Database.PostgreSQL.Store.Parameters
+import           Database.PostgreSQL.Store.Tuple
 import           Database.PostgreSQL.Store.Entity
 import           Database.PostgreSQL.Store.RowParser
 
@@ -157,11 +157,11 @@ instance ErrandQuery Query r where
 			transformParam Null              = Nothing
 			transformParam (Value typ value) = Just (typ, value, P.Text)
 
-instance (Constructible ts (Errand r)) => ErrandQuery (PrepQuery ts) r where
+instance (WithTuple ts (Errand r)) => ErrandQuery (PrepQuery ts) r where
 	type ErrandResult (PrepQuery ts) r = FunctionType ts (Errand r)
 
 	executeWith end (PrepQuery name _ _ gens) =
-		constructWithParams $ \ params -> do
+		withTuple $ \ params -> do
 			con <- Errand ask
 			mbRes <- liftIO (P.execPrepared con name (map transformParam (gens params)) P.Text)
 			res <- transformResult mbRes

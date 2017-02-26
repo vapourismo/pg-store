@@ -64,7 +64,7 @@ import qualified Data.Text.Lazy          as TL
 import           Database.PostgreSQL.Store.Value
 import           Database.PostgreSQL.Store.Generics
 import           Database.PostgreSQL.Store.RowParser
-import           Database.PostgreSQL.Store.Parameters
+import           Database.PostgreSQL.Store.Tuple
 import           Database.PostgreSQL.Store.Query.Builder
 
 import           Database.PostgreSQL.LibPQ (Oid (..))
@@ -202,43 +202,43 @@ embedEntity :: (Entity e) => e -> QueryGenerator a
 embedEntity e = withOther e genEntity
 
 -- | Parameter entity at index 0
-param0 :: (Entity r) => QueryGenerator (Parameters (r ': ts))
+param0 :: (Entity r) => QueryGenerator (Tuple (r ': ts))
 param0 = withParam0 genEntity
 
 -- | Parameter entity at index 1
-param1 :: (Entity r) => QueryGenerator (Parameters (t0 ': r ': ts))
+param1 :: (Entity r) => QueryGenerator (Tuple (t0 ': r ': ts))
 param1 = withParam1 genEntity
 
 -- | Parameter entity at index 2
-param2 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': r ': ts))
+param2 :: (Entity r) => QueryGenerator (Tuple (t0 ': t1 ': r ': ts))
 param2 = withParam2 genEntity
 
 -- | Parameter entity at index 3
-param3 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': r ': ts))
+param3 :: (Entity r) => QueryGenerator (Tuple (t0 ': t1 ': t2 ': r ': ts))
 param3 = withParam3 genEntity
 
 -- | Parameter entity at index 4
-param4 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': r ': ts))
+param4 :: (Entity r) => QueryGenerator (Tuple (t0 ': t1 ': t2 ': t3 ': r ': ts))
 param4 = withParam4 genEntity
 
 -- | Parameter entity at index 5
-param5 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': r ': ts))
+param5 :: (Entity r) => QueryGenerator (Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': r ': ts))
 param5 = withParam5 genEntity
 
 -- | Parameter entity at index 6
-param6 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': r ': ts))
+param6 :: (Entity r) => QueryGenerator (Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': r ': ts))
 param6 = withParam6 genEntity
 
 -- | Parameter entity at index 7
-param7 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': r ': ts))
+param7 :: (Entity r) => QueryGenerator (Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': r ': ts))
 param7 = withParam7 genEntity
 
 -- | Parameter entity at index 8
-param8 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': t7 ': r ': ts))
+param8 :: (Entity r) => QueryGenerator (Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': t7 ': r ': ts))
 param8 = withParam8 genEntity
 
 -- | Parameter entity at index 9
-param9 :: (Entity r) => QueryGenerator (Parameters (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': t7 ': t8 ': r ': ts))
+param9 :: (Entity r) => QueryGenerator (Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': t7 ': t8 ': r ': ts))
 param9 = withParam9 genEntity
 
 -- | Chain of 2 entities

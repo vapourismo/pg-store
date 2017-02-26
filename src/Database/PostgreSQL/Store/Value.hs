@@ -21,7 +21,7 @@ module Database.PostgreSQL.Store.Value (
 	-- * Helpers
 	GEnumValue (..),
 	GValue (..),
-	ParamsComposite
+	CompositeValue
 ) where
 
 import           GHC.Generics
@@ -54,9 +54,9 @@ import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy     as TL
 
 import           Database.PostgreSQL.Store.Types
+import           Database.PostgreSQL.Store.Tuple
 import           Database.PostgreSQL.Store.Generics
 import           Database.PostgreSQL.Store.Utilities
-import           Database.PostgreSQL.Store.Parameters
 
 import           Database.PostgreSQL.LibPQ (Oid (..))
 
@@ -206,13 +206,13 @@ formatCompositeSegment (Value _ contents)
 		hasBadChar =
 			B.find (\ n -> n == 44 || n == 41 || n == 40 || n == 34) contents /= Nothing
 
--- | Helper class for @instance IsValue (Parameters ts)@
-class ParamsComposite (ts :: [Type]) where
-	compositeSegmentParser :: Parser (Parameters ts)
+-- | Helper class for @instance IsValue (Tuple ts)@
+class CompositeValue (ts :: [Type]) where
+	compositeSegmentParser :: Parser (Tuple ts)
 
-	toCompositeSegment :: Parameters ts -> B.ByteString
+	toCompositeSegment :: Tuple ts -> B.ByteString
 
-instance {-# OVERLAPPABLE #-} (IsValue t, ParamsComposite ts) => ParamsComposite (t ': ts) where
+instance {-# OVERLAPPABLE #-} (IsValue t, CompositeValue ts) => CompositeValue (t ': ts) where
 	compositeSegmentParser = do
 		val <- compositeValueParser
 		Cons <$> maybe empty pure (fromValue val)
@@ -223,7 +223,7 @@ instance {-# OVERLAPPABLE #-} (IsValue t, ParamsComposite ts) => ParamsComposite
 		B.append (formatCompositeSegment (toValue x))
 		         (B.cons 44 (toCompositeSegment xs))
 
-instance (IsValue t) => ParamsComposite '[t] where
+instance (IsValue t) => CompositeValue '[t] where
 	compositeSegmentParser = do
 		val <- compositeValueParser
 		(\ x -> Cons x Empty) <$> maybe empty pure (fromValue val)
@@ -231,7 +231,7 @@ instance (IsValue t) => ParamsComposite '[t] where
 	toCompositeSegment (Cons x Empty) =
 		formatCompositeSegment (toValue x)
 
-instance (ParamsComposite xs) => IsValue (Parameters xs) where
+instance (CompositeValue xs) => IsValue (Tuple xs) where
 	toValue params =
 		Value (Oid 0) (B.concat ["(", toCompositeSegment params, ")"])
 
