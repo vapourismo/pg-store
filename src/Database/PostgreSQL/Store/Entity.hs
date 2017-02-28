@@ -50,22 +50,26 @@ import           Data.Proxy
 
 import           Data.Int
 import           Data.Word
-import           Data.Scientific hiding (scientific)
+import           Data.Semigroup
+import           Data.Scientific (Scientific, formatScientific, FPFormat (Fixed))
 import           Numeric.Natural
 
 import qualified Data.Aeson              as A
 
 import qualified Data.ByteString         as B
+import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy    as BL
 
 import qualified Data.Text               as T
+import qualified Data.Text.Encoding      as T
 import qualified Data.Text.Lazy          as TL
 
 import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Value
-import           Database.PostgreSQL.Store.Generics
-import           Database.PostgreSQL.Store.RowParser
 import           Database.PostgreSQL.Store.Tuple
+import           Database.PostgreSQL.Store.Generics
+import           Database.PostgreSQL.Store.Utilities
+import           Database.PostgreSQL.Store.RowParser
 import           Database.PostgreSQL.Store.Query.Builder
 
 import           Database.PostgreSQL.LibPQ (Oid (..))
@@ -140,14 +144,10 @@ instance (GEnumValue enum) => GEntity ('TFlatSum d enum) where
 		Gen (Oid 0) (\ (FlatSum x) -> Just (gEnumToPayload x))
 
 	gParseEntity =
-		withEntityParser $ \ value ->
-			case value of
-				Value _ input ->
-					case gEnumFromPayload input of
-						Just x  -> finish (FlatSum x)
-						Nothing -> cancel (ColumnRejected value)
-
-				Null -> cancel (ColumnRejected value)
+		withRowParser parseByteString $ \ input ->
+			case gEnumFromPayload input of
+				Just x  -> finish (FlatSum x)
+				Nothing -> cancel (ColumnRejected Null)
 
 -- | 'GEntity' constraint and check that 'GEntityWidth' is a known natural number.
 type GEntityC a = (GEntity a, KnownNat (GEntityWidth a))
@@ -193,10 +193,6 @@ class Entity a where
 
 -- | 'Entity' constraint plus a check that ensures 'Width' is a known natural number.
 type EntityC a = (Entity a, KnownNat (Width a))
-
--- | Feed the given function the result of an entity's row parser.
-withEntityParser :: (EntityC a) => (a -> RowParser w b) -> RowParser (Width a + w) b
-withEntityParser = withRowParser parseEntity
 
 -- | Embed an entity into the query.
 embedEntity :: (Entity e) => e -> QueryGenerator a
@@ -285,35 +281,32 @@ instance (EntityC a) => Entity (Maybe a) where
 		where
 			width = fromIntegral (natVal @(Width a) Proxy)
 
--- | Anything
-instance Entity Value where
-	type Width Value = 1
+-- | Construct a 'QueryGenerator' using a 'B.Builder'.
+buildGen :: Oid -> (a -> B.Builder) -> QueryGenerator a
+buildGen typ builder =
+	Gen typ (Just . BL.toStrict . B.toLazyByteString . builder)
 
-	genEntity = genValue
-
-	parseEntity = parseValue
+-- |
+parseFromValue :: (IsValue a) => RowParser 1 a
+parseFromValue =
+	withRowParser parseValue $ \ value ->
+		case fromValue value of
+			Just x  -> finish x
+			Nothing -> cancel (ColumnRejected value)
 
 -- | @boolean@
 instance Entity Bool where
 	type Width Bool = 1
 
-	genEntity = genValue
+	genEntity = Gen (Oid 16) (\ v -> Just (if v then "t" else "f"))
 
 	parseEntity = parseFromValue
-
--- |
-parseFromValue :: (IsValue a) => RowParser 1 a
-parseFromValue =
-	withEntityParser $ \ value ->
-		case fromValue value of
-			Just x  -> finish x
-			Nothing -> cancel (ColumnRejected value)
 
 -- | Any integer
 instance Entity Integer where
 	type Width Integer = 1
 
-	genEntity = genValue
+	genEntity = buildGen (Oid 1700) B.integerDec
 
 	parseEntity = parseFromValue
 
@@ -321,7 +314,7 @@ instance Entity Integer where
 instance Entity Int where
 	type Width Int = 1
 
-	genEntity = genValue
+	genEntity = buildGen (Oid 20) B.intDec
 
 	parseEntity = parseFromValue
 
@@ -329,7 +322,7 @@ instance Entity Int where
 instance Entity Int8 where
 	type Width Int8 = 1
 
-	genEntity = genValue
+	genEntity = buildGen (Oid 21) B.int8Dec
 
 	parseEntity = parseFromValue
 
@@ -337,7 +330,7 @@ instance Entity Int8 where
 instance Entity Int16 where
 	type Width Int16 = 1
 
-	genEntity = genValue
+	genEntity = buildGen (Oid 21) B.int16Dec
 
 	parseEntity = parseFromValue
 
@@ -345,7 +338,7 @@ instance Entity Int16 where
 instance Entity Int32 where
 	type Width Int32 = 1
 
-	genEntity = genValue
+	genEntity = buildGen (Oid 23) B.int32Dec
 
 	parseEntity = parseFromValue
 
@@ -353,7 +346,7 @@ instance Entity Int32 where
 instance Entity Int64 where
 	type Width Int64 = 1
 
-	genEntity = genValue
+	genEntity = buildGen (Oid 20) B.int64Dec
 
 	parseEntity = parseFromValue
 
@@ -361,7 +354,7 @@ instance Entity Int64 where
 instance Entity Natural where
 	type Width Natural = 1
 
-	genEntity = genValue
+	genEntity = With toInteger genEntity
 
 	parseEntity = parseFromValue
 
@@ -369,7 +362,7 @@ instance Entity Natural where
 instance Entity Word where
 	type Width Word = 1
 
-	genEntity = genValue
+	genEntity = buildGen (Oid 1700) B.wordDec
 
 	parseEntity = parseFromValue
 
@@ -377,7 +370,7 @@ instance Entity Word where
 instance Entity Word8 where
 	type Width Word8 = 1
 
-	genEntity = genValue
+	genEntity = buildGen (Oid 21) B.word8Dec
 
 	parseEntity = parseFromValue
 
@@ -385,7 +378,7 @@ instance Entity Word8 where
 instance Entity Word16 where
 	type Width Word16 = 1
 
-	genEntity = genValue
+	genEntity = buildGen (Oid 23) B.word16Dec
 
 	parseEntity = parseFromValue
 
@@ -393,7 +386,7 @@ instance Entity Word16 where
 instance Entity Word32 where
 	type Width Word32 = 1
 
-	genEntity = genValue
+	genEntity = buildGen (Oid 20) B.word32Dec
 
 	parseEntity = parseFromValue
 
@@ -401,7 +394,7 @@ instance Entity Word32 where
 instance Entity Word64 where
 	type Width Word64 = 1
 
-	genEntity = genValue
+	genEntity = buildGen (Oid 1700) B.word64Dec
 
 	parseEntity = parseFromValue
 
@@ -409,7 +402,7 @@ instance Entity Word64 where
 instance Entity Double where
 	type Width Double = 1
 
-	genEntity = genValue
+	genEntity = buildGen (Oid 1700) B.doubleDec
 
 	parseEntity = parseFromValue
 
@@ -417,7 +410,7 @@ instance Entity Double where
 instance Entity Float where
 	type Width Float = 1
 
-	genEntity = genValue
+	genEntity = buildGen (Oid 1700) B.floatDec
 
 	parseEntity = parseFromValue
 
@@ -425,7 +418,7 @@ instance Entity Float where
 instance Entity Scientific where
 	type Width Scientific = 1
 
-	genEntity = genValue
+	genEntity = Gen (Oid 1700) (Just . buildByteString . formatScientific Fixed Nothing)
 
 	parseEntity = parseFromValue
 
@@ -433,7 +426,7 @@ instance Entity Scientific where
 instance Entity String where
 	type Width String = 1
 
-	genEntity = genValue
+	genEntity = Gen (Oid 25) (Just . buildByteString . filter (/= '\NUL'))
 
 	parseEntity = parseFromValue
 
@@ -441,7 +434,7 @@ instance Entity String where
 instance Entity T.Text where
 	type Width T.Text = 1
 
-	genEntity = genValue
+	genEntity = Gen (Oid 25) (Just . T.encodeUtf8 . T.filter (/= '\NUL'))
 
 	parseEntity = parseFromValue
 
@@ -449,7 +442,7 @@ instance Entity T.Text where
 instance Entity TL.Text where
 	type Width TL.Text = 1
 
-	genEntity = genValue
+	genEntity = With TL.toStrict genEntity
 
 	parseEntity = parseFromValue
 
@@ -457,7 +450,12 @@ instance Entity TL.Text where
 instance Entity B.ByteString where
 	type Width B.ByteString = 1
 
-	genEntity = genValue
+	genEntity =
+		buildGen (Oid 17) (\ value -> mconcat (B.string7 "\\x" : map showHex (B.unpack value)))
+		where
+			showHex n
+				| n <= 0xF  = B.char7 '0' <> B.word8Hex n
+				| otherwise = B.word8Hex n
 
 	parseEntity = parseFromValue
 
@@ -465,7 +463,7 @@ instance Entity B.ByteString where
 instance Entity BL.ByteString where
 	type Width BL.ByteString = 1
 
-	genEntity = genValue
+	genEntity = With BL.toStrict genEntity
 
 	parseEntity = parseFromValue
 
@@ -473,6 +471,6 @@ instance Entity BL.ByteString where
 instance Entity A.Value where
 	type Width A.Value = 1
 
-	genEntity = genValue
+	genEntity = Gen (Oid 114) (Just . BL.toStrict . A.encode)
 
 	parseEntity = parseFromValue

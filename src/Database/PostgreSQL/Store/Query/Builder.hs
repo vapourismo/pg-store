@@ -15,7 +15,6 @@ module Database.PostgreSQL.Store.Query.Builder (
 	genIdentifier,
 	genNestedIdentifier,
 	genQuote,
-	genValue,
 
 	joinGens,
 
@@ -35,13 +34,11 @@ import           Data.Semigroup
 
 import           Data.List
 import           Data.String
-import           Data.Tagged
 import           Data.Hashable
 
 import qualified Data.ByteString as B
 
 import           Database.PostgreSQL.Store.Types
-import           Database.PostgreSQL.Store.Value
 import           Database.PostgreSQL.Store.Utilities
 import           Database.PostgreSQL.Store.Tuple
 
@@ -176,10 +173,6 @@ genQuote contents =
 	Code (B.concat [B.singleton 39, -- '
 	                B.intercalate (B.pack [39, 39]) (B.split 39 contents),
 	                B.singleton 39])
-
--- | Generator for an 'IsValue' instance.
-genValue :: forall a. (IsValue a) => QueryGenerator a
-genValue = Gen (untag (oidOf @a)) toValue
 
 -- | Join multiple query generators with a piece of code.
 joinGens :: B.ByteString -> [QueryGenerator a] -> QueryGenerator a

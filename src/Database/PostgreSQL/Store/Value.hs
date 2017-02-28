@@ -30,13 +30,11 @@ import           GHC.TypeLits
 import           Control.Applicative
 
 import           Data.Proxy
-import           Data.Tagged
-import           Data.Monoid
 
 import           Data.Bits
 import           Data.Int
 import           Data.Word
-import           Data.Scientific (Scientific, formatScientific, FPFormat (Fixed))
+import           Data.Scientific (Scientific)
 import           Numeric.Natural
 
 import qualified Data.Aeson as A
@@ -45,7 +43,6 @@ import           Data.Attoparsec.ByteString
 import           Data.Attoparsec.ByteString.Char8 (signed, decimal, double, scientific, skipSpace)
 
 import qualified Data.ByteString         as B
-import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Lazy    as BL
 
 import qualified Data.Text          as T
@@ -55,8 +52,6 @@ import qualified Data.Text.Lazy     as TL
 import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Generics
 import           Database.PostgreSQL.Store.Utilities
-
-import           Database.PostgreSQL.LibPQ (Oid (..))
 
 -- -- | Generic record value
 -- class GRecordValue (rec :: KRecord) where
@@ -135,16 +130,6 @@ instance (GEnumValue lhs, GEnumValue rhs) => GEnumValue ('TChoose lhs rhs) where
 --
 -- Implementation of 'toValue' and 'fromValue' may be omitted when @a@ satisfies 'GenericEntity'.
 class IsValue a where
-	-- | Hint which 'Oid' this type will be associated with. This does not restrict the input
-	-- 'Value' to 'fromValue'. The implementaton can process 'Value's regardless of its 'Oid'.
-	--
-	-- Default 'Oid' is 0, which means the server will infer the type.
-	oidOf :: Tagged a Oid
-	oidOf = Tagged (Oid 0)
-
-	-- | Transform to 'Value'.
-	toValue :: a -> Maybe B.ByteString
-
 	-- default toValue :: (GenericEntity a, GValue (AnalyzeEntity a)) => a -> Value
 	-- toValue = genericToValue
 
@@ -155,11 +140,6 @@ class IsValue a where
 	-- fromValue = genericFromValue
 
 instance (IsValue a) => IsValue (Maybe a) where
-	oidOf = retag (oidOf @a)
-
-	toValue (Just x) = toValue x
-	toValue _        = Nothing
-
 	fromValue Null  = Just Nothing
 	fromValue value = Just <$> fromValue value
 
@@ -240,26 +220,13 @@ instance (IsValue a) => IsValue (Maybe a) where
 -- 			<* word8 41 -- )
 
 instance IsValue Value where
-	toValue (Value _ cnt) = Just cnt
-	toValue _             = Nothing
-
 	fromValue = Just
 
 instance IsValue Bool where
-	oidOf = Tagged (Oid 16)
-
-	toValue True = Just "t"
-	toValue _    = Just "f"
-
 	fromValue (Value _ input) =
 		Just (elem input ["t", "1", "true", "TRUE", "y", "yes", "YES", "on", "ON"])
 	fromValue _ =
 		Nothing
-
--- | Construct a 'Value' using a 'B.Builder'.
-buildValue :: Oid -> (a -> B.Builder) -> a -> Maybe B.ByteString
-buildValue _ builder x =
-	Just (BL.toStrict (B.toLazyByteString (builder x)))
 
 -- | Process the value's contents.
 parseValue :: Parser a -> Value -> Maybe a
@@ -271,142 +238,61 @@ parseValue p (Value _ input) =
 		endResult x           = x
 
 instance IsValue Integer where
-	oidOf = Tagged (Oid 1700)
-
-	toValue = buildValue (Oid 1700) B.integerDec
-
 	fromValue = parseValue (signed decimal)
 
 instance IsValue Int where
-	oidOf = Tagged (Oid 20)
-
-	toValue = buildValue (Oid 20) B.intDec
-
 	fromValue = parseValue (signed decimal)
 
 instance IsValue Int8 where
-	oidOf = Tagged (Oid 21)
-
-	toValue = buildValue (Oid 21) B.int8Dec
-
 	fromValue = parseValue (signed decimal)
 
 instance IsValue Int16 where
-	oidOf = Tagged (Oid 21)
-
-	toValue = buildValue (Oid 21) B.int16Dec
-
 	fromValue = parseValue (signed decimal)
 
 instance IsValue Int32 where
-	oidOf = Tagged (Oid 23)
-
-	toValue = buildValue (Oid 23) B.int32Dec
-
 	fromValue = parseValue (signed decimal)
 
 instance IsValue Int64 where
-	oidOf = Tagged (Oid 20)
-
-	toValue = buildValue (Oid 20) B.int64Dec
-
 	fromValue = parseValue (signed decimal)
 
 instance IsValue Natural where
-	oidOf = retag (oidOf @Integer)
-
-	toValue = toValue . toInteger
-
 	fromValue = parseValue decimal
 
 instance IsValue Word where
-	oidOf = Tagged (Oid 1700)
-
-	toValue = buildValue (Oid 1700) B.wordDec
-
 	fromValue = parseValue decimal
 
 instance IsValue Word8 where
-	oidOf = Tagged (Oid 21)
-
-	toValue = buildValue (Oid 21) B.word8Dec
-
 	fromValue = parseValue decimal
 
 instance IsValue Word16 where
-	oidOf = Tagged (Oid 23)
-
-	toValue = buildValue (Oid 23) B.word16Dec
-
 	fromValue = parseValue decimal
 
 instance IsValue Word32 where
-	oidOf = Tagged (Oid 20)
-
-	toValue = buildValue (Oid 20) B.word32Dec
-
 	fromValue = parseValue decimal
 
 instance IsValue Word64 where
-	oidOf = Tagged (Oid 1700)
-
-	toValue = buildValue (Oid 1700) B.word64Dec
-
 	fromValue = parseValue decimal
 
 instance IsValue Double where
-	oidOf = Tagged (Oid 1700)
-
-	toValue = buildValue (Oid 1700) B.doubleDec
-
 	fromValue = parseValue double
 
 instance IsValue Float where
-	oidOf = Tagged (Oid 1700)
-
-	toValue = buildValue (Oid 1700) B.floatDec
-
 	fromValue value = realToFrac @Double @Float <$> fromValue value
 
 instance IsValue Scientific where
-	oidOf = Tagged (Oid 1700)
-
-	toValue x = Just (buildByteString (formatScientific Fixed Nothing x))
-
 	fromValue = parseValue scientific
 
 instance IsValue String where
-	oidOf = Tagged (Oid 25)
-
-	toValue x = Just (buildByteString (filter (/= '\NUL') x))
-
 	fromValue value = T.unpack <$> fromValue value
 
 instance IsValue T.Text where
-	oidOf = Tagged (Oid 25)
-
-	toValue x = Just (T.encodeUtf8 (T.filter (/= '\NUL') x))
-
 	fromValue (Value _ input) = either (const Nothing) Just (T.decodeUtf8' input)
 	fromValue _               = Nothing
 
 instance IsValue TL.Text where
-	oidOf = Tagged (Oid 25)
-
-	toValue x = toValue (TL.toStrict x)
-
 	fromValue value = TL.fromStrict <$> fromValue value
 
 instance IsValue B.ByteString where
-	oidOf = Tagged (Oid 17)
-
-	toValue =
-		buildValue (Oid 17) (\ value -> mconcat (B.string7 "\\x" : map showHex (B.unpack value)))
-		where
-			showHex n
-				| n <= 0xF  = B.char7 '0' <> B.word8Hex n
-				| otherwise = B.word8Hex n
-
 	fromValue =
 		parseValue (hexFormat <|> escapedFormat)
 		where
@@ -455,16 +341,8 @@ instance IsValue B.ByteString where
 				B.pack <$> many (escapedBackslash <|> escapedWord <|> anyWord8)
 
 instance IsValue BL.ByteString where
-	oidOf = Tagged (Oid 17)
-
-	toValue x = toValue (BL.toStrict x)
-
 	fromValue value = BL.fromStrict <$> fromValue value
 
 instance IsValue A.Value where
-	oidOf = Tagged (Oid 114)
-
-	toValue value = Just (BL.toStrict (A.encode value))
-
 	fromValue (Value _ input) = A.decodeStrict input
 	fromValue _               = Nothing
