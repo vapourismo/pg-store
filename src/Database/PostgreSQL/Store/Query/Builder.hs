@@ -45,11 +45,9 @@ import           Database.PostgreSQL.Store.Value
 import           Database.PostgreSQL.Store.Utilities
 import           Database.PostgreSQL.Store.Tuple
 
-import           Database.PostgreSQL.LibPQ (Oid (..))
-
 -- | Generator for queries, its type parameter hints the type needed to generate the attached values
 data QueryGenerator a
-	= Gen Oid (a -> Value)
+	= Gen Oid (a -> Maybe B.ByteString)
 	| Code B.ByteString
 	| forall b. With (a -> b) (QueryGenerator b)
 	| Merge (QueryGenerator a) (QueryGenerator a)
@@ -88,12 +86,12 @@ assemble gen x =
 	where
 		(code, values, _) = walk gen x 1
 
-		walk :: QueryGenerator b -> b -> Word -> (B.ByteString, [Value], Word)
+		walk :: QueryGenerator b -> b -> Word -> (B.ByteString, [Maybe (Oid, B.ByteString, Format)], Word)
 		walk gen x n =
 			case gen of
-				Gen _ f ->
+				Gen typ f ->
 					-- 36 = $
-					(B.cons 36 (showByteString n), [f x], n + 1)
+					(B.cons 36 (showByteString n), [toTypedParam typ <$> f x], n + 1)
 
 				Code c ->
 					(c, [], n)
@@ -114,11 +112,11 @@ assemblePrep prefix gen =
 	where
 		(code, oids, values, _) = walk gen 1
 
-		walk :: QueryGenerator b -> Word -> (B.ByteString, [Oid], b -> [Value], Word)
+		walk :: QueryGenerator b -> Word -> (B.ByteString, [Oid], b -> [Maybe (B.ByteString, Format)], Word)
 		walk gen n =
 			case gen of
-				Gen t f ->
-					(B.cons 36 (showByteString n), [t], \ x -> [f x], n + 1)
+				Gen typ f ->
+					(B.cons 36 (showByteString n), [typ], \ x -> [toParam <$> f x], n + 1)
 
 				Code c ->
 					(c, [], const [], n)

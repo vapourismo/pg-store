@@ -149,13 +149,10 @@ instance ErrandQuery Query r where
 
 	executeWith end (Query stmt params) = do
 		con <- Errand ask
-		mbRes <- liftIO (P.execParams con stmt (map transformParam params) P.Text)
+		mbRes <- liftIO (P.execParams con stmt params P.Text)
 		res <- transformResult mbRes
 		validateResult res
 		end res
-		where
-			transformParam Null              = Nothing
-			transformParam (Value typ value) = Just (typ, value, P.Text)
 
 instance (WithTuple ts (Errand r)) => ErrandQuery (PrepQuery ts) r where
 	type ErrandResult (PrepQuery ts) r = FunctionType ts (Errand r)
@@ -163,13 +160,10 @@ instance (WithTuple ts (Errand r)) => ErrandQuery (PrepQuery ts) r where
 	executeWith end (PrepQuery name _ _ gens) =
 		withTuple $ \ params -> do
 			con <- Errand ask
-			mbRes <- liftIO (P.execPrepared con name (map transformParam (gens params)) P.Text)
+			mbRes <- liftIO (P.execPrepared con name (gens params) P.Text)
 			res <- transformResult mbRes
 			validateResult res
 			end res
-		where
-			transformParam Null              = Nothing
-			transformParam (Value _ value) = Just (value, P.Text)
 
 -- | Execute the query and return its internal result.
 execute :: (ErrandQuery q P.Result) => q r -> ErrandResult q P.Result

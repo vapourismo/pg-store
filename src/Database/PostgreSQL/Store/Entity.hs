@@ -44,7 +44,7 @@ module Database.PostgreSQL.Store.Entity (
 	GenericPolyEntity
 ) where
 
-import           GHC.TypeLits
+import           GHC.TypeLits hiding (Text)
 import           Data.Kind
 import           Data.Proxy
 
@@ -61,6 +61,7 @@ import qualified Data.ByteString.Lazy    as BL
 import qualified Data.Text               as T
 import qualified Data.Text.Lazy          as TL
 
+import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Value
 import           Database.PostgreSQL.Store.Generics
 import           Database.PostgreSQL.Store.RowParser
@@ -136,7 +137,7 @@ instance (GEnumValue enum) => GEntity ('TFlatSum d enum) where
 	type GEntityConstraint ('TFlatSum d enum) = KnownNat 1
 
 	gEmbedEntity =
-		Gen (Oid 0) (\ (FlatSum x) -> Value (Oid 0) (gEnumToPayload x))
+		Gen (Oid 0) (\ (FlatSum x) -> Just (gEnumToPayload x))
 
 	gParseEntity =
 		withEntityParser $ \ value ->
@@ -266,7 +267,7 @@ instance (EntityC a) => Entity (Maybe a) where
 	genEntity =
 		walkTree genEntity
 		where
-			maskGen _ Nothing  = Null
+			maskGen _ Nothing  = Nothing
 			maskGen f (Just x) = f x
 
 			walkTree :: QueryGenerator b -> QueryGenerator (Maybe b)
