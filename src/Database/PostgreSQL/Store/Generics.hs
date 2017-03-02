@@ -17,12 +17,11 @@
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Generics (
 	-- * Generic Entity
-	EntityDataType,
-	GenericEntity,
+	Generic,
+	Rep,
 
-	toGenericEntity,
-	fromGenericEntity,
-
+	toGeneric,
+	fromGeneric,
 
 	-- * Type-Level Information
 	KRecord (..),
@@ -41,15 +40,14 @@ module Database.PostgreSQL.Store.Generics (
 	-- * Analyzers
 	AnalyzeRecordRep,
 	AnalyzeFlatSumRep,
-	AnalyzeDataType,
-
-	AnalyzeEntity
+	AnalyzeDataType
 ) where
 
-import GHC.Generics
-import GHC.TypeLits
+import           GHC.Generics hiding (Generic (..))
+import qualified GHC.Generics as G
+import           GHC.TypeLits
 
-import Data.Kind
+import           Data.Kind
 
 -- | Information about a record
 data KRecord
@@ -58,7 +56,7 @@ data KRecord
 	| TSingle Meta Type
 		-- ^ Single element with meta information and type
 
--- | Mappings between a 'Generic' representation and our 'KRecord'-based representation
+-- | Mappings between a 'G.Generic' representation and our 'KRecord'-based representation
 class GRecord (rec :: KRecord) where
 	-- | 'Generic' representation
 	type RecordRep rec :: * -> *
@@ -128,7 +126,7 @@ data KFlatSum
 	| TValue Meta
 		-- ^ Single value of the enumeration
 
--- | Mappings between a 'Generic' representation and our 'KFlatSum'-based representation
+-- | Mappings between a 'G.Generic' representation and our 'KFlatSum'-based representation
 class GFlatSum (enum :: KFlatSum) where
 	-- | 'Generic' representation
 	type FlatSumRep enum :: * -> *
@@ -207,7 +205,7 @@ data KDataType
 	| TFlatSum Meta KFlatSum
 		-- ^ Enumeration
 
--- | Mappings between a 'Generic' representation and our 'KDataType'-based representation
+-- | Mappings between a 'G.Generic' representation and our 'KDataType'-based representation
 class GDataType (dat :: KDataType) where
 	-- | 'Generic' representation
 	type DataTypeRep dat :: * -> *
@@ -277,30 +275,23 @@ type family AnalyzeDataType org (dat :: * -> *) :: KDataType where
 		           ':<>: 'Text " is not a valid data type"
 		           ':$$: 'ShowType other)
 
--- | Analyze the 'Generic' representation of a type, in order to generate its 'KDataType' instance.
-type AnalyzeEntity a = AnalyzeDataType a (Rep a)
+-- | 'KDataType' representation of a data type
+type Rep a = AnalyzeDataType a (G.Rep a)
 
--- | Analyze the 'Generic' representation of a type to figure out which 'DataType' it needs.
-type EntityDataType a = DataType (AnalyzeEntity a)
-
--- | Make sure @a@ has a safe generic representation. Types that qualify implement 'Generic' and
--- fulfill one of the following criteria:
+-- | Make sure @a@ has a safe generic representation. Types that qualify implement 'G.Generic' (GHC)
+-- and fulfill one of the following criteria:
 --
 --  * single constructor with 1 or more fields
 --  * multiple constructors with no fields
 --
 -- This constraint is mostly utilized to give the user more information about why their type has
 -- been rejected.
-type GenericEntity a = (Generic a,
-                        GDataType (AnalyzeEntity a),
-                        DataTypeRep (AnalyzeEntity a) ~ Rep a)
+type Generic a = (G.Generic a, GDataType (Rep a), DataTypeRep (Rep a) ~ G.Rep a)
 
--- | Convert to entity representation.
-fromGenericEntity :: (GenericEntity a) => a -> EntityDataType a
-fromGenericEntity =
-	toDataType . from
+-- | Convert to generic representation.
+fromGeneric :: (Generic a) => a -> DataType (Rep a)
+fromGeneric = toDataType . G.from
 
--- | Build from entity representation.
-toGenericEntity :: (GenericEntity a) => EntityDataType a -> a
-toGenericEntity =
-	to . fromDataType
+-- | Build from generic representation.
+toGeneric :: (Generic a) => DataType (Rep a) -> a
+toGeneric = G.to . fromDataType

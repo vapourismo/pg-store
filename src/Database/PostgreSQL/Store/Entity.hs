@@ -40,7 +40,7 @@ module Database.PostgreSQL.Store.Entity (
 	-- * Helpers
 	GEntityRecord (..),
 	GEntity (..),
-	GenericEntityQualifier
+	GenericEntity
 ) where
 
 import           GHC.TypeLits hiding (Text)
@@ -137,35 +137,35 @@ instance (GEnumValue enum) => GEntity ('TFlatSum d enum) where
 
 -- | This is required if you want to use the default implementations of 'genEntity'or 'parseEntity'
 -- with polymorphic data types.
-type GenericEntityQualifier a = (GenericEntity a, GEntity (AnalyzeEntity a))
+type GenericEntity a = (Generic a, GEntity (Rep a))
 
 -- | Generic 'QueryGenerator' for an entity.
-genGeneric :: (GenericEntity a, GEntity (AnalyzeEntity a)) => QueryGenerator a
-genGeneric = With fromGenericEntity gEmbedEntity
+genGeneric :: (Generic a, GEntity (Rep a)) => QueryGenerator a
+genGeneric = With fromGeneric gEmbedEntity
 
 -- | Generic 'RowParser' for an entity.
-parseGeneric :: (GenericEntity a, GEntity (AnalyzeEntity a))
-             => RowParser (GEntityWidth (AnalyzeEntity a)) a
-parseGeneric = withRowParser gParseEntity (finish . toGenericEntity)
+parseGeneric :: (Generic a, GEntity (Rep a))
+             => RowParser (GEntityWidth (Rep a)) a
+parseGeneric = withRowParser gParseEntity (finish . toGeneric)
 
 -- | An entity that is used as a parameter or result of a query.
 class (KnownNat (Width a)) => Entity a where
 	-- | Number of values the entity consists of
 	type Width a :: Nat
 
-	type Width a = GEntityWidth (AnalyzeEntity a)
+	type Width a = GEntityWidth (Rep a)
 
 	-- | Embed the entity into the query.
 	genEntity :: QueryGenerator a
 
-	default genEntity :: (GenericEntity a, GEntity (AnalyzeEntity a)) => QueryGenerator a
+	default genEntity :: (Generic a, GEntity (Rep a)) => QueryGenerator a
 	genEntity = genGeneric
 
 	-- | Retrieve an instance of @a@ from the result set.
 	parseEntity :: RowParser (Width a) a
 
-	default parseEntity :: (GenericEntity a, GEntity (AnalyzeEntity a))
-	                    => RowParser (GEntityWidth (AnalyzeEntity a)) a
+	default parseEntity :: (Generic a, GEntity (Rep a))
+	                    => RowParser (GEntityWidth (Rep a)) a
 	parseEntity = parseGeneric
 
 -- | Embed an entity into the query.
@@ -213,22 +213,22 @@ param9 :: (Entity r) => QueryGenerator (Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': t5 
 param9 = withParam9 genEntity
 
 -- | Chain of 2 entities
-instance (GenericEntityQualifier (a, b)) => Entity (a, b)
+instance (GenericEntity (a, b)) => Entity (a, b)
 
 -- | Chain of 3 entities
-instance (GenericEntityQualifier (a, b, c)) => Entity (a, b, c)
+instance (GenericEntity (a, b, c)) => Entity (a, b, c)
 
 -- | Chain of 4 entities
-instance (GenericEntityQualifier (a, b, c, d)) => Entity (a, b, c, d)
+instance (GenericEntity (a, b, c, d)) => Entity (a, b, c, d)
 
 -- | Chain of 5 entities
-instance (GenericEntityQualifier (a, b, c, d, e)) => Entity (a, b, c, d, e)
+instance (GenericEntity (a, b, c, d, e)) => Entity (a, b, c, d, e)
 
 -- | Chain of 6 entities
-instance (GenericEntityQualifier (a, b, c, d, e, f)) => Entity (a, b, c, d, e, f)
+instance (GenericEntity (a, b, c, d, e, f)) => Entity (a, b, c, d, e, f)
 
 -- | Chain of 7 entities
-instance (GenericEntityQualifier (a, b, c, d, e, f, g)) => Entity (a, b, c, d, e, f, g)
+instance (GenericEntity (a, b, c, d, e, f, g)) => Entity (a, b, c, d, e, f, g)
 
 -- | A value which may normally not be @NULL@.
 instance (Entity a) => Entity (Maybe a) where
