@@ -87,7 +87,7 @@ instance (Entity typ) => GEntityRecord ('TSingle meta typ) where
 		With (\ (Single x) -> x) genEntity
 
 	gParseRecord =
-		withRowParser parseEntity (finish . Single)
+		Single <$> parseEntity
 
 instance (GEntityRecord lhs,
           GEntityRecord rhs,
@@ -102,9 +102,8 @@ instance (GEntityRecord lhs,
 		         With (\ (Combine _ rhs) -> rhs) gEmbedRecord]
 
 	gParseRecord =
-		withRowParser gParseRecord $ \ lhs ->
-			withRowParser gParseRecord $ \ rhs ->
-				finish (Combine lhs rhs)
+		Combine <$>  gParseRecord
+		        <*>$ gParseRecord
 
 -- | Generic entity
 class (KnownNat (GEntityWidth dat)) => GEntity (dat :: KDataType) where
@@ -121,7 +120,7 @@ instance (GEntityRecord rec) => GEntity ('TRecord d c rec) where
 		With (\ (Record x) -> x) gEmbedRecord
 
 	gParseEntity =
-		withRowParser gParseRecord (finish . Record)
+		Record <$> gParseRecord
 
 instance (GEnumValue enum) => GEntity ('TFlatSum d enum) where
 	type GEntityWidth ('TFlatSum d enum) = 1
@@ -130,7 +129,7 @@ instance (GEnumValue enum) => GEntity ('TFlatSum d enum) where
 		Gen (Oid 0) (\ (FlatSum x) -> Just (gEnumToPayload x))
 
 	gParseEntity =
-		withRowParser parseByteString $ \ input ->
+		parseByteString >>=$ \ input ->
 			case gEnumFromPayload input of
 				Just x  -> finish (FlatSum x)
 				Nothing -> cancel (ColumnRejected Null)
@@ -144,9 +143,8 @@ genGeneric :: (Generic a, GEntity (Rep a)) => QueryGenerator a
 genGeneric = With fromGeneric gEmbedEntity
 
 -- | Generic 'RowParser' for an entity.
-parseGeneric :: (Generic a, GEntity (Rep a))
-             => RowParser (GEntityWidth (Rep a)) a
-parseGeneric = withRowParser gParseEntity (finish . toGeneric)
+parseGeneric :: (Generic a, GEntity (Rep a)) => RowParser (GEntityWidth (Rep a)) a
+parseGeneric = toGeneric <$> gParseEntity
 
 -- | An entity that is used as a parameter or result of a query.
 class (KnownNat (Width a)) => Entity a where
@@ -237,21 +235,18 @@ instance (Entity a) => Entity (Maybe a) where
 	genEntity =
 		walkTree genEntity
 		where
-			maskGen _ Nothing  = Nothing
-			maskGen f (Just x) = f x
-
 			walkTree :: QueryGenerator b -> QueryGenerator (Maybe b)
-			walkTree (Gen oid f)  = Gen oid (maskGen f)
+			walkTree (Gen oid f)  = Gen oid (>>= f)
 			walkTree (Code code)  = Code code
 			walkTree (With f gen) = With (fmap f) (walkTree gen)
 			walkTree (Merge l r)  = Merge (walkTree l) (walkTree r)
 
 	parseEntity =
-		withRowParser (nonNullCheck width) $ \ allNonNull ->
+		nonNullCheck width >>=$ \ allNonNull ->
 			if allNonNull then
 				Just <$> parseEntity
 			else
-				withRowParser skipColumns (\ _ -> finish Nothing)
+				skipColumns >>$ finish Nothing
 		where
 			width = fromIntegral (natVal @(Width a) Proxy)
 
@@ -263,7 +258,7 @@ buildGen typ builder =
 -- |
 parseFromValue :: (IsValue a) => RowParser 1 a
 parseFromValue =
-	withRowParser parseValue $ \ value ->
+	parseValue >>=$ \ value ->
 		case fromValue value of
 			Just x  -> finish x
 			Nothing -> cancel (ColumnRejected value)

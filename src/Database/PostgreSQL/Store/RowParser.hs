@@ -20,9 +20,12 @@ module Database.PostgreSQL.Store.RowParser (
 	processResultWith,
 
 	-- * Means of composition
+	(>>=$),
+	(>>$),
+	(<*>$),
 	finish,
 	cancel,
-	withRowParser,
+
 	skipColumns,
 	nonNullCheck,
 
@@ -88,14 +91,30 @@ finish x = RowParser (\ _ _ _ -> pure x)
 cancel :: RowErrorDetail -> RowParser 0 a
 cancel detail = RowParser (\ _ row col -> throwError (RowError (RowErrorLocation col row) detail))
 
+infixl 1 >>=$
+
 -- | Transform the result of another 'RowParser'. Similar to monadic bind. Also keeps track
 -- of how many columns are needed in total.
-withRowParser :: forall a v b w. (KnownNat v)
-              => RowParser v a -> (a -> RowParser w b) -> RowParser (v + w) b
-withRowParser proc func =
+(>>=$) :: forall a v b w. (KnownNat v)
+       => RowParser v a -> (a -> RowParser w b) -> RowParser (v + w) b
+proc >>=$ func =
 	RowParser $ \ result row col -> do
 		x <- runProcessor proc result row col :: M a
 		runProcessor (func x) result row (col + fromIntegral (natVal @v Proxy))
+
+infixl 1 >>$
+
+-- | Chain two 'RowParser's, but discard the result of the first.
+(>>$) :: forall a v b w. (KnownNat v)
+       => RowParser v a -> RowParser w b -> RowParser (v + w) b
+p1 >>$ p2 = p1 >>=$ const p2
+
+infixl 4 <*>$
+
+-- | Just like the '(<*>)' operator.
+(<*>$) :: forall a v b w. (KnownNat v, KnownNat w)
+       => RowParser v (a -> b) -> RowParser w a -> RowParser (v + w) b
+pf <*>$ px = pf >>=$ \ f -> px >>=$ \ x -> finish (f x)
 
 -- | Skip a number of columns.
 skipColumns :: RowParser n ()
