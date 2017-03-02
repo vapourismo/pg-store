@@ -180,7 +180,7 @@ queryWith parser =
 		Errand (lift (withExceptT ParseError (processResultWith result parser)))
 
 -- | Execute a query and process its result set.
-query :: (EntityC r, ErrandQuery q [r]) => q r -> ErrandResult q [r]
+query :: (Entity r, ErrandQuery q [r]) => q r -> ErrandResult q [r]
 query = queryWith parseEntity
 
 -- | Prepare a preparable query.

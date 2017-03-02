@@ -20,7 +20,6 @@
 module Database.PostgreSQL.Store.Entity (
 	-- * Result and query entity
 	Entity (..),
-	EntityC,
 
 	embedEntity,
 
@@ -41,11 +40,10 @@ module Database.PostgreSQL.Store.Entity (
 	-- * Helpers
 	GEntityRecord (..),
 	GEntity (..),
-	GenericPolyEntity
+	GenericEntityQualifier
 ) where
 
 import           GHC.TypeLits hiding (Text)
-import           Data.Kind
 import           Data.Proxy
 
 import           Data.Int
@@ -75,21 +73,15 @@ import           Database.PostgreSQL.Store.Query.Builder
 import           Database.PostgreSQL.LibPQ (Oid (..))
 
 -- | Generic record entity
-class GEntityRecord (rec :: KRecord) where
+class (KnownNat (GRecordWidth rec)) => GEntityRecord (rec :: KRecord) where
 	type GRecordWidth rec :: Nat
-
-	type GRecordConstraint rec :: Constraint
 
 	gEmbedRecord :: QueryGenerator (Record rec)
 
 	gParseRecord :: RowParser (GRecordWidth rec) (Record rec)
 
-type GEntityRecordC a = (GEntityRecord a, KnownNat (GRecordWidth a))
-
-instance (EntityC typ) => GEntityRecord ('TSingle meta typ) where
+instance (Entity typ) => GEntityRecord ('TSingle meta typ) where
 	type GRecordWidth ('TSingle meta typ) = Width typ
-
-	type GRecordConstraint ('TSingle meta typ) = EntityC typ
 
 	gEmbedRecord =
 		With (\ (Single x) -> x) genEntity
@@ -97,12 +89,12 @@ instance (EntityC typ) => GEntityRecord ('TSingle meta typ) where
 	gParseRecord =
 		withRowParser parseEntity (finish . Single)
 
-instance (GEntityRecordC lhs, GEntityRecordC rhs) => GEntityRecord ('TCombine lhs rhs) where
-	type GRecordWidth ('TCombine lhs rhs) = GRecordWidth lhs + GRecordWidth rhs
+instance (GEntityRecord lhs,
+          GEntityRecord rhs,
+          KnownNat (GRecordWidth lhs + GRecordWidth rhs))
+         => GEntityRecord ('TCombine lhs rhs) where
 
-	type GRecordConstraint ('TCombine lhs rhs) = (GRecordConstraint lhs,
-	                                              GRecordConstraint rhs,
-	                                              KnownNat (GRecordWidth lhs + GRecordWidth rhs))
+	type GRecordWidth ('TCombine lhs rhs) = GRecordWidth lhs + GRecordWidth rhs
 
 	gEmbedRecord =
 		mconcat [With (\ (Combine lhs _) -> lhs) gEmbedRecord,
@@ -115,19 +107,15 @@ instance (GEntityRecordC lhs, GEntityRecordC rhs) => GEntityRecord ('TCombine lh
 				finish (Combine lhs rhs)
 
 -- | Generic entity
-class GEntity (dat :: KDataType) where
+class (KnownNat (GEntityWidth dat)) => GEntity (dat :: KDataType) where
 	type GEntityWidth dat :: Nat
-
-	type GEntityConstraint dat :: Constraint
 
 	gEmbedEntity :: QueryGenerator (DataType dat)
 
 	gParseEntity :: RowParser (GEntityWidth dat) (DataType dat)
 
-instance (GEntityRecordC rec) => GEntity ('TRecord d c rec) where
+instance (GEntityRecord rec) => GEntity ('TRecord d c rec) where
 	type GEntityWidth ('TRecord d c rec) = GRecordWidth rec
-
-	type GEntityConstraint ('TRecord d c rec) = GRecordConstraint rec
 
 	gEmbedEntity =
 		With (\ (Record x) -> x) gEmbedRecord
@@ -138,8 +126,6 @@ instance (GEntityRecordC rec) => GEntity ('TRecord d c rec) where
 instance (GEnumValue enum) => GEntity ('TFlatSum d enum) where
 	type GEntityWidth ('TFlatSum d enum) = 1
 
-	type GEntityConstraint ('TFlatSum d enum) = KnownNat 1
-
 	gEmbedEntity =
 		Gen (Oid 0) (\ (FlatSum x) -> Just (gEnumToPayload x))
 
@@ -149,30 +135,21 @@ instance (GEnumValue enum) => GEntity ('TFlatSum d enum) where
 				Just x  -> finish (FlatSum x)
 				Nothing -> cancel (ColumnRejected Null)
 
--- | 'GEntity' constraint and check that 'GEntityWidth' is a known natural number.
-type GEntityC a = (GEntity a, KnownNat (GEntityWidth a))
-
--- | Required for instances of 'Entity' for types with type parameters. This constraints all
--- parameters of that type to be usable in a generic instance implementation.
---
--- This constraint mostly exists to shut the compiler up, because it can't know when type
--- variables @a@ and @b@ satisfy @(KnownNat a, KnownNat b)@ that @a + b@ satisfies
--- @KnownNat (a + b)@ (at least in practise).
---
--- Check the 'Entity' intances for tuple types to see examples.
-type GenericPolyEntity a = (GEntityC (AnalyzeEntity a), GEntityConstraint (AnalyzeEntity a))
+-- | This is required if you want to use the default implementations of 'genEntity'or 'parseEntity'
+-- with polymorphic data types.
+type GenericEntityQualifier a = (GenericEntity a, GEntity (AnalyzeEntity a))
 
 -- | Generic 'QueryGenerator' for an entity.
 genGeneric :: (GenericEntity a, GEntity (AnalyzeEntity a)) => QueryGenerator a
 genGeneric = With fromGenericEntity gEmbedEntity
 
 -- | Generic 'RowParser' for an entity.
-parseGeneric :: (GenericEntity a, GEntityC (AnalyzeEntity a))
+parseGeneric :: (GenericEntity a, GEntity (AnalyzeEntity a))
              => RowParser (GEntityWidth (AnalyzeEntity a)) a
 parseGeneric = withRowParser gParseEntity (finish . toGenericEntity)
 
 -- | An entity that is used as a parameter or result of a query.
-class Entity a where
+class (KnownNat (Width a)) => Entity a where
 	-- | Number of values the entity consists of
 	type Width a :: Nat
 
@@ -187,12 +164,9 @@ class Entity a where
 	-- | Retrieve an instance of @a@ from the result set.
 	parseEntity :: RowParser (Width a) a
 
-	default parseEntity :: (GenericEntity a, GEntityC (AnalyzeEntity a))
+	default parseEntity :: (GenericEntity a, GEntity (AnalyzeEntity a))
 	                    => RowParser (GEntityWidth (AnalyzeEntity a)) a
 	parseEntity = parseGeneric
-
--- | 'Entity' constraint plus a check that ensures 'Width' is a known natural number.
-type EntityC a = (Entity a, KnownNat (Width a))
 
 -- | Embed an entity into the query.
 embedEntity :: (Entity e) => e -> QueryGenerator a
@@ -239,25 +213,25 @@ param9 :: (Entity r) => QueryGenerator (Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': t5 
 param9 = withParam9 genEntity
 
 -- | Chain of 2 entities
-instance (GenericPolyEntity (a, b)) => Entity (a, b)
+instance (GenericEntityQualifier (a, b)) => Entity (a, b)
 
 -- | Chain of 3 entities
-instance (GenericPolyEntity (a, b, c)) => Entity (a, b, c)
+instance (GenericEntityQualifier (a, b, c)) => Entity (a, b, c)
 
 -- | Chain of 4 entities
-instance (GenericPolyEntity (a, b, c, d)) => Entity (a, b, c, d)
+instance (GenericEntityQualifier (a, b, c, d)) => Entity (a, b, c, d)
 
 -- | Chain of 5 entities
-instance (GenericPolyEntity (a, b, c, d, e)) => Entity (a, b, c, d, e)
+instance (GenericEntityQualifier (a, b, c, d, e)) => Entity (a, b, c, d, e)
 
 -- | Chain of 6 entities
-instance (GenericPolyEntity (a, b, c, d, e, f)) => Entity (a, b, c, d, e, f)
+instance (GenericEntityQualifier (a, b, c, d, e, f)) => Entity (a, b, c, d, e, f)
 
 -- | Chain of 7 entities
-instance (GenericPolyEntity (a, b, c, d, e, f, g)) => Entity (a, b, c, d, e, f, g)
+instance (GenericEntityQualifier (a, b, c, d, e, f, g)) => Entity (a, b, c, d, e, f, g)
 
 -- | A value which may normally not be @NULL@.
-instance (EntityC a) => Entity (Maybe a) where
+instance (Entity a) => Entity (Maybe a) where
 	type Width (Maybe a) = Width a
 
 	genEntity =

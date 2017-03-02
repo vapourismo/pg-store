@@ -62,7 +62,7 @@ instance Arbitrary Scientific where
 	arbitrary = scientific <$> arbitrary <*> arbitrary
 
 -- |
-testEntity :: (EntityC a, Eq a, Show a) => P.Connection -> a -> Property
+testEntity :: (Entity a, Eq a, Show a) => P.Connection -> a -> Property
 testEntity db x = monadicIO $ do
 	result <- lift (runErrand db (query [pgQuery| SELECT $x |]))
 	elem <- case result of
@@ -73,7 +73,7 @@ testEntity db x = monadicIO $ do
 	stop (elem === x)
 
 -- |
-testEntityWith :: (EntityC a, Eq a, Show a) => P.Connection -> (a -> a) -> a -> Property
+testEntityWith :: (Entity a, Eq a, Show a) => P.Connection -> (a -> a) -> a -> Property
 testEntityWith db f x =
 	testEntity db (f x)
 
