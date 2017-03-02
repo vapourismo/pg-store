@@ -30,6 +30,8 @@ module Database.PostgreSQL.Store.RowParser (
 	nonNullCheck,
 
 	-- * Default parsers
+	retrieveColumn,
+	retrieveContent,
 	parseValue,
 	parseByteString
 ) where
@@ -41,7 +43,7 @@ import           Control.Monad.Except
 import           Data.Proxy
 import qualified Data.ByteString as B
 
-import           Database.PostgreSQL.Store.Value
+import           Database.PostgreSQL.Store.Types
 
 import qualified Database.PostgreSQL.LibPQ as P
 
@@ -53,7 +55,7 @@ data RowErrorLocation = RowErrorLocation P.Column P.Row
 data RowErrorDetail
 	= TooFewColumns
 		-- ^ Underlying 'RowParser' wants more columns than are currently present.
-	| ColumnRejected Value
+	| ColumnRejected
 		-- ^ A column value could not be parsed.
 	deriving (Show, Eq, Ord)
 
@@ -112,9 +114,9 @@ p1 >>$ p2 = p1 >>=$ const p2
 infixl 4 <*>$
 
 -- | Just like the '(<*>)' operator.
-(<*>$) :: forall a v b w. (KnownNat v, KnownNat w)
+(<*>$) :: forall a v b w. (KnownNat v)
        => RowParser v (a -> b) -> RowParser w a -> RowParser (v + w) b
-pf <*>$ px = pf >>=$ \ f -> px >>=$ \ x -> finish (f x)
+pf <*>$ px = pf >>=$ \ f -> (\ x -> f x) <$> px
 
 -- | Skip a number of columns.
 skipColumns :: RowParser n ()
@@ -125,6 +127,21 @@ nonNullCheck :: Int -> RowParser 0 Bool
 nonNullCheck n =
 	RowParser $ \ result row col ->
 		not . or <$> lift (forM [col .. col + (toEnum n - 1)] (P.getisnull result row))
+
+-- | Retrieve a column's type and content.
+retrieveColumn :: RowParser 1 (Oid, Maybe B.ByteString)
+retrieveColumn =
+	RowParser $ \ result row col ->
+		lift ((,) <$> P.ftype result col <*> P.getvalue' result row col)
+
+-- | Retrieve a column's content.
+retrieveContent :: RowParser 1 B.ByteString
+retrieveContent =
+	RowParser $ \ result row col -> do
+		mbCnt <- lift (P.getvalue' result row col)
+		case mbCnt of
+			Just cnt -> pure cnt
+			Nothing  -> throwError (RowError (RowErrorLocation col row) ColumnRejected)
 
 -- | Row parser which extracts a single column 'Value'.
 parseValue :: RowParser 1 Value
@@ -142,4 +159,4 @@ parseByteString =
 		mb <- lift (P.getvalue' result row col)
 		case mb of
 			Just cnt -> pure cnt
-			Nothing  -> throwError (RowError (RowErrorLocation col row) (ColumnRejected Null))
+			Nothing  -> throwError (RowError (RowErrorLocation col row) ColumnRejected)

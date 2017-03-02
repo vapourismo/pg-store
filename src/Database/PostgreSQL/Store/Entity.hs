@@ -43,16 +43,23 @@ module Database.PostgreSQL.Store.Entity (
 	GenericEntity
 ) where
 
+import           GHC.Generics (Meta (..))
 import           GHC.TypeLits hiding (Text)
-import           Data.Proxy
+
+import           Control.Applicative
 
 import           Data.Int
 import           Data.Word
+import           Data.Bits
+import           Data.Proxy
 import           Data.Semigroup
 import           Data.Scientific (Scientific, formatScientific, FPFormat (Fixed))
 import           Numeric.Natural
 
 import qualified Data.Aeson              as A
+
+import           Data.Attoparsec.ByteString
+import           Data.Attoparsec.ByteString.Char8 (signed, decimal, double, scientific, skipSpace)
 
 import qualified Data.ByteString         as B
 import qualified Data.ByteString.Builder as B
@@ -63,14 +70,11 @@ import qualified Data.Text.Encoding      as T
 import qualified Data.Text.Lazy          as TL
 
 import           Database.PostgreSQL.Store.Types
-import           Database.PostgreSQL.Store.Value
 import           Database.PostgreSQL.Store.Tuple
 import           Database.PostgreSQL.Store.Generics
 import           Database.PostgreSQL.Store.Utilities
 import           Database.PostgreSQL.Store.RowParser
 import           Database.PostgreSQL.Store.Query.Builder
-
-import           Database.PostgreSQL.LibPQ (Oid (..))
 
 -- | Generic record entity
 class (KnownNat (GRecordWidth rec)) => GEntityRecord (rec :: KRecord) where
@@ -105,6 +109,28 @@ instance (GEntityRecord lhs,
 		Combine <$>  gParseRecord
 		        <*>$ gParseRecord
 
+-- | Generic enumeration value
+class GEntityEnum (enum :: KFlatSum) where
+	gEnumToPayload :: FlatSum enum -> B.ByteString
+
+	gEnumFromPayload :: B.ByteString -> Maybe (FlatSum enum)
+
+instance (KnownSymbol name) => GEntityEnum ('TValue ('MetaCons name f r)) where
+	gEnumToPayload _ =
+		buildByteString (symbolVal @name Proxy)
+
+	gEnumFromPayload value
+		| value == buildByteString (symbolVal @name Proxy) = Just Unit
+		| otherwise                                        = Nothing
+
+instance (GEntityEnum lhs, GEntityEnum rhs) => GEntityEnum ('TChoose lhs rhs) where
+	gEnumToPayload (ChooseLeft lhs)  = gEnumToPayload lhs
+	gEnumToPayload (ChooseRight rhs) = gEnumToPayload rhs
+
+	gEnumFromPayload input =
+		(ChooseLeft <$> gEnumFromPayload input) <|> (ChooseRight <$> gEnumFromPayload input)
+
+
 -- | Generic entity
 class (KnownNat (GEntityWidth dat)) => GEntity (dat :: KDataType) where
 	type GEntityWidth dat :: Nat
@@ -122,7 +148,7 @@ instance (GEntityRecord rec) => GEntity ('TRecord d c rec) where
 	gParseEntity =
 		Record <$> gParseRecord
 
-instance (GEnumValue enum) => GEntity ('TFlatSum d enum) where
+instance (GEntityEnum enum) => GEntity ('TFlatSum d enum) where
 	type GEntityWidth ('TFlatSum d enum) = 1
 
 	gEmbedEntity =
@@ -132,7 +158,7 @@ instance (GEnumValue enum) => GEntity ('TFlatSum d enum) where
 		parseByteString >>=$ \ input ->
 			case gEnumFromPayload input of
 				Just x  -> finish (FlatSum x)
-				Nothing -> cancel (ColumnRejected Null)
+				Nothing -> cancel ColumnRejected
 
 -- | This is required if you want to use the default implementations of 'genEntity'or 'parseEntity'
 -- with polymorphic data types.
@@ -255,13 +281,16 @@ buildGen :: Oid -> (a -> B.Builder) -> QueryGenerator a
 buildGen typ builder =
 	Gen typ (Just . BL.toStrict . B.toLazyByteString . builder)
 
--- |
-parseFromValue :: (IsValue a) => RowParser 1 a
-parseFromValue =
-	parseValue >>=$ \ value ->
-		case fromValue value of
-			Just x  -> finish x
-			Nothing -> cancel (ColumnRejected value)
+-- | Parse the contents of a column.
+parseContent :: Parser a -> RowParser 1 a
+parseContent p =
+	retrieveContent >>=$ \ input ->
+		case endResult (parse p input) of
+			Done _ r -> finish r
+			_        -> cancel ColumnRejected
+	where
+		endResult (Partial f) = f B.empty
+		endResult x           = x
 
 -- | @boolean@
 instance Entity Bool where
@@ -269,7 +298,8 @@ instance Entity Bool where
 
 	genEntity = Gen (Oid 16) (\ v -> Just (if v then "t" else "f"))
 
-	parseEntity = parseFromValue
+	parseEntity =
+		(`elem` ["t", "1", "true", "TRUE", "y", "yes", "YES", "on", "ON"]) <$> retrieveContent
 
 -- | Any integer
 instance Entity Integer where
@@ -277,7 +307,7 @@ instance Entity Integer where
 
 	genEntity = buildGen (Oid 1700) B.integerDec
 
-	parseEntity = parseFromValue
+	parseEntity = parseContent (signed decimal)
 
 -- | Any integer
 instance Entity Int where
@@ -285,7 +315,7 @@ instance Entity Int where
 
 	genEntity = buildGen (Oid 20) B.intDec
 
-	parseEntity = parseFromValue
+	parseEntity = parseContent (signed decimal)
 
 -- | Any integer
 instance Entity Int8 where
@@ -293,7 +323,7 @@ instance Entity Int8 where
 
 	genEntity = buildGen (Oid 21) B.int8Dec
 
-	parseEntity = parseFromValue
+	parseEntity = parseContent (signed decimal)
 
 -- | Any integer
 instance Entity Int16 where
@@ -301,7 +331,7 @@ instance Entity Int16 where
 
 	genEntity = buildGen (Oid 21) B.int16Dec
 
-	parseEntity = parseFromValue
+	parseEntity = parseContent (signed decimal)
 
 -- | Any integer
 instance Entity Int32 where
@@ -309,7 +339,7 @@ instance Entity Int32 where
 
 	genEntity = buildGen (Oid 23) B.int32Dec
 
-	parseEntity = parseFromValue
+	parseEntity = parseContent (signed decimal)
 
 -- | Any integer
 instance Entity Int64 where
@@ -317,7 +347,7 @@ instance Entity Int64 where
 
 	genEntity = buildGen (Oid 20) B.int64Dec
 
-	parseEntity = parseFromValue
+	parseEntity = parseContent (signed decimal)
 
 -- | Any unsigned integer
 instance Entity Natural where
@@ -325,7 +355,7 @@ instance Entity Natural where
 
 	genEntity = With toInteger genEntity
 
-	parseEntity = parseFromValue
+	parseEntity = parseContent decimal
 
 -- | Any unsigned integer
 instance Entity Word where
@@ -333,7 +363,7 @@ instance Entity Word where
 
 	genEntity = buildGen (Oid 1700) B.wordDec
 
-	parseEntity = parseFromValue
+	parseEntity = parseContent decimal
 
 -- | Any unsigned integer
 instance Entity Word8 where
@@ -341,7 +371,7 @@ instance Entity Word8 where
 
 	genEntity = buildGen (Oid 21) B.word8Dec
 
-	parseEntity = parseFromValue
+	parseEntity = parseContent decimal
 
 -- | Any unsigned integer
 instance Entity Word16 where
@@ -349,7 +379,7 @@ instance Entity Word16 where
 
 	genEntity = buildGen (Oid 23) B.word16Dec
 
-	parseEntity = parseFromValue
+	parseEntity = parseContent decimal
 
 -- | Any unsigned integer
 instance Entity Word32 where
@@ -357,7 +387,7 @@ instance Entity Word32 where
 
 	genEntity = buildGen (Oid 20) B.word32Dec
 
-	parseEntity = parseFromValue
+	parseEntity = parseContent decimal
 
 -- | Any unsigned integer
 instance Entity Word64 where
@@ -365,7 +395,7 @@ instance Entity Word64 where
 
 	genEntity = buildGen (Oid 1700) B.word64Dec
 
-	parseEntity = parseFromValue
+	parseEntity = parseContent decimal
 
 -- | Any floating-point number
 instance Entity Double where
@@ -373,7 +403,7 @@ instance Entity Double where
 
 	genEntity = buildGen (Oid 1700) B.doubleDec
 
-	parseEntity = parseFromValue
+	parseEntity = parseContent double
 
 -- | Any floating-point number
 instance Entity Float where
@@ -381,7 +411,7 @@ instance Entity Float where
 
 	genEntity = buildGen (Oid 1700) B.floatDec
 
-	parseEntity = parseFromValue
+	parseEntity = realToFrac @Double @Float <$> parseEntity
 
 -- | Any numeric type
 instance Entity Scientific where
@@ -389,7 +419,7 @@ instance Entity Scientific where
 
 	genEntity = Gen (Oid 1700) (Just . buildByteString . formatScientific Fixed Nothing)
 
-	parseEntity = parseFromValue
+	parseEntity = parseContent scientific
 
 -- | @char@, @varchar@ or @text@ - UTF-8 encoded; does not allow NULL characters
 instance Entity String where
@@ -397,7 +427,7 @@ instance Entity String where
 
 	genEntity = Gen (Oid 25) (Just . buildByteString . filter (/= '\NUL'))
 
-	parseEntity = parseFromValue
+	parseEntity = T.unpack <$> parseEntity
 
 -- | @char@, @varchar@ or @text@ - UTF-8 encoded; does not allow NULL characters
 instance Entity T.Text where
@@ -405,7 +435,11 @@ instance Entity T.Text where
 
 	genEntity = Gen (Oid 25) (Just . T.encodeUtf8 . T.filter (/= '\NUL'))
 
-	parseEntity = parseFromValue
+	parseEntity =
+		retrieveContent >>=$ \ input ->
+			case T.decodeUtf8' input of
+				Right x -> finish x
+				_       -> cancel ColumnRejected
 
 -- | @char@, @varchar@ or @text@ - UTF-8 encoded; does not allow NULL characters
 instance Entity TL.Text where
@@ -413,7 +447,7 @@ instance Entity TL.Text where
 
 	genEntity = With TL.toStrict genEntity
 
-	parseEntity = parseFromValue
+	parseEntity = TL.fromStrict <$> parseEntity
 
 -- | @bytea@ - byte array encoded in hex format
 instance Entity B.ByteString where
@@ -426,7 +460,52 @@ instance Entity B.ByteString where
 				| n <= 0xF  = B.char7 '0' <> B.word8Hex n
 				| otherwise = B.word8Hex n
 
-	parseEntity = parseFromValue
+	parseEntity =
+		parseContent (hexFormat <|> escapedFormat)
+		where
+			isHexChar x =
+				(x >= 48 && x <= 57)     -- 0 - 9
+				|| (x >= 65 && x <= 70)  -- A - F
+				|| (x >= 97 && x <= 102) -- a - f
+
+			hexCharToWord x
+				| x >= 48 && x <= 57  = x - 48
+				| x >= 65 && x <= 70  = x - 55
+				| x >= 97 && x <= 102 = x - 87
+				| otherwise           = 0
+
+			hexWord = do
+				skipSpace
+				a <- satisfy isHexChar
+				b <- satisfy isHexChar
+
+				pure (shiftL (hexCharToWord a) 4 .|. hexCharToWord b)
+
+			hexFormat = do
+				word8 92  -- \
+				word8 120 -- x
+				B.pack <$> many hexWord <* skipSpace
+
+			isOctChar x = x >= 48 && x <= 55 -- 0 - 7
+
+			octCharToWord x
+				| isOctChar x = x - 48 -- 0
+				| otherwise   = 0
+
+			escapedWord = do
+				word8 92 -- \
+				a <- satisfy isOctChar
+				b <- satisfy isOctChar
+				c <- satisfy isOctChar
+
+				pure (shiftL (octCharToWord a) 6 .|. shiftL (octCharToWord b) 3 .|. c)
+
+			escapedBackslash = do
+				word8 92 -- \
+				word8 92
+
+			escapedFormat =
+				B.pack <$> many (escapedBackslash <|> escapedWord <|> anyWord8)
 
 -- | @bytea@ - byte array encoded in hex format
 instance Entity BL.ByteString where
@@ -434,7 +513,7 @@ instance Entity BL.ByteString where
 
 	genEntity = With BL.toStrict genEntity
 
-	parseEntity = parseFromValue
+	parseEntity = BL.fromStrict <$> parseEntity
 
 -- | @json@ or @jsonb@
 instance Entity A.Value where
@@ -442,4 +521,8 @@ instance Entity A.Value where
 
 	genEntity = Gen (Oid 114) (Just . BL.toStrict . A.encode)
 
-	parseEntity = parseFromValue
+	parseEntity =
+		retrieveContent >>=$ \ input ->
+			case A.decodeStrict input of
+				Just x -> finish x
+				_      -> cancel ColumnRejected
