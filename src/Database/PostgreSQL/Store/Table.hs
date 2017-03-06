@@ -114,7 +114,7 @@ data Table = Table {
 
 	-- | Table columns
 	tableCols :: [B.ByteString]
-}
+} deriving (Show, Eq, Ord)
 
 -- | Provide the means to demote 'KTable' to a value.
 class GTable (tbl :: KTable) where
