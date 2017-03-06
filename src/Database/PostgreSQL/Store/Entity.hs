@@ -87,11 +87,9 @@ class (KnownNat (GRecordWidth rec)) => GEntityRecord (rec :: KRecord) where
 instance (Entity typ) => GEntityRecord ('TSingle meta typ) where
 	type GRecordWidth ('TSingle meta typ) = Width typ
 
-	gEmbedRecord =
-		With (\ (Single x) -> x) genEntity
+	gEmbedRecord = With (\ (Single x) -> x) genEntity
 
-	gParseRecord =
-		Single <$> parseEntity
+	gParseRecord = Single <$> parseEntity
 
 instance (GEntityRecord lhs,
           GEntityRecord rhs,
@@ -116,8 +114,7 @@ class GEntityEnum (enum :: KFlatSum) where
 	gEnumFromPayload :: B.ByteString -> Maybe (FlatSum enum)
 
 instance (KnownSymbol name) => GEntityEnum ('TValue ('MetaCons name f r)) where
-	gEnumToPayload _ =
-		buildByteString (symbolVal @name Proxy)
+	gEnumToPayload _ = buildByteString (symbolVal @name Proxy)
 
 	gEnumFromPayload value
 		| value == buildByteString (symbolVal @name Proxy) = Just Unit
@@ -142,17 +139,14 @@ class (KnownNat (GEntityWidth dat)) => GEntity (dat :: KDataType) where
 instance (GEntityRecord rec) => GEntity ('TRecord d c rec) where
 	type GEntityWidth ('TRecord d c rec) = GRecordWidth rec
 
-	gEmbedEntity =
-		With (\ (Record x) -> x) gEmbedRecord
+	gEmbedEntity = With (\ (Record x) -> x) gEmbedRecord
 
-	gParseEntity =
-		Record <$> gParseRecord
+	gParseEntity = Record <$> gParseRecord
 
 instance (GEntityEnum enum) => GEntity ('TFlatSum d enum) where
 	type GEntityWidth ('TFlatSum d enum) = 1
 
-	gEmbedEntity =
-		Gen (Oid 0) (\ (FlatSum x) -> Just (gEnumToPayload x))
+	gEmbedEntity = Gen (Oid 0) (\ (FlatSum x) -> Just (gEnumToPayload x))
 
 	gParseEntity =
 		retrieveContent >>=$ \ input ->
@@ -284,10 +278,11 @@ buildGen typ builder =
 -- | Parse the contents of a column.
 parseContent :: Parser a -> RowParser 1 a
 parseContent p =
-	retrieveContent >>=$ \ input ->
-		case endResult (parse p input) of
-			Done _ r -> finish r
-			_        -> cancel ColumnRejected
+	processContent $ \ _ mbCnt -> do
+		r <- mbCnt
+		case endResult (parse p r) of
+			Done _ r -> Just r
+			_        -> Nothing
 	where
 		endResult (Partial f) = f B.empty
 		endResult x           = x

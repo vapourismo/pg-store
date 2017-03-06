@@ -30,6 +30,7 @@ module Database.PostgreSQL.Store.RowParser (
 	nonNullCheck,
 
 	-- * Default parsers
+	processContent,
 	retrieveColumn,
 	retrieveContent
 ) where
@@ -126,17 +127,19 @@ nonNullCheck n =
 	RowParser $ \ result row col ->
 		not . or <$> lift (forM [col .. col + (toEnum n - 1)] (P.getisnull result row))
 
+-- | Process the contents of a column.
+processContent :: (Oid -> Maybe B.ByteString -> Maybe a) -> RowParser 1 a
+processContent proc =
+	RowParser $ \ result row col -> do
+		res <- lift (proc <$> P.ftype result col <*> P.getvalue' result row col)
+		case res of
+			Just cnt -> pure cnt
+			Nothing  -> throwError (RowError (RowErrorLocation col row) ColumnRejected)
+
 -- | Retrieve a column's type and content.
 retrieveColumn :: RowParser 1 (Oid, Maybe B.ByteString)
-retrieveColumn =
-	RowParser $ \ result row col ->
-		lift ((,) <$> P.ftype result col <*> P.getvalue' result row col)
+retrieveColumn = processContent (\ a b -> Just (a, b))
 
 -- | Retrieve a column's content.
 retrieveContent :: RowParser 1 B.ByteString
-retrieveContent =
-	RowParser $ \ result row col -> do
-		mbCnt <- lift (P.getvalue' result row col)
-		case mbCnt of
-			Just cnt -> pure cnt
-			Nothing  -> throwError (RowError (RowErrorLocation col row) ColumnRejected)
+retrieveContent = processContent (const id)
