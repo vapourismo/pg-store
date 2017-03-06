@@ -22,6 +22,9 @@ module Database.PostgreSQL.Store (
 	pgPrepQuery,
 	pgQueryGen,
 
+	-- * Types
+	Oid (..),
+
 	-- * Entity
 	Entity (..),
 
@@ -32,7 +35,7 @@ module Database.PostgreSQL.Store (
 	-- * Errors
 	ErrandError (..),
 	ErrorCode (..),
-	P.ExecStatus,
+	P.ExecStatus (..),
 	RowError (..),
 	RowErrorLocation (..),
 	RowErrorDetail (..)
