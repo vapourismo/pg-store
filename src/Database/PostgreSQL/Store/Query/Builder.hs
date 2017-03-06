@@ -23,6 +23,7 @@ module Database.PostgreSQL.Store.Query.Builder (
 
 	joinGens,
 
+	withParamN,
 	withParam0,
 	withParam1,
 	withParam2,
@@ -39,6 +40,7 @@ import           Data.Semigroup
 
 import           Data.List
 import           Data.String
+import           Data.Tagged
 import           Data.Hashable
 
 import qualified Data.ByteString as B
@@ -184,42 +186,48 @@ joinGens :: B.ByteString -> [QueryGenerator a] -> QueryGenerator a
 joinGens code gens =
 	mconcat (intersperse (Code code) gens)
 
--- |
+-- | Redirect the @n@-th parameter for the given query
+withParamN :: forall n r ts. (HasElement n ts r)
+           => QueryGenerator r
+           -> Tagged n (QueryGenerator (Tuple ts))
+withParamN x = Tagged (With (untag . getElementN @n) x)
+
+-- | Redirect the 0th paramter to the given query generator.
 withParam0 :: QueryGenerator r -> QueryGenerator (Tuple (r ': ts))
 withParam0 = With getElement0
 
--- |
+-- | Redirect the 1st paramter to the given query generator.
 withParam1 :: QueryGenerator r -> QueryGenerator (Tuple (t0 ': r ': ts))
 withParam1 = With getElement1
 
--- |
+-- | Redirect the 2nd paramter to the given query generator.
 withParam2 :: QueryGenerator r -> QueryGenerator (Tuple (t0 ': t1 ': r ': ts))
 withParam2 = With getElement2
 
--- |
+-- | Redirect the 3rd paramter to the given query generator.
 withParam3 :: QueryGenerator r -> QueryGenerator (Tuple (t0 ': t1 ': t2 ': r ': ts))
 withParam3 = With getElement3
 
--- |
+-- | Redirect the 4th paramter to the given query generator.
 withParam4 :: QueryGenerator r -> QueryGenerator (Tuple (t0 ': t1 ': t2 ': t3 ': r ': ts))
 withParam4 = With getElement4
 
--- |
+-- | Redirect the 5th paramter to the given query generator.
 withParam5 :: QueryGenerator r -> QueryGenerator (Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': r ': ts))
 withParam5 = With getElement5
 
--- |
+-- | Redirect the 6th paramter to the given query generator.
 withParam6 :: QueryGenerator r -> QueryGenerator (Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': r ': ts))
 withParam6 = With getElement6
 
--- |
+-- | Redirect the 7th paramter to the given query generator.
 withParam7 :: QueryGenerator r -> QueryGenerator (Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': r ': ts))
 withParam7 = With getElement7
 
--- |
+-- | Redirect the 8th paramter to the given query generator.
 withParam8 :: QueryGenerator r -> QueryGenerator (Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': t7 ': r ': ts))
 withParam8 = With getElement8
 
--- |
+-- | Redirect the 9th paramter to the given query generator.
 withParam9 :: QueryGenerator r -> QueryGenerator (Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': t7 ': t8 ': r ': ts))
 withParam9 = With getElement9

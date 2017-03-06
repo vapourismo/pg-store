@@ -25,6 +25,7 @@ module Database.PostgreSQL.Store.Tuple (
 	Tuple (..),
 	appendElement,
 
+	HasElement,
 	getElementN,
 	getElement0,
 	getElement1,
