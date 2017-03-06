@@ -1,5 +1,10 @@
 {-# LANGUAGE TemplateHaskell, OverloadedStrings #-}
 
+-- |
+-- Module:     Database.PostgreSQL.Store.Query.TH
+-- Copyright:  (c) Ole Krüger 2016
+-- License:    BSD3
+-- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Query.TH (
 	-- * Template Haskell
 	pgQueryGen,

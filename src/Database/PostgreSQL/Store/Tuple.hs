@@ -16,6 +16,11 @@
              StandaloneDeriving
 #-}
 
+-- |
+-- Module:     Database.PostgreSQL.Store.Tuple
+-- Copyright:  (c) Ole Krüger 2016
+-- License:    BSD3
+-- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Tuple (
 	Tuple (..),
 	appendElement,
