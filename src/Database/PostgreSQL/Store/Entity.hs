@@ -155,7 +155,7 @@ instance (GEntityEnum enum) => GEntity ('TFlatSum d enum) where
 		Gen (Oid 0) (\ (FlatSum x) -> Just (gEnumToPayload x))
 
 	gParseEntity =
-		parseByteString >>=$ \ input ->
+		retrieveContent >>=$ \ input ->
 			case gEnumFromPayload input of
 				Just x  -> finish (FlatSum x)
 				Nothing -> cancel ColumnRejected

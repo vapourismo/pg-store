@@ -31,9 +31,7 @@ module Database.PostgreSQL.Store.RowParser (
 
 	-- * Default parsers
 	retrieveColumn,
-	retrieveContent,
-	parseValue,
-	parseByteString
+	retrieveContent
 ) where
 
 import           GHC.TypeLits
@@ -140,23 +138,5 @@ retrieveContent =
 	RowParser $ \ result row col -> do
 		mbCnt <- lift (P.getvalue' result row col)
 		case mbCnt of
-			Just cnt -> pure cnt
-			Nothing  -> throwError (RowError (RowErrorLocation col row) ColumnRejected)
-
--- | Row parser which extracts a single column 'Value'.
-parseValue :: RowParser 1 Value
-parseValue =
-	RowParser $ \ result row col -> do
-		mb <- lift (P.getvalue' result row col)
-		case mb of
-			Nothing  -> pure Null
-			Just cnt -> (\ typ -> Value typ cnt) <$> lift (P.ftype result col)
-
--- | Extract the value of a cell. This parser will fail if value for that column is @NULL@.
-parseByteString :: RowParser 1 B.ByteString
-parseByteString =
-	RowParser $ \ result row col -> do
-		mb <- lift (P.getvalue' result row col)
-		case mb of
 			Just cnt -> pure cnt
 			Nothing  -> throwError (RowError (RowErrorLocation col row) ColumnRejected)
