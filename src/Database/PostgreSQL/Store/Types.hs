@@ -25,22 +25,32 @@ import           Database.PostgreSQL.LibPQ (Oid (..), Format (Text))
 
 -- | Query object
 data Query a = Query {
+	-- | SQL statement
 	queryStatement :: B.ByteString,
+
+	-- | Parameters
 	queryParams    :: [Maybe (Oid, B.ByteString, Format)]
 } deriving (Show, Eq, Ord)
 
 -- | Preparable query object
 data PrepQuery ts a = PrepQuery {
+	-- | Name of the prepared statement
 	prepName      :: B.ByteString,
+
+	-- | SQL statement
 	prepStatement :: B.ByteString,
+
+	-- | Parameter type hints
 	prepOids      :: [Oid],
+
+	-- | Parameter generator
 	prepParams    :: Tuple ts -> [Maybe (B.ByteString, Format)]
 } deriving (Show)
 
--- |
+-- | Attach 'Text' tag.
 toParam :: B.ByteString -> (B.ByteString, Format)
 toParam dat = (dat, Text)
 
--- |
+-- | Attach 'Text' tag.
 toTypedParam :: Oid -> B.ByteString -> (Oid, B.ByteString, Format)
 toTypedParam typ dat = (typ, dat, Text)
