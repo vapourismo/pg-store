@@ -5,8 +5,104 @@
 -- Copyright:  (c) Ole Krüger 2016
 -- License:    BSD3
 -- Maintainer: Ole Krüger <ole@vprsm.de>
+--
+-- All of the quasi quoters in this module accept the same language. It is almost identical to the
+-- language that a PostgreSQL server accepts. Certain operators have been reused in order to achieve
+-- a nice integration with the features of this library.
+--
+-- Each quasi quoter uses 'QueryGenerator' as an intermediate representation.
+--
+-- = 'QueryGenerator'
+-- Other query generators can be embedded using the @$(haskell code)@ construct.
+--
+-- > genCatSound :: QueryGenerator a
+-- > genCatSound = Code "'meow'"
+-- >
+-- > listCats :: Query String
+-- > listCats =
+-- >     [pgQuery| SELECT name
+-- >               FROM animals
+-- >               WHERE sound = $(genCatSound) |]
+--
+-- We inline the @genCatSound@ generator which produces the SQL code @\'meow\'@. As a result we have
+-- a query with this statement:
+--
+-- > SELECT *
+-- > FROM animals
+-- > WHERE sound = 'meow'
+--
+-- It is also possible to produce 'QueryGenerator's with the 'pgQueryGen' quasi quoter.
+--
+-- > genCatSound :: QueryGenerator a
+-- > genCatSound = [pgQueryGen| 'meow' |]
+--
+-- = 'Entity'
+-- Everything that has an instance of 'Entity' can also be used in these quasi quoters. So far, one
+-- can only utilize them in the form of named expressions.
+--
+-- The @$@ operator will cause the value of the following named expression to be used in the query.
+-- Any use of @$name@ is just a short cut for @$('embedEntity' name)@.
+--
+-- > listPeople :: Int -> Query String
+-- > listPeople minimumAge =
+-- >     [pgQuery| SELECT name
+-- >               FROM people
+-- >               WHERE age > $minimumAge |]
+--
+-- This query will list the names of people above a given age.
+--
+-- = 'TableEntity'
+-- The 'TableEntity' type class lets you associate a table name and the name of its column with a
+-- data type.
+--
+-- Given a table schema like the following:
+--
+-- > CREATE TABLE MyTable (
+-- >     first  INTEGER NOT NULL,
+-- >     second VARCHAR NOT NULL
+-- > )
+--
+-- We produce Haskell code like this:
+--
+-- > data MyTable = MyTable {
+-- >     first  :: Int,
+-- >     second :: String
+-- > } deriving (Show, Eq, Ord, Generic)
+-- >
+-- > instance Entity MyTable
+-- >
+-- > instance TableEntity MyTable
+--
+-- Alternatively we can implement 'Entity' and 'TableEntity' ourselves. In this case it is not
+-- needed.
+--
+-- We utilize these type classes in the following way:
+--
+-- > listMyTable :: Query MyTable
+-- > listMyTable =
+-- >     [pgQuery| SELECT #MyTable
+-- >               FROM @MyTable |]
+--
+-- We expand the absolute column names using @#MyTable@ and the table name using @\@MyTable@.
+-- This results in the following SQL:
+--
+-- > SELECT MyTable.first, MyTable.second
+-- > FROM MyTable
+--
+-- Aliasing the table name is also possible:
+--
+-- > listMyTable :: Query MyTable
+-- > listMyTable =
+-- >     [pgQuery| SELECT #MyTable(t)
+-- >               FROM @MyTable AS t |]
+--
+-- The alias is included in the resulting SQL:
+--
+-- > SELECT t.first, t.second
+-- > FROM MyTable t
+--
 module Database.PostgreSQL.Store.Query.TH (
-	-- * Template Haskell
+	-- * Quasi quoters
 	pgQueryGen,
 	pgQuery,
 	pgPrepQuery
@@ -215,7 +311,11 @@ queryGenE code =
 		Right segments ->
 			[e| mconcat $(ListE <$> mapM translateSegment segments) |]
 
--- |
+-- | Generate a 'QueryGenerator' expression.
+--
+-- See "Database.PostgreSQL.Store.Query.TH" for detailed description of the language accepted by
+-- this quasi quoter.
+--
 pgQueryGen :: QuasiQuoter
 pgQueryGen =
 	QuasiQuoter {
@@ -230,7 +330,11 @@ queryE :: String -> Q Exp
 queryE code =
 	[e| assemble $(queryGenE code) () |]
 
--- | Generate queries conveniently.
+-- | Generate a "Query". This utilizes an intermediate query generator of type @QueryGenerator ()@.
+--
+-- See "Database.PostgreSQL.Store.Query.TH" for detailed description of the language accepted by
+-- this quasi quoter.
+--
 pgQuery :: QuasiQuoter
 pgQuery =
 	QuasiQuoter {
@@ -249,7 +353,18 @@ prepQueryE code = do
 		withPrefix prefix =
 			[e| assemblePrep $(liftByteString prefix) $(queryGenE code) |]
 
--- |
+-- | Generate a "PrepQuery". The intermediate query generator has type @QueryGenerator (Tuple ts)@
+-- where @ts@ has kind @[Type]@. @ts@ represents the types of the parameters to this prepared query.
+--
+-- It is highly recommended that supply a type signature, if you give the resulting expression a
+-- name, to avoid ambiguity.
+--
+-- > q :: PrepQuery '[Int, String] User
+-- > q = [pgPrepQuery| SELECT #User(u) FROM @User u WHERE age < $(param0) AND name LIKE $(param1) |]
+--
+-- See "Database.PostgreSQL.Store.Query.TH" for detailed description of the language accepted by
+-- this quasi quoter.
+--
 pgPrepQuery :: QuasiQuoter
 pgPrepQuery =
 	QuasiQuoter {
