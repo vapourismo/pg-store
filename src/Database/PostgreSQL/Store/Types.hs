@@ -5,6 +5,7 @@
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Types (
 	-- * General
+	Statement (..),
 	Query (..),
 	PrepQuery (..),
 
@@ -22,6 +23,10 @@ import qualified Data.ByteString as B
 import           Database.PostgreSQL.Store.Tuple
 
 import           Database.PostgreSQL.LibPQ (Oid (..), Format (Text))
+
+-- | SQL statement
+newtype Statement a = Statement B.ByteString
+	deriving (Show, Eq, Ord)
 
 -- | Query object
 data Query a = Query {

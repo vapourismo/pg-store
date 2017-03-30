@@ -9,7 +9,8 @@
              FlexibleInstances,
              FlexibleContexts,
              TypeSynonymInstances,
-             DataKinds #-}
+             DataKinds,
+             QuasiQuotes #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Errand
@@ -29,7 +30,14 @@ module Database.PostgreSQL.Store.Errand (
 	query,
 	queryWith,
 
-	prepare
+	prepare,
+
+	beginTransaction,
+	commitTransaction,
+	saveTransaction,
+	rollbackTransaction,
+	rollbackTransactionTo,
+	withTransaction
 ) where
 
 import           GHC.TypeLits
@@ -51,6 +59,7 @@ import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Tuple
 import           Database.PostgreSQL.Store.Entity
 import           Database.PostgreSQL.Store.RowParser
+import           Database.PostgreSQL.Store.Query
 
 -- | Error during errand
 data ErrandError
@@ -144,6 +153,16 @@ class ErrandQuery q r where
 	-- | Execute the query described in @q x@ and pass its 'P.Result' to the given function.
 	executeWith :: (P.Result -> Errand r) -> q x -> ErrandResult q r
 
+instance ErrandQuery Statement r where
+	type ErrandResult Statement r = Errand r
+
+	executeWith end (Statement stmt) = do
+		con <- Errand ask
+		mbRes <- liftIO (P.execParams con stmt [] P.Text)
+		res <- transformResult mbRes
+		validateResult res
+		end res
+
 instance ErrandQuery Query r where
 	type ErrandResult Query r = Errand r
 
@@ -190,3 +209,29 @@ prepare (PrepQuery name stmt oids _) = do
 	mbRes <- liftIO (P.prepare con name stmt (Just oids))
 	res <- transformResult mbRes
 	validateResult res
+
+-- | Begin a transaction.
+beginTransaction :: Errand ()
+beginTransaction = () <$ execute (Statement "BEGIN")
+
+-- | Commit transaction.
+commitTransaction :: Errand ()
+commitTransaction = () <$ execute (Statement "COMMIT")
+
+-- | Create savepoint within transaction.
+saveTransaction :: B.ByteString -> Errand ()
+saveTransaction name = () <$ execute [pgQuery| SAVEPOINT $(genIdentifier name) |]
+
+-- | Roll back transaction.
+rollbackTransaction :: Errand ()
+rollbackTransaction = () <$ execute (Statement "ROLLBACK")
+
+-- | Roll back to a specific savepoint.
+rollbackTransactionTo :: B.ByteString -> Errand ()
+rollbackTransactionTo name = () <$ execute [pgQuery| ROLLBACK TO $(genIdentifier name) |]
+
+-- | Do something within a transaction.
+withTransaction :: Errand a -> Errand ()
+withTransaction trans = do
+	beginTransaction
+	(trans >> commitTransaction) <|> rollbackTransaction

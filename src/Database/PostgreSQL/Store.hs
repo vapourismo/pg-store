@@ -15,6 +15,13 @@ module Database.PostgreSQL.Store (
 
 	prepare,
 
+	beginTransaction,
+	commitTransaction,
+	saveTransaction,
+	rollbackTransaction,
+	rollbackTransactionTo,
+	withTransaction,
+
 	-- * Query
 	Query (..),
 	PrepQuery (..),
