@@ -25,19 +25,26 @@ module Database.PostgreSQL.Store.Errand (
 
 	runErrand,
 
+	-- * Execute queries
 	execute,
 	execute',
 	query,
 	queryWith,
 
+	-- * Prepare statements
 	prepare,
 
+	-- * Transactions
 	beginTransaction,
 	commitTransaction,
 	saveTransaction,
 	rollbackTransaction,
 	rollbackTransactionTo,
-	withTransaction
+	withTransaction,
+
+	-- * Helpers
+	ErrandQuery (..),
+
 ) where
 
 import           GHC.TypeLits
