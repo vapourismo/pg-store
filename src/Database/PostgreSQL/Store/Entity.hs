@@ -248,7 +248,7 @@ instance (GenericEntity (a, b, c, d, e, f)) => Entity (a, b, c, d, e, f)
 -- | Chain of 7 entities
 instance (GenericEntity (a, b, c, d, e, f, g)) => Entity (a, b, c, d, e, f, g)
 
--- | A value which may normally not be @NULL@.
+-- | A value which may be @NULL@.
 instance (Entity a) => Entity (Maybe a) where
 	type Width (Maybe a) = Width a
 
