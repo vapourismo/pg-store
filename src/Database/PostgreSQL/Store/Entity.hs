@@ -168,7 +168,7 @@ parseGeneric = toGeneric <$> gParseEntity
 
 -- | An entity that is used as a parameter or result of a query.
 class (KnownNat (Width a)) => Entity a where
-	-- | Number of values the entity consists of
+	-- | Number of values of which the entity consists
 	type Width a :: Nat
 
 	type Width a = GEntityWidth (Rep a)

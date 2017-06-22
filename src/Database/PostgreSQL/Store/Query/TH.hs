@@ -36,6 +36,8 @@
 -- > genCatSound :: QueryGenerator a
 -- > genCatSound = [pgQueryGen| 'meow' |]
 --
+-- 'pgQueryGen' supports the same operations as 'pgQuery'.
+--
 -- = 'Entity'
 -- Everything that has an instance of 'Entity' can also be used in these quasi quoters. So far, one
 -- can only utilize them in the form of named expressions.
@@ -94,7 +96,7 @@
 -- > listMyTable :: Query MyTable
 -- > listMyTable =
 -- >     [pgQuery| SELECT #MyTable(t)
--- >               FROM @MyTable AS t |]
+-- >               FROM @MyTable t |]
 --
 -- The alias is included in the resulting SQL:
 --
