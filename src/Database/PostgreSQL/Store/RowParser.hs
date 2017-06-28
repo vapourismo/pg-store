@@ -115,7 +115,7 @@ infixl 4 <*>$
 -- | Just like the '(<*>)' operator.
 (<*>$) :: forall a v b w. (KnownNat v)
        => RowParser v (a -> b) -> RowParser w a -> RowParser (v + w) b
-pf <*>$ px = pf >>=$ \ f -> (\ x -> f x) <$> px
+pf <*>$ px = pf >>=$ (<$> px)
 
 -- | Skip a number of columns.
 skipColumns :: RowParser n ()
@@ -138,7 +138,7 @@ processContent proc =
 
 -- | Retrieve a column's type and content.
 retrieveColumn :: RowParser 1 (Oid, Maybe B.ByteString)
-retrieveColumn = processContent (\ a b -> Just (a, b))
+retrieveColumn = processContent (curry Just)
 
 -- | Retrieve a column's content.
 retrieveContent :: RowParser 1 B.ByteString

@@ -1,13 +1,11 @@
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE FunctionalDependencies     #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeSynonymInstances       #-}
 {-# LANGUAGE UndecidableInstances       #-}
@@ -138,7 +136,7 @@ validateResult res = do
 
 -- | Counts the rows that have been affected by a query.
 countAffectedRows :: P.Result -> Errand Int
-countAffectedRows res = do
+countAffectedRows res =
 	fmap (\ numTuples -> fromMaybe 0 (numTuples >>= maybeResult . endResult . parse decimal))
 	     (liftIO (P.cmdTuples res))
 	where
@@ -157,14 +155,19 @@ class ErrandQuery q r where
 	-- | Execute the query described in @q x@ and pass its 'P.Result' to the given function.
 	executeWith :: (P.Result -> Errand r) -> q x -> ErrandResult q r
 
+-- |
+acceptResult :: IO (Maybe P.Result) -> Errand P.Result
+acceptResult action = do
+	mbRes <- liftIO action
+	res <- transformResult mbRes
+	res <$ validateResult res
+
 instance ErrandQuery Statement r where
 	type ErrandResult Statement r = Errand r
 
 	executeWith end (Statement stmt) = do
 		con <- Errand ask
-		mbRes <- liftIO (P.execParams con stmt [] P.Text)
-		res <- transformResult mbRes
-		validateResult res
+		res <- acceptResult (P.execParams con stmt [] P.Text)
 		end res
 
 instance ErrandQuery Query r where
@@ -172,9 +175,7 @@ instance ErrandQuery Query r where
 
 	executeWith end (Query stmt params) = do
 		con <- Errand ask
-		mbRes <- liftIO (P.execParams con stmt params P.Text)
-		res <- transformResult mbRes
-		validateResult res
+		res <- acceptResult (P.execParams con stmt params P.Text)
 		end res
 
 instance (WithTuple ts (Errand r)) => ErrandQuery (PrepQuery ts) r where

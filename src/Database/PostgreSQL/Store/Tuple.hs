@@ -9,7 +9,6 @@
 {-# LANGUAGE PolyKinds              #-}
 {-# LANGUAGE RankNTypes             #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
-{-# LANGUAGE StandaloneDeriving     #-}
 {-# LANGUAGE TypeApplications       #-}
 {-# LANGUAGE TypeFamilies           #-}
 {-# LANGUAGE TypeOperators          #-}
@@ -48,12 +47,12 @@ import Data.Kind
 import Data.List
 import Data.Tagged
 
+infixl 5 |>
+
 -- | Append a single element to the end of a list.
 type family (|>) (x :: [a]) (y :: a) :: [a] where
 	'[]       |> y = '[y]
-	(x ': xs) |> y = x ': (xs |> y)
-
-infixl 5 |>
+	(x : xs) |> y = x : (xs |> y)
 
 -- | Generic product type
 data Tuple (ts :: [Type]) where
