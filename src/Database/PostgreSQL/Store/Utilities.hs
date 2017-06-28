@@ -15,13 +15,14 @@ module Database.PostgreSQL.Store.Utilities (
 import           Language.Haskell.TH
 import           Language.Haskell.TH.Syntax
 
-import qualified Data.ByteString                    as B
 import qualified Blaze.ByteString.Builder           as B
 import qualified Blaze.ByteString.Builder.Char.Utf8 as B
+
+import qualified Data.ByteString                    as B
 import qualified Data.Text                          as T
 import qualified Data.Text.Encoding                 as T
 
-import           Text.Read (readMaybe)
+import           Text.Read                          (readMaybe)
 
 -- | Show as 'ByteString'
 showByteString :: (Show a) => a -> B.ByteString

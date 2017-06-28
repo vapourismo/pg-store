@@ -16,13 +16,13 @@ module Database.PostgreSQL.Store.Types (
 	Format
 ) where
 
-import           Text.Show.Functions ()
+import           Text.Show.Functions             ()
 
-import qualified Data.ByteString as B
+import qualified Data.ByteString                 as B
 
 import           Database.PostgreSQL.Store.Tuple
 
-import           Database.PostgreSQL.LibPQ (Oid (..), Format (Text))
+import           Database.PostgreSQL.LibPQ       (Format (Text), Oid (..))
 
 -- | SQL statement
 newtype Statement a = Statement B.ByteString

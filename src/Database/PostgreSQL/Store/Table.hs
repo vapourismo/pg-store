@@ -1,17 +1,16 @@
-{-# LANGUAGE OverloadedStrings,
-             ConstraintKinds,
-             DataKinds,
-             FlexibleContexts,
-             FlexibleInstances,
-             TypeFamilies,
-             TypeOperators,
-             TypeSynonymInstances,
-             UndecidableInstances,
-             ScopedTypeVariables,
-             QuasiQuotes,
-             DefaultSignatures,
-             TypeApplications
-#-}
+{-# LANGUAGE ConstraintKinds      #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE DefaultSignatures    #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE QuasiQuotes          #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE TypeOperators        #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Table
@@ -46,15 +45,14 @@ module Database.PostgreSQL.Store.Table (
 import           GHC.Generics
 import           GHC.TypeLits
 
+import qualified Data.ByteString                         as B
 import           Data.Kind
 import           Data.Proxy
 import           Data.Tagged
 
-import qualified Data.ByteString as B
-
 import           Database.PostgreSQL.Store.Entity
-import           Database.PostgreSQL.Store.Utilities
 import           Database.PostgreSQL.Store.Query.Builder
+import           Database.PostgreSQL.Store.Utilities
 
 -- | Type-level description of a record
 data KColumns

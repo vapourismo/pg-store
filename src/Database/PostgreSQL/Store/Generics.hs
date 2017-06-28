@@ -1,14 +1,13 @@
-{-# LANGUAGE ConstraintKinds,
-             DataKinds,
-             FlexibleContexts,
-             FlexibleInstances,
-             GADTs,
-             StandaloneDeriving,
-             TypeFamilies,
-             TypeOperators,
-             TypeSynonymInstances,
-             UndecidableInstances
-#-}
+{-# LANGUAGE ConstraintKinds      #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE GADTs                #-}
+{-# LANGUAGE StandaloneDeriving   #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE TypeOperators        #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Generics

@@ -1,16 +1,15 @@
-{-# LANGUAGE OverloadedStrings,
-             ConstraintKinds,
-             DataKinds,
-             DefaultSignatures,
-             FlexibleContexts,
-             FlexibleInstances,
-             ScopedTypeVariables,
-             TypeFamilies,
-             TypeOperators,
-             TypeApplications,
-             TypeSynonymInstances,
-             UndecidableInstances
-#-}
+{-# LANGUAGE ConstraintKinds      #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE DefaultSignatures    #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE TypeOperators        #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Entity
@@ -43,38 +42,36 @@ module Database.PostgreSQL.Store.Entity (
 	GenericEntity
 ) where
 
-import           GHC.Generics (Meta (..))
-import           GHC.TypeLits hiding (Text)
+import           GHC.Generics                            (Meta (..))
+import           GHC.TypeLits                            hiding (Text)
 
 import           Control.Applicative
 
-import           Data.Int
-import           Data.Word
+import qualified Data.Aeson                              as A
+import           Data.Attoparsec.ByteString
+import           Data.Attoparsec.ByteString.Char8        (decimal, double, scientific, signed,
+                                                          skipSpace)
 import           Data.Bits
+import qualified Data.ByteString                         as B
+import qualified Data.ByteString.Builder                 as B
+import qualified Data.ByteString.Lazy                    as BL
+import           Data.Int
 import           Data.Proxy
+import           Data.Scientific                         (FPFormat (Fixed), Scientific,
+                                                          formatScientific)
 import           Data.Semigroup
-import           Data.Scientific (Scientific, formatScientific, FPFormat (Fixed))
+import qualified Data.Text                               as T
+import qualified Data.Text.Encoding                      as T
+import qualified Data.Text.Lazy                          as TL
+import           Data.Word
 import           Numeric.Natural
 
-import qualified Data.Aeson              as A
-
-import           Data.Attoparsec.ByteString
-import           Data.Attoparsec.ByteString.Char8 (signed, decimal, double, scientific, skipSpace)
-
-import qualified Data.ByteString         as B
-import qualified Data.ByteString.Builder as B
-import qualified Data.ByteString.Lazy    as BL
-
-import qualified Data.Text               as T
-import qualified Data.Text.Encoding      as T
-import qualified Data.Text.Lazy          as TL
-
-import           Database.PostgreSQL.Store.Types
-import           Database.PostgreSQL.Store.Tuple
 import           Database.PostgreSQL.Store.Generics
-import           Database.PostgreSQL.Store.Utilities
-import           Database.PostgreSQL.Store.RowParser
 import           Database.PostgreSQL.Store.Query.Builder
+import           Database.PostgreSQL.Store.RowParser
+import           Database.PostgreSQL.Store.Tuple
+import           Database.PostgreSQL.Store.Types
+import           Database.PostgreSQL.Store.Utilities
 
 -- | Generic record entity
 class (KnownNat (GRecordWidth rec)) => GEntityRecord (rec :: KRecord) where

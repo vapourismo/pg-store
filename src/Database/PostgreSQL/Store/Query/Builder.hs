@@ -1,8 +1,9 @@
-{-# LANGUAGE ExistentialQuantification,
-             TypeOperators,
-             TypeApplications,
-             ScopedTypeVariables,
-             DataKinds #-}
+{-# LANGUAGE DataKinds                 #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE MultiParamTypeClasses     #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
+{-# LANGUAGE TypeApplications          #-}
+{-# LANGUAGE TypeOperators             #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Query.Builder
@@ -36,18 +37,16 @@ module Database.PostgreSQL.Store.Query.Builder (
 	withParam9
 ) where
 
-import           Data.Semigroup
-
+import qualified Data.ByteString                     as B
+import           Data.Hashable
 import           Data.List
+import           Data.Semigroup
 import           Data.String
 import           Data.Tagged
-import           Data.Hashable
 
-import qualified Data.ByteString as B
-
+import           Database.PostgreSQL.Store.Tuple
 import           Database.PostgreSQL.Store.Types
 import           Database.PostgreSQL.Store.Utilities
-import           Database.PostgreSQL.Store.Tuple
 
 -- | Generator for queries, its type parameter hints the type needed to generate the attached values
 data QueryGenerator a

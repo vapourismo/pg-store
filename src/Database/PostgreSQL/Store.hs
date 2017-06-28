@@ -48,11 +48,11 @@ module Database.PostgreSQL.Store (
 	RowErrorDetail (..)
 ) where
 
-import           Database.PostgreSQL.Store.Types
-import           Database.PostgreSQL.Store.Query
-import           Database.PostgreSQL.Store.Table
 import           Database.PostgreSQL.Store.Entity
-import           Database.PostgreSQL.Store.RowParser
 import           Database.PostgreSQL.Store.Errand
+import           Database.PostgreSQL.Store.Query
+import           Database.PostgreSQL.Store.RowParser
+import           Database.PostgreSQL.Store.Table
+import           Database.PostgreSQL.Store.Types
 
-import qualified Database.PostgreSQL.LibPQ as P
+import qualified Database.PostgreSQL.LibPQ           as P

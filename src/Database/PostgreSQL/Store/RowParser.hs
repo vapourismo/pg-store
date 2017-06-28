@@ -1,9 +1,9 @@
-{-# LANGUAGE DataKinds,
-             RankNTypes,
-             KindSignatures,
-             TypeOperators,
-             TypeApplications,
-             ScopedTypeVariables #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE KindSignatures      #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TypeOperators       #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.RowParser
@@ -39,12 +39,12 @@ import           GHC.TypeLits
 
 import           Control.Monad.Except
 
+import qualified Data.ByteString                 as B
 import           Data.Proxy
-import qualified Data.ByteString as B
 
 import           Database.PostgreSQL.Store.Types
 
-import qualified Database.PostgreSQL.LibPQ as P
+import qualified Database.PostgreSQL.LibPQ       as P
 
 -- | Location of an error
 data RowErrorLocation = RowErrorLocation P.Column P.Row

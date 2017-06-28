@@ -1,16 +1,16 @@
-{-# LANGUAGE OverloadedStrings,
-             GeneralizedNewtypeDeriving,
-             TypeApplications,
-             TypeFamilies,
-             ScopedTypeVariables,
-             MultiParamTypeClasses,
-             FunctionalDependencies,
-             UndecidableInstances,
-             FlexibleInstances,
-             FlexibleContexts,
-             TypeSynonymInstances,
-             DataKinds,
-             QuasiQuotes #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE FunctionalDependencies     #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE QuasiQuotes                #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE TypeSynonymInstances       #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Errand
@@ -50,23 +50,20 @@ module Database.PostgreSQL.Store.Errand (
 import           GHC.TypeLits
 
 import           Control.Applicative
-import           Control.Monad.Trans
 import           Control.Monad.Except
 import           Control.Monad.Reader
 
+import           Data.Attoparsec.ByteString.Char8
+import qualified Data.ByteString                     as B
 import           Data.Maybe
 
-import qualified Data.ByteString           as B
+import qualified Database.PostgreSQL.LibPQ           as P
 
-import           Data.Attoparsec.ByteString.Char8
-
-import qualified Database.PostgreSQL.LibPQ as P
-
-import           Database.PostgreSQL.Store.Types
-import           Database.PostgreSQL.Store.Tuple
 import           Database.PostgreSQL.Store.Entity
-import           Database.PostgreSQL.Store.RowParser
 import           Database.PostgreSQL.Store.Query
+import           Database.PostgreSQL.Store.RowParser
+import           Database.PostgreSQL.Store.Tuple
+import           Database.PostgreSQL.Store.Types
 
 -- | Error during errand
 data ErrandError

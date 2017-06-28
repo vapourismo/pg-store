@@ -1,4 +1,5 @@
-{-# LANGUAGE TemplateHaskell, OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell   #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Query.TH
@@ -110,25 +111,26 @@ module Database.PostgreSQL.Store.Query.TH (
 	pgPrepQuery
 ) where
 
+import           Language.Haskell.Meta.Parse
 import           Language.Haskell.TH
 import           Language.Haskell.TH.Quote
-import           Language.Haskell.Meta.Parse
 
 import           Control.Applicative
 
-import           Data.Tagged
-import           Data.List
-import           Data.Char
-import           Data.Attoparsec.Text
-import qualified Data.ByteString                    as B
-import qualified Blaze.ByteString.Builder           as B
-import qualified Blaze.ByteString.Builder.Char.Utf8 as B
-import qualified Data.Text                          as T
+import qualified Blaze.ByteString.Builder                as B
+import qualified Blaze.ByteString.Builder.Char.Utf8      as B
 
-import           Database.PostgreSQL.Store.Utilities
+import           Data.Attoparsec.Text
+import qualified Data.ByteString                         as B
+import           Data.Char
+import           Data.List
+import           Data.Tagged
+import qualified Data.Text                               as T
+
 import           Database.PostgreSQL.Store.Entity
-import           Database.PostgreSQL.Store.Table
 import           Database.PostgreSQL.Store.Query.Builder
+import           Database.PostgreSQL.Store.Table
+import           Database.PostgreSQL.Store.Utilities
 
 -- | Name
 valueName :: Parser String

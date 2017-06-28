@@ -1,20 +1,19 @@
-{-# LANGUAGE GADTs,
-             TypeFamilies,
-             TypeOperators,
-             TypeApplications,
-             ScopedTypeVariables,
-             MultiParamTypeClasses,
-             RankNTypes,
-             DataKinds,
-             PolyKinds,
-             ConstraintKinds,
-             FlexibleContexts,
-             FlexibleInstances,
-             UndecidableInstances,
-             FunctionalDependencies,
-             BangPatterns,
-             StandaloneDeriving
-#-}
+{-# LANGUAGE BangPatterns           #-}
+{-# LANGUAGE ConstraintKinds        #-}
+{-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE FlexibleContexts       #-}
+{-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GADTs                  #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE PolyKinds              #-}
+{-# LANGUAGE RankNTypes             #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE StandaloneDeriving     #-}
+{-# LANGUAGE TypeApplications       #-}
+{-# LANGUAGE TypeFamilies           #-}
+{-# LANGUAGE TypeOperators          #-}
+{-# LANGUAGE UndecidableInstances   #-}
 
 -- |
 -- Module:     Database.PostgreSQL.Store.Tuple
@@ -45,8 +44,8 @@ module Database.PostgreSQL.Store.Tuple (
 
 import GHC.TypeLits
 
-import Data.List
 import Data.Kind
+import Data.List
 import Data.Tagged
 
 -- | Append a single element to the end of a list.
