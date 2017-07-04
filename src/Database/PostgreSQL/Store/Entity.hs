@@ -167,7 +167,6 @@ parseGeneric = toGeneric <$> gParseEntity
 class (KnownNat (Width a)) => Entity a where
 	-- | Number of values of which the entity consists
 	type Width a :: Nat
-
 	type Width a = GEntityWidth (Rep a)
 
 	-- | Embed the entity into the query.
@@ -179,8 +178,8 @@ class (KnownNat (Width a)) => Entity a where
 	-- | Retrieve an instance of @a@ from the result set.
 	parseEntity :: RowParser (Width a) a
 
-	default parseEntity :: (Generic a, GEntity (Rep a))
-	                    => RowParser (GEntityWidth (Rep a)) a
+	default parseEntity :: (Generic a, GEntity (Rep a), Width a ~ GEntityWidth (Rep a))
+	                    => RowParser (Width a) a
 	parseEntity = parseGeneric
 
 -- | Embed an entity into the query.
