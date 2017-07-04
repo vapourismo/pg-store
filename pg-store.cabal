@@ -1,5 +1,5 @@
 name:                pg-store
-version:             0.4.2
+version:             0.4.3
 category:            Database
 synopsis:            Simple storage interface to PostgreSQL
 description:         Simple storage interface to PostgreSQL
