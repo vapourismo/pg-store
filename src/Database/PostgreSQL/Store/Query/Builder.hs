@@ -84,29 +84,29 @@ instance Hashable (QueryGenerator a) where
 
 -- | Assemble the query object.
 assemble :: QueryGenerator a -> a -> Query r
-assemble gen x =
+assemble gen param =
 	Query code values
 	where
-		(code, values, _) = walk gen x 1
+		(code, values, _) = walk gen param 1
 
 		walk :: QueryGenerator b -> b -> Word -> (B.ByteString, [Maybe (Oid, B.ByteString, Format)], Word)
-		walk gen x n =
-			case gen of
+		walk g p n =
+			case g of
 				Gen typ f ->
 					-- 36 = $
-					(B.cons 36 (showByteString n), [toTypedParam typ <$> f x], n + 1)
+					(B.cons 36 (showByteString n), [toTypedParam typ <$> f p], n + 1)
 
 				Code c ->
 					(c, [], n)
 
 				Merge lhs rhs ->
 					let
-						(lc, lv, n')  = walk lhs x n
-						(rc, rv, n'') = walk rhs x n'
+						(lc, lv, n')  = walk lhs p n
+						(rc, rv, n'') = walk rhs p n'
 					in (B.append lc rc, lv ++ rv, n'')
 
-				With t gen' ->
-					walk gen' (t x) n
+				With t g' ->
+					walk g' (t p) n
 
 -- | Assemble for query preparation.
 assemblePrep :: B.ByteString -> QueryGenerator (Tuple p) -> PrepQuery p r
@@ -116,8 +116,8 @@ assemblePrep prefix gen =
 		(code, oids, values, _) = walk gen 1
 
 		walk :: QueryGenerator b -> Word -> (B.ByteString, [Oid], b -> [Maybe (B.ByteString, Format)], Word)
-		walk gen n =
-			case gen of
+		walk g n =
+			case g of
 				Gen typ f ->
 					(B.cons 36 (showByteString n), [typ], \ x -> [toParam <$> f x], n + 1)
 
@@ -130,8 +130,8 @@ assemblePrep prefix gen =
 						(rc, rt, rf, n'') = walk rhs n'
 					in (B.append lc rc, lt ++ rt, lf <> rf, n'')
 
-				With f gen' ->
-					let (c, t, v, n') = walk gen' n in (c, t, v . f, n')
+				With f g' ->
+					let (c, t, v, n') = walk g' n in (c, t, v . f, n')
 
 -- | Embed a generator which requires an external parameter.
 withOther :: a -> QueryGenerator a -> QueryGenerator b
