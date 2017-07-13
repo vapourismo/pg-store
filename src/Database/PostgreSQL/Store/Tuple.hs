@@ -56,8 +56,8 @@ type family (|>) (x :: [a]) (y :: a) :: [a] where
 
 -- | Generic product type
 data Tuple (ts :: [Type]) where
-	Empty :: Tuple '[]
-	Cons  :: t -> !(Tuple ts) -> Tuple (t ': ts)
+	Nil  :: Tuple '[]
+	Cons :: t -> !(Tuple ts) -> Tuple (t ': ts)
 
 -- | Helper class for the @Show (Tuple ts)@ instance
 class ShowElement ts where
@@ -169,4 +169,4 @@ type WithTuple ts r = ConsTuple '[] (Tuple ts -> r) (FunctionType ts r)
 
 -- | Collect values to construct a @Tuple ts@, then apply the given function to it.
 withTuple :: (WithTuple ts r) => (Tuple ts -> r) -> FunctionType ts r
-withTuple = consTuple Empty
+withTuple = consTuple Nil
