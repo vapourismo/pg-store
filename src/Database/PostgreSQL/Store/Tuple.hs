@@ -125,7 +125,7 @@ getElement9 p = untag (getElement @9 p)
 -- | Build a function type using the given parameter types and return type.
 type family Function (ps :: [Type]) r where
 	Function '[]       r = r
-	Function (p ': ps) r = p -> Function ps r
+	Function (p : ps) r = p -> Function ps r
 
 -- | Generate a function which collects the parameters and packs then into a 'Tuple.
 class WithTuple (ts :: [Type]) where
