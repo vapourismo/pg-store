@@ -178,8 +178,8 @@ instance ErrandQuery Query r where
 		res <- acceptResult (P.execParams con stmt params P.Text)
 		end res
 
-instance (WithTuple ts (Errand r)) => ErrandQuery (PrepQuery ts) r where
-	type ErrandResult (PrepQuery ts) r = FunctionType ts (Errand r)
+instance (WithTuple ts) => ErrandQuery (PrepQuery ts) r where
+	type ErrandResult (PrepQuery ts) r = Function ts (Errand r)
 
 	executeWith end (PrepQuery name _ _ gens) =
 		withTuple $ \ params -> do

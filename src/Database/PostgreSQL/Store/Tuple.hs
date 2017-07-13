@@ -21,10 +21,8 @@
 -- Maintainer: Ole Krüger <ole@vprsm.de>
 module Database.PostgreSQL.Store.Tuple (
 	Tuple (..),
-	appendElement,
 
-	HasElement,
-	getElement,
+	HasElement (..),
 	getElement0,
 	getElement1,
 	getElement2,
@@ -36,7 +34,7 @@ module Database.PostgreSQL.Store.Tuple (
 	getElement8,
 	getElement9,
 
-	FunctionType,
+	Function,
 	WithTuple,
 	withTuple
 ) where
@@ -46,13 +44,6 @@ import GHC.TypeLits
 import Data.Kind
 import Data.List
 import Data.Tagged
-
-infixl 5 |>
-
--- | Append a single element to the end of a list.
-type family (|>) (x :: [a]) (y :: a) :: [a] where
-	'[]       |> y = '[y]
-	(x : xs) |> y = x : (xs |> y)
 
 -- | Generic product type
 data Tuple (ts :: [Type]) where
@@ -131,42 +122,17 @@ getElement8 p = untag (getElement @8 p)
 getElement9 :: Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': t7 ': t8 ': r ': ts) -> r
 getElement9 p = untag (getElement @9 p)
 
--- | Append an element to the end.
-class AppendElement ts where
-	appendElement :: Tuple ts -> t -> Tuple (ts |> t)
-
--- | Append to empty product.
-instance AppendElement '[] where
-	appendElement = flip Cons
-
-	{-# INLINE appendElement #-}
-
--- | Append to non-empty product.
-instance (AppendElement ts) => AppendElement (t ': ts) where
-	appendElement (Cons y ys) x = Cons y (appendElement ys x)
-
-	{-# INLINE appendElement #-}
-
--- | Do something with a 'Tuple'.
-class ConsTuple ts a r | ts r -> a where
-	consTuple :: Tuple ts -> a -> r
-
--- | Apply the given function to the current 'Tuple' state.
-instance ConsTuple ts (Tuple ts -> r) r where
-	consTuple state f = f state
-
--- | Collect and append product element, then continue.
-instance (AppendElement ts, ConsTuple (ts |> t) a r) => ConsTuple ts a (t -> r) where
-	consTuple state val x = consTuple (appendElement state x) val
-
 -- | Build a function type using the given parameter types and return type.
-type family FunctionType (ps :: [Type]) r where
-	FunctionType '[]       r = r
-	FunctionType (p ': ps) r = p -> FunctionType ps r
+type family Function (ps :: [Type]) r where
+	Function '[]       r = r
+	Function (p ': ps) r = p -> Function ps r
 
--- | A value of type @r@ can be created using an instance of @Tuple ts@.
-type WithTuple ts r = ConsTuple '[] (Tuple ts -> r) (FunctionType ts r)
+-- | Generate a function which collects the parameters and packs then into a 'Tuple.
+class WithTuple (ts :: [Type]) where
+	withTuple :: (Tuple ts -> r) -> Function ts r
 
--- | Collect values to construct a @Tuple ts@, then apply the given function to it.
-withTuple :: (WithTuple ts r) => (Tuple ts -> r) -> FunctionType ts r
-withTuple = consTuple Nil
+instance WithTuple '[] where
+	withTuple f = f Nil
+
+instance (WithTuple ts) => WithTuple (t : ts) where
+	withTuple f x = withTuple (f . Cons x)
