@@ -24,7 +24,7 @@ module Database.PostgreSQL.Store.Tuple (
 	appendElement,
 
 	HasElement,
-	getElementN,
+	getElement,
 	getElement0,
 	getElement1,
 	getElement2,
@@ -77,59 +77,59 @@ instance (ShowElement ts) => Show (Tuple ts) where
 -- | Helper class to extract an element from a 'Tuple'.
 class HasElement (n :: Nat) (ts :: [Type]) r | n ts -> r where
 	-- | Extract the @n@-th element from the product.
-	getElementN :: Tuple ts -> Tagged n r
+	getElement :: Tuple ts -> Tagged n r
 
 -- | Extract head element
 instance HasElement 0 (t ': ts) t where
-	getElementN (Cons x _) = Tagged x
+	getElement (Cons x _) = Tagged x
 
-	{-# INLINE getElementN #-}
+	{-# INLINE getElement #-}
 
 -- | Extract element that is not the head
 instance {-# OVERLAPPABLE #-} (1 <= n, HasElement (n - 1) ts r) => HasElement n (t ': ts) r where
-	getElementN (Cons _ !xs) = retag (getElementN xs :: Tagged (n - 1) r)
+	getElement (Cons _ !xs) = retag (getElement xs :: Tagged (n - 1) r)
 
-	{-# INLINE getElementN #-}
+	{-# INLINE getElement #-}
 
 -- | Extract element at index @0@.
 getElement0 :: Tuple (r ': ts) -> r
-getElement0 p = untag (getElementN @0 p)
+getElement0 p = untag (getElement @0 p)
 
 -- | Extract element at index @1@.
 getElement1 :: Tuple (t0 ': r ': ts) -> r
-getElement1 p = untag (getElementN @1 p)
+getElement1 p = untag (getElement @1 p)
 
 -- | Extract element at index @2@.
 getElement2 :: Tuple (t0 ': t1 ': r ': ts) -> r
-getElement2 p = untag (getElementN @2 p)
+getElement2 p = untag (getElement @2 p)
 
 -- | Extract element at index @3@.
 getElement3 :: Tuple (t0 ': t1 ': t2 ': r ': ts) -> r
-getElement3 p = untag (getElementN @3 p)
+getElement3 p = untag (getElement @3 p)
 
 -- | Extract element at index @4@.
 getElement4 :: Tuple (t0 ': t1 ': t2 ': t3 ': r ': ts) -> r
-getElement4 p = untag (getElementN @4 p)
+getElement4 p = untag (getElement @4 p)
 
 -- | Extract element at index @5@.
 getElement5 :: Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': r ': ts) -> r
-getElement5 p = untag (getElementN @5 p)
+getElement5 p = untag (getElement @5 p)
 
 -- | Extract element at index @6@.
 getElement6 :: Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': r ': ts) -> r
-getElement6 p = untag (getElementN @6 p)
+getElement6 p = untag (getElement @6 p)
 
 -- | Extract element at index @7@.
 getElement7 :: Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': r ': ts) -> r
-getElement7 p = untag (getElementN @7 p)
+getElement7 p = untag (getElement @7 p)
 
 -- | Extract element at index @8@.
 getElement8 :: Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': t7 ': r ': ts) -> r
-getElement8 p = untag (getElementN @8 p)
+getElement8 p = untag (getElement @8 p)
 
 -- | Extract element at index @9@.
 getElement9 :: Tuple (t0 ': t1 ': t2 ': t3 ': t4 ': t5 ': t6 ': t7 ': t8 ': r ': ts) -> r
-getElement9 p = untag (getElementN @9 p)
+getElement9 p = untag (getElement @9 p)
 
 -- | Append an element to the end.
 class AppendElement ts where

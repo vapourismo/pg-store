@@ -189,7 +189,7 @@ joinGens code gens =
 withParamN :: forall n r ts. (HasElement n ts r)
            => QueryGenerator r
            -> Tagged n (QueryGenerator (Tuple ts))
-withParamN x = Tagged (With (untag . getElementN @n) x)
+withParamN x = Tagged (With (untag . getElement @n) x)
 
 -- | Redirect the 0th paramter to the given query generator.
 withParam0 :: QueryGenerator r -> QueryGenerator (Tuple (r ': ts))
