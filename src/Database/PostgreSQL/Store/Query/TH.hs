@@ -104,6 +104,29 @@
 -- > SELECT t.first, t.second
 -- > FROM MyTable t
 --
+-- = Preparable queries
+-- When building preparable queries, one uses the 'PrepQuery' type to mark the query as preparable.
+--
+-- We utilize the shortcut @$n@ (where 0 <= n <= 9) to integrate parameters into the query.
+--
+-- In the following example, we turn @listPeople :: Int -> Query String@ into a preparable query.
+--
+-- > listPeople :: PrepQuery '[Int] String
+-- > listPeople =
+-- >     [pgQuery| SELECT name
+-- >               FROM people
+-- >               WHERE age > $0 |]
+--
+-- @listPeople@ is now a query which takes 1 parameter.
+--
+-- Before we can utilize @listPeople@, we have to 'prepare' it once.
+--
+-- > runErrand db (prepare listPeople)
+--
+-- Now that everything is set up, it is possible to execute the prepared query.
+--
+-- > runErrand db (query listPeople 25)
+--
 module Database.PostgreSQL.Store.Query.TH (
 	-- * Quasi quoters
 	pgQueryGen,
@@ -130,6 +153,7 @@ import qualified Data.Text                               as T
 import           Database.PostgreSQL.Store.Entity
 import           Database.PostgreSQL.Store.Query.Builder
 import           Database.PostgreSQL.Store.Table
+import           Database.PostgreSQL.Store.Tuple
 import           Database.PostgreSQL.Store.Utilities
 
 -- | Name
@@ -156,6 +180,7 @@ data QuerySegment
 	| QueryTable String
 	| QuerySelector String
 	| QuerySelectorAlias String String
+	| QueryParam Word
 	deriving (Show, Eq, Ord)
 
 -- | Table
@@ -178,6 +203,12 @@ selectorAliasSegment = do
 	                   <*  char '('
 	                   <*> valueName
 	                   <*  char ')'
+
+-- | Parameter
+paramSegment :: Parser QuerySegment
+paramSegment = do
+	char '$'
+	QueryParam <$> decimal
 
 -- | Entity
 entityNameSegment :: Parser QuerySegment
@@ -237,6 +268,7 @@ querySegment =
 	        tableSegment,
 	        selectorAliasSegment,
 	        selectorSegment,
+	        paramSegment,
 	        entityCodeSegment,
 	        entityNameSegment,
 	        otherSegment]
@@ -301,6 +333,23 @@ translateSegment segment =
 
 		QueryOther code ->
 			[e| Code $(liftByteString (packCode code)) |]
+
+		QueryParam idx -> do
+			let accessor =
+				case idx of
+					0 -> [e| getElement0 |]
+					1 -> [e| getElement1 |]
+					2 -> [e| getElement2 |]
+					3 -> [e| getElement3 |]
+					4 -> [e| getElement4 |]
+					5 -> [e| getElement5 |]
+					6 -> [e| getElement6 |]
+					7 -> [e| getElement7 |]
+					8 -> [e| getElement8 |]
+					9 -> [e| getElement9 |]
+					_ -> fail "Cannot use more than 10 parameters with the $n short cut"
+
+			[e| With $accessor genEntity |]
 
 -- | Parse a query string in order to produce a 'QueryGenerator' expression.
 queryGenE :: String -> Q Exp
