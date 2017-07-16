@@ -275,8 +275,8 @@ buildGen typ builder =
 parseContent :: Parser a -> RowParser 1 a
 parseContent p =
 	processContent $ \ _ mbCnt -> do
-		r <- mbCnt
-		case endResult (parse p r) of
+		cnt <- mbCnt
+		case endResult (parse p cnt) of
 			Done _ r -> Just r
 			_        -> Nothing
 	where
